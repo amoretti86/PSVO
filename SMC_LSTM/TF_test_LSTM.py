@@ -148,7 +148,7 @@ def tf_accuracy(obs_set, batch_size, log_ZSMC_args):
 	return accuracy/(len_obs_set/batch_size)
 
 def create_RLT_DIR(Experiment_params):
-	n_particles, n_iters, time, lr, epoch, seed = Experiment_params
+	Dh, time, n_particles, batch_size, lr, epoch, seed, n_train = Experiment_params
 	# create the dir to save data
 	cur_date = addDateTime()
 	parser = OptionParser()
@@ -157,9 +157,11 @@ def create_RLT_DIR(Experiment_params):
 	args = sys.argv
 	(options, args) = parser.parse_args(args)
 
-	local_rlt_root = './rslts/APF_SMC/'
-	params_str = "_n_particles" + str(n_particles) + "_n_iters" + str(n_iters) + \
-				 "_T" + str(time) + "_lr" + str(lr) + "_epoch" + str(epoch) + "_seed" + str(seed)
+	local_rlt_root = './rslts/SMC_LSTM/'
+	params_str = "_Dh" + str(Dh) + "_T" + str(time) + "_n_particles" + str(n_particles) + \
+				 "_batch_size" + str(batch_size) + "_lr" + str(lr) + \
+				 "_epoch" + str(epoch) + "_n_train" + str(n_train) + \
+				 "_seed" + str(seed)
 	RLT_DIR = local_rlt_root + options.rltdir + params_str + cur_date + '/'
 
 	if not os.path.exists(RLT_DIR): os.makedirs(RLT_DIR)
@@ -197,9 +199,9 @@ if __name__ == '__main__':
 	# x_0_true = np.random.randn(2)
 
 	# whether create dir and store results (tf.graph, tf.summary, true A B Q x_0, optimized A B Q x_0)
-	store_res = False
+	store_res = True
 	if store_res == True:
-		Experiment_params = (n_particles, n_iters, time, lr, epoch, seed)
+		Experiment_params = (Dh, time, n_particles, batch_size, lr, epoch, seed, n_train)
 		RLT_DIR = create_RLT_DIR(Experiment_params)
 
 	# Create train and test dataset
@@ -303,9 +305,9 @@ if __name__ == '__main__':
 	Sigma_smry 	= tf.summary.histogram('Sigma', Sigma)
 	x_0_smry 	= tf.summary.histogram('x_0', x_0)
 
-	log_ZSMC_true_smry 	= tf.summary.histogram('log_ZSMC_true', log_ZSMC_true)
-	log_ZSMC_train_smry = tf.summary.histogram('log_ZSMC_train', log_ZSMC_train)
-	log_ZSMC_test_smry 	= tf.summary.histogram('log_ZSMC_test', log_ZSMC_test)
+	log_ZSMC_true_smry 	= tf.summary.scalar('log_ZSMC_true', log_ZSMC_true)
+	log_ZSMC_train_smry = tf.summary.scalar('log_ZSMC_train', log_ZSMC_train)
+	log_ZSMC_test_smry 	= tf.summary.scalar('log_ZSMC_test', log_ZSMC_test)
 
 	matrix_merged = tf.summary.merge([A_smry, B_smry, Q_smry, Sigma_smry, x_0_smry])
 
@@ -385,7 +387,8 @@ if __name__ == '__main__':
 
 
 	if store_res == True:
-		params_dict = {"n_particles":n_particles, "n_iters":n_iters, "time":time, "lr":lr, "epoch":epoch, "seed":seed}
+		params_dict = {"Dh": Dh, "T":time, "n_particles":n_particles, "batch_size":batch_size, "lr":lr,
+				 	   "epoch":epoch, "n_train":n_train, "seed":seed}
 		true_model_dict = {"A_true":A_true, "Q_true":Q_true, "B_true":B_true, "x_0_true":x_0_true}
 		learned_model_dict = {"A_val":A_val, "Q_val":Q_val, "B_val":B_val, "x_0_val":x_0_val}
 		log_ZSMC_dict = {"log_ZSMC_true_val":log_ZSMC_true_val, "log_ZSMC_trains": log_ZSMC_trains, 
