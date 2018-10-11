@@ -7,7 +7,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
+import tensorflow.contrib.distributions as tfd
 import pdb
 
 # import from files
@@ -58,16 +58,16 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 		VRNN_Cell.reset()
 
 		if is_train:
-			VRNN_Cell.step(obs[0])
+			VRNN_Cell.step(obs[:,0])
 			X = VRNN_Cell.get_q_sample() 					# X.shape = (n_particles, batch_size, Dx)
 			q_uno_probs = VRNN_Cell.get_q_prob(X)			# probs.shape = (n_particles, batch_size)
 			f_nu_probs  = VRNN_Cell.get_f_prob(X)
-			g_uno_probs = VRNN_Cell.get_g_prob(X, obs[0])
+			g_uno_probs = VRNN_Cell.get_g_prob(X, obs[:,0])
 		else:
 			X = q.sample(None, name = 'X0')
 			q_uno_probs = q.prob(None, X, name = 'q_uno_probs')
 			f_nu_probs  = f.prob(None, X, name = 'f_nu_probs')
-			g_uno_probs = g.prob(X, obs[0], name = 'g_uno_probs')
+			g_uno_probs = g.prob(X, obs[:,0], name = 'g_uno_probs')
 
 		W = tf.multiply(g_uno_probs, f_nu_probs / q_uno_probs, name = 'W_0') 	# (n_particles, batch_size)
 		log_ZSMC = tf.log(tf.reduce_mean(W, axis = 0, name = 'W_0_mean'), 		# (batch_size,)
@@ -100,20 +100,20 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 			ugly_expanded = tf.expand_dims(ugly_stuff, axis = 2)									# (n_particles, batch_size, 1)
 			final_idx = tf.concat((idx_expanded, ugly_expanded), axis = 2)							# (n_particles, batch_size, 2)
 			X_prev = tf.gather_nd(X, final_idx)														# (n_particles, batch_size, Dx)
-		
-			VRNN_Cell.update_lstm(X_prev, obs[t-1])
+
+			VRNN_Cell.update_lstm(X_prev, obs[:,t-1])
 
 			if is_train:
-				VRNN_Cell.step(obs[t])
+				VRNN_Cell.step(obs[:,t])
 				X = VRNN_Cell.get_q_sample() 					# X.shape = (n_particles, batch_size, Dx)
 				q_t_probs = VRNN_Cell.get_q_prob(X)				# probs.shape = (n_particles, batch_size)				
 				f_t_probs = VRNN_Cell.get_f_prob(X)
-				g_t_probs = VRNN_Cell.get_g_prob(X, obs[t])
+				g_t_probs = VRNN_Cell.get_g_prob(X, obs[:,t])
 			else:
 				X = q.sample(X_prev, name = 'q_{}_sample'.format(t))
 				q_t_probs = q.prob(X_prev, X, name = 'q_{}_probs'.format(t))
 				f_t_probs = f.prob(X_prev, X, name = 'f_{}_probs'.format(t))
-				g_t_probs = g.prob(X, obs[t], name = 'g_{}_probs'.format(t))
+				g_t_probs = g.prob(X, obs[:,t], name = 'g_{}_probs'.format(t))
 
 			W =  tf.divide(g_t_probs * f_t_probs, k * q_t_probs, name = 'W_{}'.format(t))	# (n_particles, batch_size)
 			log_ZSMC += tf.log(tf.reduce_mean(W, axis = 0), name = 'log_ZSMC_{}'.format(t)) # (batch_size,)
@@ -174,7 +174,7 @@ if __name__ == '__main__':
 
 	Dy, Dx = 2, 2
 	Dh = 100
-	time = 5
+	time = 10
 	n_particles = 500
 
 	batch_size = 5
@@ -184,6 +184,8 @@ if __name__ == '__main__':
 
 	n_train = 10 	* batch_size
 	n_test  = 1 	* batch_size
+
+	print_freq = 5
 
 	use_log_prob = True # if SMC sampler uses log_prob
 
@@ -220,7 +222,22 @@ if __name__ == '__main__':
 			hidden_test[i-n_train] = hidden
 			obs_test[i-n_train]    = obs
 	obs_true = np.concatenate((obs_train, obs_test), axis = 0)
-	print("finish creating dataset")
+	print("finished creating dataset")
+
+	# Plot training data
+	plt.figure(figsize=(12,12))
+	plt.title("Training Time Series")
+	plt.xlabel("Time")
+	for i in range(n_train):
+		plt.subplot(8,7,i+1)
+		plt.plot(hidden_train[i], c='red')
+		plt.plot(obs_train[i], c='blue')
+		sns.despine()
+		plt.tight_layout()
+	plt.savefig(RLT_DIR + "Training Data")
+	plt.show()
+
+
 
 	# plt.plot(hidden[:,0])
 	# plt.plot(obs[:,0])
@@ -283,7 +300,7 @@ if __name__ == '__main__':
 	q_train = tf_multivariate_normal(n_particles, batch_size, tf.eye(Dx), tf.eye(Dx), name = 'q_train')
 	f_train = tf_multivariate_normal(n_particles, batch_size, A, 		  Q, x_0, 	  name = 'f_train')
 	g_train = tf_multivariate_normal(n_particles, batch_size, B, 		  Sigma, 	  name = 'g_train')
-	p_train = TensorGaussianPostApprox(A, B, Q, Sigma, name = 'p_train')
+	p_train = TensorGaussianPostApprox(A, B, Q, Sigma, name = 'p_train') # Revisit me
 
 	# for train_op
 	log_ZSMC, log = get_log_ZSMC(obs, VRNN_Cell, q_train, f_train, g_train, p_train, 
@@ -334,7 +351,7 @@ if __name__ == '__main__':
 
 		for i in range(epoch):
 			# train A, B, Q, x_0 using each training sample
-			np.random.shuffle(obs_train)
+			#np.random.shuffle(obs_train)
 			for j in range(0, len(obs_train), batch_size):
 				sess.run(train_op, feed_dict={obs: obs_train[j:j+batch_size]})
 				if store_res == True:
@@ -342,7 +359,7 @@ if __name__ == '__main__':
 					writer.add_summary(summary, i * len(obs_train) + j)
 
 			# print training and testing loss
-			if (i+1)%1 == 0:
+			if (i+1)%print_freq == 0:
 				log_ZSMC_train_val, train_smry = sess.run([log_ZSMC_train, log_ZSMC_train_smry], 
 														  feed_dict = {obs_set_train: obs_train})
 				log_ZSMC_test_val,  test_smry  = sess.run([log_ZSMC_test, log_ZSMC_test_smry],  
@@ -360,6 +377,42 @@ if __name__ == '__main__':
 		B_val = B.eval()
 		Q_val = Q.eval()
 		x_0_val = x_0.eval()
+
+		trained_log_ZSMC, trained_params = sess.run([log_ZSMC, log], feed_dict={obs: obs_train[:batch_size]})
+		test_log_ZSMC, test_params = sess.run([log_ZSMC, log], feed_dict = {obs: obs_test[:batch_size]})
+
+		TrainLatents = np.zeros((time, n_particles, batch_size, Dx))
+		for i, x in enumerate(test_params[0]):
+			TrainLatents[i] = x
+		#Paths = np.mean(Latents, axis=1)
+		plt.plot(TrainLatents[:,:,0,0], alpha=0.01, c='black')
+		plt.plot(hidden_train[0,:,0], c='yellow')
+		plt.savefig(RLT_DIR + 'train_path_filtered')
+		plt.show()
+
+		plt.figure(figsize=(10,10))
+		for b in range(batch_size):
+			plt.subplot(5, 5, b + 1)
+			plt.plot(TrainLatents[:,:,b,0], alpha=0.01)
+			plt.plot(hidden_train[b,:,0], c='yellow')
+		plt.show()
+
+		Latents = np.zeros((time, n_particles, batch_size, Dx))
+		for i, x in enumerate(test_params[0]):
+			Latents[i] = x
+		#Paths = np.mean(Latents, axis=1)
+		plt.plot(Latents[:,:,0,0], alpha=0.01, c='black')
+		plt.plot(hidden_test[0,:,0], c='yellow')
+		plt.savefig(RLT_DIR + 'test_path_filtered')
+		plt.show()
+
+		plt.figure(figsize=(10,10))
+		for b in range(batch_size):
+			plt.subplot(5, 5, b + 1)
+			plt.plot(Latents[:,:,b,0], alpha=0.01)
+			plt.plot(hidden_test[b,:,0], c='yellow')
+		plt.show()
+
 
 
 	sess.close()
@@ -399,10 +452,10 @@ if __name__ == '__main__':
 			pickle.dump(data_dict, f)
 
 	plt.figure()
-	plt.plot([log_ZSMC_true_val] * len(log_ZSMC_trains))
+	plt.plot([log_ZSMC_true_val] * len(log_ZSMC_trains), '--')
 	plt.plot(log_ZSMC_trains)
 	plt.plot(log_ZSMC_tests)
-	plt.legend(['true_log_ZSMC_val', 'log_ZSMC_trains', 'log_ZSMC_tests'])
+	plt.legend(['true_log_ZSMC_val', 'log_ZSMC_train', 'log_ZSMC_test'])
 	sns.despine()
 	if store_res == True:
 	  plt.savefig(RLT_DIR + "log_ZSMC_vals")
