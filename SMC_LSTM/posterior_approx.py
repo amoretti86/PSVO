@@ -3,7 +3,7 @@ import scipy as sp
 import numpy as np
 
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
+import tensorflow.contrib.distributions as tfd
 
 class LaplaceApprox:
 	"""
@@ -271,3 +271,23 @@ class TensorGaussianPostApprox():
 			k_N = det_term * exp_term_N
 
 		return k_N
+
+	def batchPosterior(self, X_prev_NxMxDz, y_MxDy, name=None):
+		""" Define computation of posterior probabilities to operate on minibatches
+			accepting a 3-Tensor for X_prev_NxMxDz and a 2-Tensor for y_MxDy """
+		if name is None:
+			name = self.name
+		with tf.name_scope(name):
+			Dz = tf.shape(self.A_DzxDz, out_type = tf.float32)[0]
+
+			mu1_NxMxDz = tf.einsum('nmz,zy->nmy',X_prev_NxMxDz,self.A_DzxDz)
+			mu2_MxDz = tf.matmul(y_MxDy, self.B_inv_DzxDy, transpose_b = True)
+			mu_diff_NxMxDz = tf.subtract(mu1_NxMxDz, mu2_MxDz)
+
+			mu_diff_Sigma_sum_NxMxDz = tf.einsum('nmz,zy->nmy', mu_diff_NxMxDz, self.Sigma_sum_inv_DzxDz)
+			exp_term_NxM = tf.exp(-(1./2)* tf.reduce_sum(mu_diff_NxMxDz * mu_diff_Sigma_sum_NxMxDz, axis=2))
+			det_term = 1./tf.sqrt((tf.constant(2*np.pi))**Dz *tf.matrix_determinant(self.Sigma_sum_DzxDz))
+
+			k_NxM = det_term * exp_term_NxM
+
+		return k_NxM
