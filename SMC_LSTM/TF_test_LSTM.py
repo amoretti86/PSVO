@@ -51,7 +51,7 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 			assert Dx 			== 2, 	"correct Dx: {}, wrong Dx: {}".format(2, Dx)
 			assert n_particles 	== 500, "correct n_particles: {}, wrong n_particles: {}".format(500, n_particles)
 			assert batch_size 	== 5, 	"correct batch_size: {}, wrong batch_size: {}".format(5, batch_size)
-			assert time 		== 10, 	"correct time: {}, wrong time: {}".format(10, time)
+			assert time 		== 25, 	"correct time: {}, wrong time: {}".format(25, time)
 			assert Dy 			== 2, 	"correct Dy: {}, wrong Dy: {}".format(2, Dy)
 
 		Xs = []
@@ -66,33 +66,13 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 		VRNN_Cell.reset()
 
 		if is_train:
-			if debug_mode:
-				Shape = obs[:,0].shape.as_list()
-				assert Shape == [batch_size, Dy], \
-					"correct obs[:,0].shape: {}, wrong shape: {}".format([batch_size, Dy], Shape)
 
 			VRNN_Cell.step(obs[:,0])
 			X = VRNN_Cell.get_q_sample() 					# X.shape = (n_particles, batch_size, Dx)
-
-			if debug_mode:
-				Shape = X.shape.as_list()
-				assert Shape == [n_particles, batch_size, Dx], \
-					"correct X.shape: {}, wrong shape: {}".format([n_particles, batch_size, Dx], Shape)
-
 			q_uno_probs = VRNN_Cell.get_q_prob(X)			# probs.shape = (n_particles, batch_size)
 			f_nu_probs  = VRNN_Cell.get_f_prob(X)
 			g_uno_probs = VRNN_Cell.get_g_prob(X, obs[:,0])
 
-			if debug_mode:
-				Shape = q_uno_probs.shape.as_list()
-				assert Shape == [n_particles, batch_size], \
-					"correct q_uno_probs.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
-				Shape = f_nu_probs.shape.as_list()
-				assert Shape == [n_particles, batch_size], \
-					"correct f_nu_probs.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
-				Shape = g_uno_probs.shape.as_list()
-				assert Shape == [n_particles, batch_size], \
-					"correct g_uno_probs.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
 		else:
 			X = q.sample(None, name = 'X0')
 			q_uno_probs = q.prob(None, X, name = 'q_uno_probs')
@@ -102,13 +82,6 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 		W = tf.multiply(g_uno_probs, f_nu_probs / q_uno_probs, name = 'W_0') 	# (n_particles, batch_size)
 		log_ZSMC = tf.log(tf.reduce_mean(W, axis = 0, name = 'W_0_mean'), 		# (batch_size,)
 						  name = 'log_ZSMC_0')
-		if debug_mode:
-			Shape = W.shape.as_list()
-			assert Shape == [n_particles, batch_size], \
-				"correct W.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
-			Shape = log_ZSMC.shape.as_list()
-			assert Shape == [batch_size], \
-				"correct log_ZSMC.shape: {}, wrong shape: {}".format([batch_size], Shape)
 
 		Xs.append(X)
 		Ws.append(W)
@@ -127,87 +100,25 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 			W = W/tf.reduce_sum(W, axis = 0)
 			W = tf.transpose(W)																		# (batch_size, n_particles)
 			
-			if debug_mode:
-				Shape = W.shape.as_list()
-				assert Shape == [batch_size, n_particles], \
-					"correct W.shape: {}, wrong shape: {}".format([batch_size, n_particles], Shape)
-
 			categorical = tfd.Categorical(probs = W, name = 'Categorical_{}'.format(t))
-			idx = tf.stop_gradient(categorical.sample(n_particles))									# (n_particles, batch_size)
-			# idx = categorical.sample(n_particles)
-
-			if debug_mode:
-				Shape = idx.shape.as_list()
-				assert Shape == [n_particles, batch_size], \
-					"correct idx.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
+			# idx = tf.stop_gradient(categorical.sample(n_particles))								# (n_particles, batch_size)
+			idx = categorical.sample(n_particles)
 
 			# ugly stuff used to resample X
 			ugly_stuff = tf.tile(tf.expand_dims(tf.range(batch_size), axis = 0), (n_particles, 1)) 	# (n_particles, batch_size)
-			
-			if debug_mode:
-				Shape = ugly_stuff.shape.as_list()
-				assert Shape == [n_particles, batch_size], \
-					"correct ugly_stuff.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
-					
 			idx_expanded = tf.expand_dims(idx, axis = 2)											# (n_particles, batch_size, 1)
-			
-			if debug_mode:
-				Shape = idx_expanded.shape.as_list()
-				assert Shape == [n_particles, batch_size, 1], \
-					"correct idx_expanded.shape: {}, wrong shape: {}".format([n_particles, batch_size, 1], Shape)
-					
 			ugly_expanded = tf.expand_dims(ugly_stuff, axis = 2)									# (n_particles, batch_size, 1)
-			
-			if debug_mode:
-				Shape = ugly_expanded.shape.as_list()
-				assert Shape == [n_particles, batch_size, 1], \
-					"correct ugly_expanded.shape: {}, wrong shape: {}".format([n_particles, batch_size, 1], Shape)
-					
 			final_idx = tf.concat((idx_expanded, ugly_expanded), axis = 2)							# (n_particles, batch_size, 2)
-			
-			if debug_mode:
-				Shape = final_idx.shape.as_list()
-				assert Shape == [n_particles, batch_size, 2], \
-					"correct final_idx.shape: {}, wrong shape: {}".format([n_particles, batch_size, 2], Shape)
-					
 			X_prev = tf.gather_nd(X, final_idx)														# (n_particles, batch_size, Dx)
-
-			if debug_mode:
-				Shape = X_prev.shape.as_list()
-				assert Shape == [n_particles, batch_size, Dx], \
-					"correct X_prev.shape: {}, wrong shape: {}".format([n_particles, batch_size, Dx], Shape)
 					
 			VRNN_Cell.update_lstm(X_prev, obs[:,t-1])
 
 			if is_train:
 				VRNN_Cell.step(obs[:,t])
-
-				if debug_mode:
-					Shape = obs[:,t].shape.as_list()
-					assert Shape == [batch_size, Dy], \
-						"correct obs[:,0].shape: {}, wrong shape: {}".format([batch_size, Dy], Shape)
-
 				X = VRNN_Cell.get_q_sample() 					# X.shape = (n_particles, batch_size, Dx)
-
-				if debug_mode:
-					Shape = X.shape.as_list()
-					assert Shape == [n_particles, batch_size, Dx], \
-						"correct X.shape: {}, wrong shape: {}".format([n_particles, batch_size, Dx], Shape)
-			
 				q_t_probs = VRNN_Cell.get_q_prob(X)				# probs.shape = (n_particles, batch_size)				
 				f_t_probs = VRNN_Cell.get_f_prob(X)
 				g_t_probs = VRNN_Cell.get_g_prob(X, obs[:,t])
-
-				if debug_mode:
-					Shape = q_t_probs.shape.as_list()
-					assert Shape == [n_particles, batch_size], \
-						"correct q_t_probs.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
-					Shape = f_t_probs.shape.as_list()
-					assert Shape == [n_particles, batch_size], \
-						"correct f_t_probs.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
-					Shape = g_t_probs.shape.as_list()
-					assert Shape == [n_particles, batch_size], \
-						"correct g_t_probs.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
 			else:
 				X = q.sample(X_prev, name = 'q_{}_sample'.format(t))
 				q_t_probs = q.prob(X_prev, X, name = 'q_{}_probs'.format(t))
@@ -216,14 +127,6 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 
 			W =  tf.divide(g_t_probs * f_t_probs, k * q_t_probs, name = 'W_{}'.format(t))	# (n_particles, batch_size)
 			log_ZSMC += tf.log(tf.reduce_mean(W, axis = 0), name = 'log_ZSMC_{}'.format(t)) # (batch_size,)
-			
-			if debug_mode:
-				Shape = W.shape.as_list()
-				assert Shape == [n_particles, batch_size], \
-					"correct W.shape: {}, wrong shape: {}".format([n_particles, batch_size], Shape)
-				Shape = log_ZSMC.shape.as_list()
-				assert Shape == [batch_size], \
-					"correct log_ZSMC.shape: {}, wrong shape: {}".format([batch_size], Shape)
 
 			Xs.append(X)
 			Ws.append(W)
@@ -237,20 +140,14 @@ def get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train = False, name = "get_log_Z
 
 		return mean_log_ZSMC, [Xs, Ws, W_means, fs, gs, qs, ps]
 
-# def accuracy(log_ZSMC, obs_set, batch_size, sess):
-# 	accuracy = []
-# 	for i in range(0, len(obs_set)-batch_size+1, batch_size):
-# 		accuracy.append(sess.run(log_ZSMC, feed_dict = {obs:obs_set[i:i+batch_size]}))
-# 	return np.mean(accuracy)
-
-def tf_accuracy(obs_set, batch_size, log_ZSMC_args):
+def tf_accuracy(obs_set, batch_size, log_ZSMC_args, debug_mode = False):
 	len_obs_set = obs_set.shape.as_list()[0]
 	VRNN_Cell, q, f, g, p, is_train, name = log_ZSMC_args
 
 	accuracy = 0
 	for i in range(0, len_obs_set, batch_size):
 		obs = obs_set[i:i+batch_size]
-		log_ZSMC, _ = get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train, name)
+		log_ZSMC, _ = get_log_ZSMC(obs, VRNN_Cell, q, f, g, p, is_train, name, debug_mode = debug_mode)
 		accuracy += log_ZSMC
 	return accuracy/(len_obs_set/batch_size)
 
@@ -281,7 +178,7 @@ if __name__ == '__main__':
 
 	Dy, Dx = 2, 2
 	Dh = 100
-	time = 10
+	time = 25
 	n_particles = 500
 
 	batch_size = 5
@@ -382,7 +279,7 @@ if __name__ == '__main__':
 	obs_set_train = tf.placeholder(tf.float32, shape=(n_train, 			time, Dy), 	name = 'obs_set_train')
 	obs_set_test  = tf.placeholder(tf.float32, shape=(n_test, 			time, Dy), 	name = 'obs_set_test')
 
-	VRNN_Cell = VartiationalRNN(Dx, Dy, Dh, n_particles, batch_size)
+	VRNN_Cell = VartiationalRNN(Dx, Dy, Dh, n_particles, batch_size, debug_mode = debug_mode)
 
 	# for evaluating true log_ZSMC
 	A_true_tnsr 	= tf.Variable(A_true, 		dtype=tf.float32, name='A_true')
@@ -411,13 +308,13 @@ if __name__ == '__main__':
 
 	# for train_op
 	log_ZSMC, log = get_log_ZSMC(obs, VRNN_Cell, q_train, f_train, g_train, p_train, 
-								 is_train = True,  name = 'log_ZSMC_train')
+								 is_train = True,  name = 'log_ZSMC_train', debug_mode = debug_mode)
 	# for printing accuracy during training
 	log_ZSMC_args_true = (VRNN_Cell, q_true,  f_true,  g_true,  p_true,  False, 'log_ZSMC_true')
 	log_ZSMC_args_test = (VRNN_Cell, q_train, f_train, g_train, p_train, True,  'log_ZSMC_train')
-	log_ZSMC_true  = tf_accuracy(obs_set_true,  batch_size, log_ZSMC_args_true)
-	log_ZSMC_train = tf_accuracy(obs_set_train, batch_size, log_ZSMC_args_test)
-	log_ZSMC_test  = tf_accuracy(obs_set_test,  batch_size, log_ZSMC_args_test)
+	log_ZSMC_true  = tf_accuracy(obs_set_true,  batch_size, log_ZSMC_args_true, debug_mode = debug_mode)
+	log_ZSMC_train = tf_accuracy(obs_set_train, batch_size, log_ZSMC_args_test, debug_mode = debug_mode)
+	log_ZSMC_test  = tf_accuracy(obs_set_test,  batch_size, log_ZSMC_args_test, debug_mode = debug_mode)
 	
 	with tf.name_scope('train'):
 		train_op = tf.train.GradientDescentOptimizer(lr).minimize(-log_ZSMC)
