@@ -226,8 +226,8 @@ if __name__ == '__main__':
 	# L_Q_init = np.random.rand(Dx, Dx) # Q = L * L^T
 	# L_Sigma_init = np.random.rand(Dy, Dy) # Q = L * L^T
 	# x_0_init = np.random.rand(Dx)
-	A_init = A_true # np.diag([0.5, 0.95])
-	B_init = np.diag([10.0, 10.0]) # B_true
+	A_init = np.diag([0.5, 0.95]) # A_true
+	B_init = B_true # np.diag([10.0, 10.0])
 	L_Q_init = Q_true # np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
 	L_Sigma_init = Sigma_true # np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
 	x_0_init = x_0_true # np.array([0.8, 0.8])
@@ -250,21 +250,21 @@ if __name__ == '__main__':
 	Q_true_tnsr 	= tf.Variable(Q_true, 		dtype=tf.float32, trainable = False, name='Q_true')
 	Sigma_true_tnsr = tf.Variable(Sigma_true, 	dtype=tf.float32, trainable = False, name='Q_true')
 	x_0_true_tnsr 	= tf.Variable(x_0_true, 	dtype=tf.float32, trainable = False, name='x_0_true')
-	q_true = tf_multivariate_normal(n_particles, tf.eye(Dx),  (10**2)*tf.eye(Dx), 			name = 'q_true')
+	q_true = tf_multivariate_normal(n_particles, tf.eye(Dx),  (20**2)*tf.eye(Dx), 			name = 'q_true')
 	f_true = tf_multivariate_normal(n_particles, A_true_tnsr, Q_true_tnsr, x_0_true_tnsr, 	name = 'f_true')
 	g_true = tf_multivariate_normal(n_particles, B_true_tnsr, Sigma_true_tnsr, 			  	name = 'g_true')
 	p_true = TensorGaussianPostApprox(A_true_tnsr, B_true_tnsr, Q_true_tnsr, Sigma_true_tnsr, name = 'p_true')
 
 	# A, B, Q, x_0 to train
-	A 		= tf.Variable(A_init, 		dtype=tf.float32, trainable = False, name='A')
-	B 		= tf.Variable(B_init, 		dtype=tf.float32, name='B')
+	A 		= tf.Variable(A_init, 		dtype=tf.float32, name='A')
+	B 		= tf.Variable(B_init, 		dtype=tf.float32, trainable = False, name='B')
 	L_Q 	= tf.Variable(L_Q_init, 	dtype=tf.float32, trainable = False, name='L_Q')
 	L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, trainable = False, name='L_Sigma')
 	x_0 	= tf.Variable(x_0_init, 	dtype=tf.float32, trainable = False, name='x_0')
 	Q 		= tf.matmul(L_Q, 	 L_Q, 	  transpose_b = True, name = 'Q')
 	Sigma 	= tf.matmul(L_Sigma, L_Sigma, transpose_b = True, name = 'Sigma')
 
-	q_train = tf_multivariate_normal(n_particles, tf.eye(Dx), (10**2)*tf.eye(Dx), name = 'q_train')
+	q_train = tf_multivariate_normal(n_particles, tf.eye(Dx), (20**2)*tf.eye(Dx), name = 'q_train')
 	f_train = tf_multivariate_normal(n_particles, A, 		  Q, x_0, 	  name = 'f_train')
 	g_train = tf_multivariate_normal(n_particles, B, 		  Sigma, 	  name = 'g_train')
 	p_train = TensorGaussianPostApprox(A, B, Q, Sigma, name = 'p_train')
@@ -319,8 +319,8 @@ if __name__ == '__main__':
 				log_ZSMC_trains.append(log_ZSMC_train)
 				log_ZSMC_tests.append(log_ZSMC_test)
 
-				print("B")
-				print(B.eval())
+				print("A")
+				print(A.eval())
 
 		A_val = A.eval()
 		B_val = B.eval()
