@@ -135,7 +135,7 @@ trueSMC  = SequentialMonteCarlo(obs, n_particles, x_0_true_tnsr, q_true, f_true,
 trainSMC = SequentialMonteCarlo(obs, n_particles, x_0, q_train, f_train, g_train, 1, name='logZSMCtrain')
 
 
-print("it worked, bitch.")
+print("it worked.")
 
 # Define operations as outputs of SMC functions
 log_ZSMC_true, params_true = trueSMC.get_log_ZSMC(obs, use_stop_gradient=True, name='log_ZSMC_true')
@@ -177,7 +177,7 @@ log_ZSMC_tests = []
 
 
 
-### WHAT THE FUCK IS THIS AND WHY DO WE NEED IT? ####
+
 
 def evaluate_mean_log_ZSMC(log_ZSMC, D, obs_samples, sess, debug_mode = True):
 	"""
