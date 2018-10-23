@@ -7,6 +7,7 @@ import numpy as np
 
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
+# import tensorflow.contrib.distributions as tfd
 
 class multivariate_normal:
 	""" 

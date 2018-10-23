@@ -42,7 +42,7 @@ if __name__ == '__main__':
 	n_iters = 2         # num_iters for Laplace Approx
 	time = 50
 	lr = 1e-4
-	epoch = 50
+	epoch = 100
 	seed = 0
 
 	n_train = 100
@@ -51,8 +51,8 @@ if __name__ == '__main__':
 	use_stop_gradient = False
 	print_freq = 10
 	store_res = True
-	rslt_dir_name = 'only_learn_B'
-	rslt_dir_name = 'only_learn_B_poisson'
+	rslt_dir_name = 'learn_AB'
+	rslt_dir_name = 'learn_AB_poisson'
 
 	tf.set_random_seed(seed)
 	np.random.seed(seed)
@@ -78,13 +78,12 @@ if __name__ == '__main__':
 
 	# Create train and test dataset
 	f = multivariate_normal(A_true, Q_true, x_0_true)
-	# g = multivariate_normal(B_true, Sigma_true)
-	g = poisson(B_true)
+	g = multivariate_normal(B_true, Sigma_true)
 	hidden_train, obs_train, hidden_test, obs_test = create_train_test_dataset(n_train, n_test, time, x_0_true, f, g, Dx, Dy)
 	print("finish creating dataset")
 
 	# init A, B, Q, Sigma, x_0 randomly
-	A_init = A_true 				# np.diag([0.5, 0.95])
+	A_init = np.diag([0.5, 0.95]) 	# A_true
 	B_init = np.diag([1.5, 1.5]) 	# B_true
 	L_Q_init = Q_true 				# np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
 	L_Sigma_init = Sigma_true 		# np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
@@ -102,12 +101,11 @@ if __name__ == '__main__':
 
 	q_true = tf_multivariate_normal(n_particles, tf.eye(Dx),  (10**2)*tf.eye(Dx), 			name = 'q_true')
 	f_true = tf_multivariate_normal(n_particles, A_true_tnsr, Q_true_tnsr, x_0_true_tnsr, 	name = 'f_true')
-	# g_true = tf_multivariate_normal(n_particles, B_true_tnsr, Sigma_true_tnsr, 			  	name = 'g_true')
-	g_true = tf_poisson(n_particles, B_true_tnsr, name = 'g_true')
+	g_true = tf_multivariate_normal(n_particles, B_true_tnsr, Sigma_true_tnsr, 			  	name = 'g_true')
 	p_true = TensorGaussianPostApprox(A_true_tnsr, B_true_tnsr, Q_true_tnsr, Sigma_true_tnsr, name = 'p_true')
 
 	# A, B, Q, x_0 to train
-	A 		= tf.Variable(A_init, 		dtype=tf.float32, trainable = False, name='A')
+	A 		= tf.Variable(A_init, 		dtype=tf.float32, name='A')
 	B 		= tf.Variable(B_init, 		dtype=tf.float32, name='B')
 	L_Q 	= tf.Variable(L_Q_init, 	dtype=tf.float32, trainable = False, name='L_Q')
 	L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, trainable = False, name='L_Sigma')
@@ -117,8 +115,7 @@ if __name__ == '__main__':
 
 	q_train = tf_multivariate_normal(n_particles, tf.eye(Dx), (10**2)*tf.eye(Dx), name = 'q_train')
 	f_train = tf_multivariate_normal(n_particles, A, 		  Q, x_0, 	  name = 'f_train')
-	# g_train = tf_multivariate_normal(n_particles, B, 		  Sigma, 	  name = 'g_train')
-	g_train = tf_poisson(n_particles, B, name = 'g_true')
+	g_train = tf_multivariate_normal(n_particles, B, 		  Sigma, 	  name = 'g_train')
 	p_train = TensorGaussianPostApprox(A, B, Q, Sigma, name = 'p_train')
 
 	# true_log_ZSMC: log_ZSMC generated from true A, B, Q, x_0
@@ -161,6 +158,8 @@ if __name__ == '__main__':
 				log_ZSMC_trains.append(log_ZSMC_train)
 				log_ZSMC_tests.append(log_ZSMC_test)
 
+				print("A")
+				print(A.eval())
 				print("B")
 				print(B.eval())
 
