@@ -7,11 +7,11 @@ import tensorflow as tf
 import pdb
 
 # import from files
-from SMC_sampler import *
-from distributions import *
+from SMC_sampler import create_train_test_dataset
+from distributions import multivariate_normal, poisson, tf_multivariate_normal, tf_poisson
 from posterior_approx import *
-from SMC import *
-from rslts_saving import *
+from SMC import get_log_ZSMC, evaluate_mean_log_ZSMC
+from rslts_saving import create_RLT_DIR, NumpyEncoder, plot_training_data, plot_learning_results, plot_losses
 
 # for data saving stuff
 import os
@@ -23,17 +23,6 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # to reduce a lot of log about the devi
 
 print("Akwaaba!")
 print(tf.__version__)
-
-def evaluate_mean_log_ZSMC(log_ZSMC, obs_samples):
-	"""
-	used for evaluating true_log_ZSMC, train_log_ZSMC, test_log_ZSMC
-	"""
-	log_ZSMCs = []
-	for obs_sample in obs_samples:
-		log_ZSMC_val = sess.run(log_ZSMC, feed_dict={obs: obs_sample})
-		log_ZSMCs.append(log_ZSMC_val)
-
-	return np.mean(log_ZSMCs)
 
 if __name__ == '__main__':
 
@@ -143,7 +132,7 @@ if __name__ == '__main__':
 
 		writer.add_graph(sess.graph)
 
-		true_log_ZSMC_val = evaluate_mean_log_ZSMC(log_ZSMC_true, obs_train + obs_test)
+		true_log_ZSMC_val = evaluate_mean_log_ZSMC(log_ZSMC_true, obs_train + obs_test, sess, obs)
 		print("true_log_ZSMC_val: {:<10.4f}".format(true_log_ZSMC_val))
 
 		for i in range(epoch):
@@ -154,8 +143,8 @@ if __name__ == '__main__':
 
 			# print training and testing loss
 			if (i+1)%print_freq == 0:
-				log_ZSMC_train = evaluate_mean_log_ZSMC(log_ZSMC, obs_train)
-				log_ZSMC_test  = evaluate_mean_log_ZSMC(log_ZSMC, obs_test)
+				log_ZSMC_train = evaluate_mean_log_ZSMC(log_ZSMC, obs_train, sess, obs)
+				log_ZSMC_test  = evaluate_mean_log_ZSMC(log_ZSMC, obs_test, sess, obs)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train, log_ZSMC_test))
 				log_ZSMC_trains.append(log_ZSMC_train)

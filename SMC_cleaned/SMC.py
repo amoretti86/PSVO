@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
+import numpy as np
 
 def get_log_ZSMC(obs, n_particles, q, f, g, p, use_stop_gradient, name = "get_log_ZSMC"):
 	with tf.name_scope(name):
@@ -71,3 +72,14 @@ def get_log_ZSMC(obs, n_particles, q, f, g, p, use_stop_gradient, name = "get_lo
 		W_means = tf.stack(W_means, name = 'W_means')
 
 		return log_ZSMC, [Xs, Ws, fs, gs, qs, ps, W_means]
+
+def evaluate_mean_log_ZSMC(log_ZSMC, obs_samples, sess, obs):
+	"""
+	used for evaluating true_log_ZSMC, train_log_ZSMC, test_log_ZSMC
+	"""
+	log_ZSMCs = []
+	for obs_sample in obs_samples:
+		log_ZSMC_val = sess.run(log_ZSMC, feed_dict={obs: obs_sample})
+		log_ZSMCs.append(log_ZSMC_val)
+
+	return np.mean(log_ZSMCs)
