@@ -1,5 +1,5 @@
 """
-normal and tf version of: multivariate_normal and element-wise Poisson
+normal and tf version of: mvn and element-wise Poisson
 """
 
 import scipy as sp
@@ -9,7 +9,7 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 # import tensorflow.contrib.distributions as tfd
 
-class multivariate_normal:
+class mvn:
 	""" 
 	Define Gaussian density
 		P(x_1) = N(x_0, Sigma)
@@ -45,15 +45,15 @@ class multivariate_normal:
 
 	def prob(self, x_prev, x):
 		if x_prev is None:
-			return sp.stats.multivariate_normal.pdf(x, self.x_0, self.Sigma)
+			return sp.stats.mvn.pdf(x, self.x_0, self.Sigma)
 		else:
-			return sp.stats.multivariate_normal.pdf(x, np.dot(self.A, x_prev), self.Sigma)
+			return sp.stats.mvn.pdf(x, np.dot(self.A, x_prev), self.Sigma)
 
 	def log_prob(self, x_prev, x):
 		if x_prev is None:
-			return sp.stats.multivariate_normal.logpdf(x, self.x_0, self.Sigma)
+			return sp.stats.mvn.logpdf(x, self.x_0, self.Sigma)
 		else:
-			return sp.stats.multivariate_normal.logpdf(x, np.dot(self.A, x_prev), self.Sigma)
+			return sp.stats.mvn.logpdf(x, np.dot(self.A, x_prev), self.Sigma)
 
 class poisson:
 	""" 
@@ -70,25 +70,25 @@ class poisson:
 
 	def sample(self, x):
 		# x: tensor, shape = (n_particles, Dx)
-		return np.random.poisson(np.exp(np.dot(self.B,x)))
+		# lambdas = np.exp(np.dot(self.B, x))
+		lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
+		return np.random.poisson(lambdas)
 
 	def prob(self, x, y):
-		assert len(x) == self.Dx
-		assert len(y) == self.Dy
-		lambdas = np.exp(np.dot(self.B, x))
+		# lambdas = np.exp(np.dot(self.B, x))
+		lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
 		element_wise_prob = sp.stats.poisson.pmf(y, lambdas)
 		prob = np.prod(element_wise_prob)
 		return prob
 
 	def log_prob(self, x, y):
-		assert len(x) == self.Dx
-		assert len(y) == self.Dy
-		lambdas = np.exp(np.dot(self.B, x))
+		# lambdas = np.exp(np.dot(self.B, x))
+		lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
 		element_wise_log_prob = sp.stats.poisson.logpmf(y, lambdas)
 		log_prob = np.sum(element_wise_log_prob)
 		return log_prob
 
-class tf_multivariate_normal:
+class tf_mvn:
 	""" 
 	Define Gaussian density
 		P(x_1) = N(x_0, Sigma)
@@ -100,7 +100,7 @@ class tf_multivariate_normal:
 	self.prob(x_t-1, x_t) will return the probability f(x_t | x_t-1)
 		to get prob nu(x_1) at T = 1, use self.prob(None, x_1)
 	"""
-	def __init__(self, n_particles, A, Sigma = None, x_0 = None, name = 'tf_multivariate_normal', dtype = tf.float32):
+	def __init__(self, n_particles, A, Sigma = None, x_0 = None, name = 'tf_mvn', dtype = tf.float32):
 		# A: tensor, shape = (Dx, Dx)
 		# Sigma: tensor, shape = (Dx, Dx)
 		# x_0: tensor, shape = (Dx,)
@@ -123,36 +123,44 @@ class tf_multivariate_normal:
 			self.name = name
 			self.dtype = dtype
 
-	def sample(self, x_prev, name = None):
-		# x_prev: tensor, shape = (n_particles, Dx), dtype = self.dtype
-		# sample: tensor, shape = (n_particles, Dx), dtype = self.dtype
-		if name is None:
-			name = self.name
-		with tf.name_scope(self.name):
+	def get_mvn(self, x_prev, name = None):
+		with tf.name_scope(name or self.name):
 			if x_prev is None:
 				return tfd.MultivariateNormalFullCovariance(loc = self.x_0, 
 															covariance_matrix = self.Sigma,
-															name = "mvn").sample(self.n_particles, name = "samples")
+															name = "mvn")
 			else:
-				return tfd.MultivariateNormalFullCovariance(loc = tf.matmul(x_prev, self.A, transpose_b = True, name = 'loc'), 
+				loc = tf.matmul(x_prev, self.A, transpose_b = True, name = 'loc')
+				return tfd.MultivariateNormalFullCovariance(loc = loc, 
 															covariance_matrix = self.Sigma,
-															name = "mvn").sample(name = "samples")
+															name = "mvn")
+
+
+	def sample(self, x_prev, name = None):
+		# x_prev: tensor, shape = (n_particles, Dx), dtype = self.dtype
+		# sample: tensor, shape = (n_particles, Dx), dtype = self.dtype
+		mvn = self.get_mvn(x_prev, name)
+		with tf.name_scope(name or self.name):
+			if x_prev is None:
+				return mvn.sample(self.n_particles, name = "samples")
+			else:
+				return mvn.sample(name = "samples")
 
 	def prob(self, x_prev, x, name = None):
 		# x_prev: tensor, shape = (n_particles, Dx), dtype = self.dtype
 		# x: tensor,      shape = (n_particles, Dx), dtype = self.dtype
 		# prob:	tensor, shape = (n_particles,), dtype = self.dtype
-		if name is None:
-			name = self.name
-		with tf.name_scope(self.name):
-			if x_prev is None:
-				return tfd.MultivariateNormalFullCovariance(loc = self.x_0, 
-															covariance_matrix = self.Sigma,
-															name = "mvn").prob(x, name = "prob")
-			else:
-				return tfd.MultivariateNormalFullCovariance(loc = tf.matmul(x_prev, self.A, transpose_b = True, name = 'loc'), 
-															covariance_matrix = self.Sigma,
-															name = "mvn").prob(x, name = "prob")
+		mvn = self.get_mvn(x_prev, name)
+		with tf.name_scope(name or self.name):
+			return mvn.prob(x, name = "prob")
+
+	def log_prob(self, x_prev, x, name = None):
+		# x_prev: tensor, shape = (n_particles, Dx), dtype = self.dtype
+		# x: tensor,      shape = (n_particles, Dx), dtype = self.dtype
+		# prob:	tensor, shape = (n_particles,), dtype = self.dtype
+		mvn = self.get_mvn(x_prev, name)
+		with tf.name_scope(name or self.name):
+			return mvn.log_prob(x, name = "log_prob")
 
 
 class tf_poisson:
@@ -172,25 +180,33 @@ class tf_poisson:
 			self.name = name
 			self.dtype = dtype
 
+	def get_poisson(self, x, name = None):
+		with tf.name_scope(name or self.name):
+			# log_rate = tf.matmul(x, self.B, transpose_b = True, name = 'log_rate')
+			# poisson = tfd.Poisson(log_rate = log_rate, name = "Poisson")
+			rate = tf.log(tf.exp(tf.matmul(x, self.B, transpose_b = True)) + 1, name = 'rate')
+			poisson = tfd.Poisson(rate = rate, name = "Poisson")
+			return poisson
+
 	def sample(self, x, name = None):
 		# x: 		tensor, shape = (n_particles, Dx), dtype = self.dtype
 		# sample: 	tensor, shape = (n_particles, Dx), dtype = self.dtype
-		if name is None:
-			name = self.name
-		with tf.name_scope(self.name):
-			poisson = tfd.Poisson(log_rate = tf.matmul(x, self.B, transpose_b = True, name = 'log_rate'), 
-								  name = "Poisson")
+		poisson = self.get_poisson(x, name)
+		with tf.name_scope(name or self.name):
 			return poisson.sample(name = "sample")
 
 	def prob(self, x, y, name = None):
 		# x: 	tensor, shape = (n_particles, Dx), dtype = self.dtype
 		# y: 	tensor, shape = (Dy,), dtype = self.dtype
 		# prob:	tensor, shape = (n_particles,), dtype = self.dtype
-		if name is None:
-			name = self.name
-		with tf.name_scope(self.name):
-			y_tile = tf.tile(tf.expand_dims(y, axis = 0), [self.n_particles, 1], name = 'y_tile')
-			log_rate = tf.matmul(x, self.B, transpose_b = True, name = 'log_rate')
-			poisson = tfd.Poisson(log_rate = log_rate, 
-								  name = "Poisson")
-			return tf.reduce_sum(poisson.prob(y_tile, name = "element_wise_prob"), axis = 1, name = "prob")
+		poisson = self.get_poisson(x, name)
+		with tf.name_scope(name or self.name):
+			return tf.reduce_prod(poisson.prob(y, name = "element_wise_prob"), axis = 1, name = "prob")
+
+	def log_prob(self, x, y, name = None):
+		# x: 	tensor, shape = (n_particles, Dx), dtype = self.dtype
+		# y: 	tensor, shape = (Dy,), dtype = self.dtype
+		# prob:	tensor, shape = (n_particles,), dtype = self.dtype
+		poisson = self.get_poisson(x, name)
+		with tf.name_scope(name or self.name):
+			return tf.reduce_sum(poisson.log_prob(y, name = "element_wise_log_prob"), axis = 1, name = "log_prob")
