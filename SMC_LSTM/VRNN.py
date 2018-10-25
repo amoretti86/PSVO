@@ -1,10 +1,10 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
-from tensorflow.contrib.layers import fully_connected
+from tensorflow.contrib.layers import fully_connected, xavier_initializer
 
 class VartiationalRNN():
 
-	def __init__(self, x_dim, y_dim, h_dim, n_particles, batch_size, variable_scope = "VRNN"):
+	def __init__(self, x_dim, y_dim, h_dim, n_particles, batch_size, sigma_cons = 0.6, variable_scope = "VRNN"):
 		self.Dh = h_dim
 		self.Dx = x_dim
 		self.Dy = y_dim
@@ -15,6 +15,7 @@ class VartiationalRNN():
 
 		self.n_particles = n_particles
 		self.batch_size = batch_size
+		self.sigma_cons = sigma_cons
 		self.variable_scope = variable_scope
 
 		self.lstm = tf.nn.rnn_cell.LSTMCell(h_dim, state_is_tuple=True)
@@ -56,10 +57,16 @@ class VartiationalRNN():
 		 	# y_t_ft_tiled.shape 	= (n_paticles, batch_size, Dy_1)
 			h_y_concat = tf.concat((h_stack, y_t_ft_tiled), axis = 2, name = 'h_y_concat')
 			# h_y_concat.shape 		= (n_paticles, batch_size, Dh + Dy_1)
-			mu    = fully_connected(h_y_concat, self.Dx, activation_fn = None, reuse = tf.AUTO_REUSE, scope = "mu")
+			mu    = fully_connected(h_y_concat, self.Dx, 
+									weights_initializer=xavier_initializer(uniform=False), 
+									activation_fn = None, 
+									reuse = tf.AUTO_REUSE, scope = "mu")
 			# mu.shape 				= (n_paticles, batch_size, Dx)
-			sigma = fully_connected(h_y_concat, self.Dx, activation_fn = tf.nn.softmax, 
-									reuse = tf.AUTO_REUSE, scope = "sigma")
+			sigma = fully_connected(h_y_concat, self.Dx,
+									weights_initializer=xavier_initializer(uniform=False), 
+									biases_initializer=tf.constant_initializer(0.6),
+									activation_fn = tf.nn.softplus, 
+									reuse = tf.AUTO_REUSE, scope = "sigma") + self.sigma_cons
 			# sigma.shape 			= (n_paticles, batch_size, Dx)
 			q = tfd.MultivariateNormalFullCovariance(loc = mu, covariance_matrix = tf.matrix_diag(sigma), 
 													 name = "q")
@@ -71,10 +78,17 @@ class VartiationalRNN():
 		h_stack.shape = (n_particles, batch_size, Dh)
 		"""
 		with tf.variable_scope(self.variable_scope + '/get_f'):
-			mu    = fully_connected(h_stack, self.Dx, activation_fn = None, 
+			mu    = fully_connected(h_stack, self.Dx, 
+									weights_initializer=xavier_initializer(uniform=False), 
+									activation_fn = None, 
 									reuse = tf.AUTO_REUSE, scope = "mu")
-			sigma = fully_connected(h_stack, self.Dx, activation_fn = tf.nn.softmax, 
-									reuse = tf.AUTO_REUSE, scope = "sigma")
+			# mu.shape 				= (n_paticles, batch_size, Dx)
+			sigma = fully_connected(h_stack, self.Dx,
+									weights_initializer=xavier_initializer(uniform=False), 
+									biases_initializer=tf.constant_initializer(0.6),
+									activation_fn = tf.nn.softplus, 
+									reuse = tf.AUTO_REUSE, scope = "sigma") + self.sigma_cons
+			# sigma.shape 			= (n_paticles, batch_size, Dx)
 			f = tfd.MultivariateNormalFullCovariance(loc = mu, covariance_matrix = tf.matrix_diag(sigma), 
 													 name = "f")
 			return f 
@@ -89,10 +103,17 @@ class VartiationalRNN():
 		# x_t_ft.shape = (n_particles, batch_size, Dx_1)
 		with tf.variable_scope(self.variable_scope + '/get_g'):
 			h_x_concat = tf.concat((h_stack, x_t_ft), axis = 2, name = 'h_x_concat')
-			mu    = fully_connected(h_x_concat, self.Dy, activation_fn = None, 
+			mu    = fully_connected(h_x_concat, self.Dy, 
+									weights_initializer=xavier_initializer(uniform=False), 
+									activation_fn = None, 
 									reuse = tf.AUTO_REUSE, scope = "mu")
-			sigma = fully_connected(h_x_concat, self.Dy, activation_fn = tf.nn.softmax, 
-									reuse = tf.AUTO_REUSE, scope = "sigma")
+			# mu.shape 				= (n_paticles, batch_size, Dx)
+			sigma = fully_connected(h_x_concat, self.Dy,
+									weights_initializer=xavier_initializer(uniform=False),
+									biases_initializer=tf.constant_initializer(0.6),
+									activation_fn = tf.nn.softplus, 
+									reuse = tf.AUTO_REUSE, scope = "sigma") + self.sigma_cons
+			# sigma.shape 			= (n_paticles, batch_size, Dx)
 			g = tfd.MultivariateNormalFullCovariance(loc = mu, covariance_matrix = tf.matrix_diag(sigma), 
 													 name = "g")
 			return g 
@@ -119,6 +140,7 @@ class VartiationalRNN():
 		x.shape = (n_particles, batch_size, Dx)
 		"""
 		with tf.variable_scope(self.variable_scope + '/get_q_prob'):
+			# return tf.maximum(self.q.prob(x, name = 'q_true_prob'), 1e-9, name = 'q_clipped_prob')
 			return self.q.prob(x, name = 'q_prob')
 			# shape = (n_particles, batch_size)
 
@@ -128,6 +150,7 @@ class VartiationalRNN():
 		x.shape = (n_particles, batch_size, Dx)
 		"""
 		with tf.variable_scope(self.variable_scope + '/get_f_prob'):
+			# return tf.maximum(self.f.prob(x, name = 'f_true_prob'), 1e-9, name = 'f_clipped_prob')
 			return self.f.prob(x, name = 'f_prob')
 			# shape = (n_particles, batch_size)
 
@@ -139,7 +162,40 @@ class VartiationalRNN():
 		"""
 		self.g = self.get_g(self.h_stack, x_t)
 		with tf.variable_scope(self.variable_scope + '/get_g_prob'):
-			return self.g.prob(y_t)
+			# return tf.maximum(self.g.prob(y_t, name = 'g_true_prob'), 1e-9, name = 'g_clipped_prob')
+			return self.g.prob(y_t, name = 'g_prob')
+			# shape = (n_particles, batch_size)
+
+	def get_q_log_prob(self, x):
+		"""
+		calculate q(x_t|h_t-1, y_t)
+		x.shape = (n_particles, batch_size, Dx)
+		"""
+		with tf.variable_scope(self.variable_scope + '/get_q_log_prob'):
+			# return tf.maximum(self.q.log_prob(x, name = 'q_true_log_prob'), -30.0, name = 'q_clipped_log_prob')
+			return self.q.log_prob(x, name = 'q_log_prob')
+			# shape = (n_particles, batch_size)
+
+	def get_f_log_prob(self, x):
+		"""
+		calculate f(x_t|h_t-1)
+		x.shape = (n_particles, batch_size, Dx)
+		"""
+		with tf.variable_scope(self.variable_scope + '/get_f_log_prob'):
+			# return tf.maximum(self.f.log_prob(x, name = 'f_true_log_prob'), -30.0, name = 'f_clipped_log_prob')
+			return self.f.prob(x, name = 'f_log_prob')
+			# shape = (n_particles, batch_size)
+
+	def get_g_log_prob(self, x_t, y_t):
+		"""
+		calculate g(y_t|h_t-1, x_t)
+		x_t.shape = (n_particles, batch_size, Dx)
+		y_t.shape = (batch_size, Dy)
+		"""
+		self.g = self.get_g(self.h_stack, x_t)
+		with tf.variable_scope(self.variable_scope + '/get_g_log_prob'):
+			return tf.maximum(self.g.log_prob(y_t, name = 'g_true_log_prob'), -30.0, name = 'g_clipped_log_prob')
+			return self.g.log_prob(y_t, name = 'g_log_prob')
 			# shape = (n_particles, batch_size)
 
 	def update_lstm(self, x_t, y_t):
