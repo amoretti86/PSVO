@@ -8,160 +8,162 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-class multivariate_normal:
+class mvn:
 	""" 
-	Define Gaussian density
-		P(x_1) = N(x_0, Sigma)
-		P(x_t | x_t-1) = N(A * x_t-1, Sigma)
-
-	self.sample(x_t-1) will return a sample x_t based on x_t-1
-		to get initial samples at T = 1, use self.sample(None)
-
-	self.prob(x_t-1, x_t) will return the probability f(x_t | x_t-1)
-		to get prob nu(x_1) at T = 1, use self.prob(None, x_1)
+	Define multivariate normal density
+		P(output | Input) = N(A * Input, Sigma)
+		if Input is None, P(output) = N(output_0, Sigma)
 	"""
-	def __init__(self, A, Sigma = None, x_0 = None):
-		# A, Sigma, x_0 should be tensors
+	def __init__(self, A, Sigma = None, output_0 = None):
 		self.A = A
-		self.Dx = A.shape[0]
+		self.Dout, self.Din = A.shape
 		if Sigma is not None:
 			self.Sigma = Sigma
 		else:
-			self.Sigma = np.eye(self.Dx)
+			self.Sigma = np.eye(self.Dout)
 
 		self.SigmaChol = np.linalg.cholesky(Sigma)
 
-		if x_0 is not None:
-			self.x_0 = x_0
+		if output_0 is not None:
+			self.output_0 = output_0
 		else:
-			self.x_0 = np.zeros(self.Dx)
+			self.output_0 = np.zeros(self.Dout)
 
-	def sample(self, x_prev = None):
-		if x_prev is None:
-			return self.x_0 + np.dot(self.SigmaChol, np.random.randn(self.Dx))
+	def sample(self, Input = None):
+		"""
+		sample from output ~ N(A * Input, Sigma)
+		if Input is None, sample from output ~ N(output_0, Sigma)
+		"""
+		if Input is None:
+			return self.output_0 + np.dot(self.SigmaChol, np.random.randn(self.Dout))
 		else:
-			return np.dot(self.A, x_prev) + np.dot(self.SigmaChol, np.random.randn(self.Dx))
+			return np.dot(self.A, Input) + np.dot(self.SigmaChol, np.random.randn(self.Dout))
 
-	def prob(self, x_prev, x):
-		if x_prev is None:
-			return sp.stats.multivariate_normal.pdf(x, self.x_0, self.Sigma)
+	def prob(self, Input, output):
+		"""
+		return the probability p(output | Input)
+		if Input is None, return the probability p(output | output_0)
+		"""
+		if Input is None:
+			return sp.stats.multivariate_normal.pdf(output, self.output_0, self.Sigma)
 		else:
-			return sp.stats.multivariate_normal.pdf(x, np.dot(self.A, x_prev), self.Sigma)
+			return sp.stats.multivariate_normal.pdf(output, np.dot(self.A, Input), self.Sigma)
 
-	def log_prob(self, x_prev, x):
-		if x_prev is None:
-			return sp.stats.multivariate_normal.logpdf(x, self.x_0, self.Sigma)
+	def log_prob(self, Input, output):
+		if Input is None:
+			return sp.stats.multivariate_normal.logpdf(output, self.output_0, self.Sigma)
 		else:
-			return sp.stats.multivariate_normal.logpdf(x, np.dot(self.A, x_prev), self.Sigma)
+			return sp.stats.multivariate_normal.logpdf(output, np.dot(self.A, Input), self.Sigma)
 
 class poisson:
 	""" 
-	Define Poisson density with independent rates y_t ~ Poisson(exp(B * X_t))
+	Define Poisson density with independent rates output ~ Poisson(exp(B * Input))
 
-	self.sample(x_t) will return a sample y_t based on x_t
+	self.sample(Input) will sample from output ~ Poisson(B*input)
 
-	self.prob(x_t, y_t) will return the probability p(y_t | x_t)
+	self.prob(Input, output) will return the probability p(output | Input)
 	"""	
 	def __init__(self, B):
-		# B: tensor, shape = (Dy, Dx)
 		self.B = B
-		self.Dy, self.Dx = B.shape
+		self.Dout, self.Din = B.shape
+
+	def get_lambdas(self, x):
+		lambdas = np.exp(np.dot(self.B, x))
+		# lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
+		return lambdas
 
 	def sample(self, x):
 		# x: tensor, shape = (n_particles, Dx)
-		return np.random.poisson(np.exp(np.dot(self.B,x)))
+		lambdas = self.get_lambdas(x)
+		return np.random.poisson(lambdas)
 
 	def prob(self, x, y):
-		assert len(x) == self.Dx
-		assert len(y) == self.Dy
-		lambdas = np.exp(np.dot(self.B, x))
+		lambdas = self.get_lambdas(x)
 		element_wise_prob = sp.stats.poisson.pmf(y, lambdas)
 		prob = np.prod(element_wise_prob)
 		return prob
 
 	def log_prob(self, x, y):
-		assert len(x) == self.Dx
-		assert len(y) == self.Dy
-		lambdas = np.exp(np.dot(self.B, x))
+		lambdas = self.get_lambdas(x)
 		element_wise_log_prob = sp.stats.poisson.logpmf(y, lambdas)
 		log_prob = np.sum(element_wise_log_prob)
 		return log_prob
 
-class tf_multivariate_normal:
+class tf_mvn:
 	""" 
-	Define Gaussian density
-		P(x_1) = N(x_0, Sigma)
-		P(x_t | x_t-1) = N(A * x_t-1, Sigma)
-
-	self.sample(x_t-1) will return a sample x_t based on x_t-1
-		to get initial samples at T = 1, use self.sample(None)
-
-	self.prob(x_t-1, x_t) will return the probability f(x_t | x_t-1)
-		to get prob nu(x_1) at T = 1, use self.prob(None, x_1)
+	Define multivariate normal density
+		P(output | Input) = N(A * Input, Sigma)
+		if Input is None, P(output) = N(output_0, Sigma)
 	"""
-	def __init__(self, n_particles, batch_size, A, Sigma = None, x_0 = None, name = 'tf_multivariate_normal', dtype = tf.float32):
-		# A: tensor, shape = (Dx, Dx)
-		# Sigma: tensor, shape = (Dx, Dx)
-		# x_0: tensor, shape = (Dx,)
+	def __init__(self, n_particles, batch_size, A, Sigma = None, output_0 = None, name = 'tf_mvn', dtype = tf.float32):
+		# A: tensor, shape = (Dout, Din)
+		# Sigma: tensor, shape = (Dout, Dout)
+		# output_0: tensor, shape = (Dout,)
 		with tf.name_scope(name):
 			self.n_particles = n_particles
 			self.batch_size = batch_size
 			self.A = tf.identity(A, name = 'A')
-			self.Dx = A.get_shape().as_list()[0]
+			self.Dout, self.Din = A.get_shape().as_list()
 
 			if Sigma is not None:
 				self.Sigma = tf.identity(Sigma, name = 'Sigma')
 			else:
-				self.Sigma = tf.eye(self.Dx, name = 'Sigma')			
+				self.Sigma = tf.eye(self.Dout, name = 'Sigma')			
 
-			if x_0 is not None:
-				self.x_0 = tf.identity(x_0, name = 'x_0')
+			if output_0 is not None:
+				self.output_0 = tf.identity(output_0, name = 'output_0')
 			else:
-				self.x_0 = tf.zeros(self.Dx, dtype = dtype, name = 'x_0')
+				self.output_0 = tf.zeros(self.Dout, dtype = dtype, name = 'output_0')
 
 			self.name = name
 			self.dtype = dtype
 
-	def get_mvn(self, x_prev, name):
+	def get_mvn(self, Input, name):
 		with tf.name_scope(self.name):
-			if x_prev is None:
-				mvn = tfd.MultivariateNormalFullCovariance(loc = self.x_0, 
+			if Input is None:
+				mvn = tfd.MultivariateNormalFullCovariance(loc = self.output_0, 
 														   covariance_matrix = self.Sigma,
 														   name = "mvn")
 			else:
-				x_prev_r = tf.reshape(x_prev, (self.n_particles*self.batch_size, self.Dx), name = 'x_prev_reshape')
-				loc_r = tf.matmul(x_prev_r, self.A, transpose_b = True, name = 'loc_reshape')
-				loc = tf.reshape(loc_r, (self.n_particles, self.batch_size, self.Dx), name = 'loc')
+				Input_r = tf.reshape(Input, (self.n_particles*self.batch_size, self.Din), name = 'Input_r')
+				loc_r = tf.matmul(Input_r, self.A, transpose_b = True, name = 'loc_reshape')
+				loc = tf.reshape(loc_r, (self.n_particles, self.batch_size, self.Dout), name = 'loc')
 				mvn = tfd.MultivariateNormalFullCovariance(loc = loc, 
 														   covariance_matrix = self.Sigma,
 														   name = "mvn")
 			return mvn
 
-	def sample(self, x_prev, name = None):
-		# x_prev: tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
+	def sample(self, Input, name = None):
+		# Input:  tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
 		# sample: tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		if name is None:
-			name = self.name
-		mvn = self.get_mvn(x_prev, name)
-		with tf.name_scope(name):
-			if x_prev is None:
+		mvn = self.get_mvn(Input, name)
+		with tf.name_scope(name or self.name):
+			if Input is None:
 				return mvn.sample((self.n_particles, self.batch_size), name = "samples")
 			else:
 				return mvn.sample(name = "samples")
 
-	def prob(self, x_prev, x, name = None):
-		# x_prev: tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		# x: tensor,      shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		# prob:	tensor,   shape = (n_particles, batch_size), dtype = self.dtype
-		if name is None:
-			name = self.name
-		mvn = self.get_mvn(x_prev, name)
-		with tf.name_scope(name):
-			if x_prev is None:
-				return mvn.prob(x, name = "prob")
+	def prob(self, Input, output, name = None):
+		# Input: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
+		# output: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
+		# prob:		tensor, shape = (n_particles, batch_size), dtype = self.dtype
+		mvn = self.get_mvn(Input, name)
+		with tf.name_scope(name or self.name):
+			if Input is None:
+				return mvn.prob(output, name = "prob")
 			else:
-				return mvn.prob(x, name = "prob")
+				return mvn.prob(output, name = "prob")
 
+	def log_prob(self, Input, output, name = None):
+		# Input: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
+		# output: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
+		# prob:		tensor, shape = (n_particles, batch_size), dtype = self.dtype
+		mvn = self.get_mvn(Input, name)
+		with tf.name_scope(name or self.name):
+			if Input is None:
+				return mvn.log_prob(output, name = "log_prob")
+			else:
+				return mvn.log_prob(output, name = "log_prob")
 
 class tf_poisson:
 	""" 
@@ -177,32 +179,38 @@ class tf_poisson:
 			self.n_particles = n_particles
 			self.batch_size = batch_size
 			self.B = tf.identity(B, name = 'B')
-			self.Dy, self.Dx = B.get_shape().as_list()
+			self.Dout, self.Din = B.get_shape().as_list()
 			self.name = name
 			self.dtype = dtype
 
-	def sample(self, x, name = None):
-		# x: 		tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		# sample: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		if name is None:
-			name = self.name
-		with tf.name_scope(name):
-			x_r = tf.reshape(x, (self.n_particles*self.batch_size, self.Dx), name = 'x_reshape')
-			log_rate_r = tf.matmul(x_r, self.B, transpose_b = True, name = 'log_rate_reshape')
-			log_rate = tf.reshape(log_rate_r, (self.n_particles, self.batch_size, self.Dy), name = 'log_rate')
-			poisson = tfd.Poisson(log_rate = log_rate, name = "Poisson")
+	def get_poisson(Input, name = None):
+		with tf.name_scope(name or self.name):
+			Input_r = tf.reshape(Input, (self.n_particles*self.batch_size, self.Din), name = 'Input_reshape')
+			log_rate_r = tf.matmul(Input_r, self.B, transpose_b = True, name = 'log_rate_reshape')
+			# log_rate = tf.reshape(log_rate_r, (self.n_particles, self.batch_size, self.Dout), name = 'log_rate')
+			# poisson = tfd.Poisson(log_rate = log_rate, validate_args=False, name = "Poisson")
+			rate_r = tf.log(1 + tf.exp(log_rate_r))
+			rate = tf.reshape(rate_r, (self.n_particles, self.batch_size, self.Dout), name = 'rate')
+			poisson = tfd.Poisson(rate = rate, validate_args=False, name = "Poisson")
+			return poisson
+
+	def sample(self, Input, name = None):
+		# Input: 	tensor, shape = (n_particles, batch_size, Din), dtype = self.dtype
+		# sample: 	tensor, shape = (n_particles, batch_size, Dout), dtype = self.dtype
+		poisson = self.get_poisson(Input, name)
+		with tf.name_scope(name or self.name):
 			return poisson.sample(name = "sample")
 
-	def prob(self, x, y, name = None):
-		# x: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		# y: 	tensor, shape = (batch_size, Dy,), dtype = self.dtype
-		# prob:	tensor, shape = (n_particles, batch_size,), dtype = self.dtype
-		if name is None:
-			name = self.name
-		with tf.name_scope(name):
-			y_tile = tf.tile(tf.expand_dims(y, axis = 0), [self.n_particles, 1, 1], name = 'y_tile')
-			x_r = tf.reshape(x, (self.n_particles*self.batch_size, self.Dx), name = 'x_reshape')
-			log_rate_r = tf.matmul(x_r, self.B, transpose_b = True, name = 'log_rate_reshape')
-			log_rate = tf.reshape(log_rate_r, (self.n_particles, self.batch_size, self.Dy), name = 'log_rate')
-			poisson = tfd.Poisson(log_rate = log_rate, name = "Poisson")
-			return tf.reduce_sum(poisson.prob(y_tile, name = "element_wise_prob"), axis = 2, name = "prob")
+	def prob(self, Input, output, name = None):
+		# Input: 	tensor, shape = (n_particles, batch_size, Din), dtype = self.dtype
+		# output: 	tensor, shape = (batch_size, Dy), dtype = self.dtype
+		# prob:		tensor, shape = (n_particles, batch_siz), dtype = self.dtype
+		with tf.name_scope(name or self.name):
+			return tf.reduce_prod(poisson.prob(output, name = "element_wise_prob"), axis = 2, name = "prob")
+
+	def log_prob(self, Input, output, name = None):
+		# Input: 	tensor, shape = (n_particles, batch_size, Din), dtype = self.dtype
+		# output: 	tensor, shape = (batch_size, Dy), dtype = self.dtype
+		# prob:		tensor, shape = (n_particles, batch_siz), dtype = self.dtype
+		with tf.name_scope(name or self.name):
+			return tf.reduce_sum(poisson.log_prob(output, name = "element_wise_prob"), axis = 2, name = "prob")
