@@ -3,7 +3,7 @@ from tensorflow_probability import distributions as tfd
 
 class SMC:
 	def __init__(self, VRNN_Cell, q = None, f = None, g = None, p = None, 
-				 use_stop_gradient = False, use_log_prob = True, 
+				 use_stop_gradient = False,
 				 name = "get_log_ZSMC"):
 		"""
 		self.VRNN_Cell: an instance of VartiationalRNN
@@ -13,7 +13,6 @@ class SMC:
 		self.f = f
 		self.g = g
 		self.p = p
-		self.use_log_prob = use_log_prob
 		self.use_stop_gradient = use_stop_gradient
 		self.name = name
 

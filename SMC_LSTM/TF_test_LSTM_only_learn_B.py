@@ -79,9 +79,6 @@ if __name__ == '__main__':
 
 	# placeholders
 	obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name = 'obs')
-	obs_set_true  = tf.placeholder(tf.float32, shape=(n_train + n_test, time, Dy), 	name = 'obs_set_true')
-	obs_set_train = tf.placeholder(tf.float32, shape=(n_train, 			time, Dy), 	name = 'obs_set_train')
-	obs_set_test  = tf.placeholder(tf.float32, shape=(n_test, 			time, Dy), 	name = 'obs_set_test')
 
 	VRNN_Cell = VartiationalRNN(Dx, Dy, Dh, n_particles, batch_size)
 
