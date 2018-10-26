@@ -109,13 +109,13 @@ class SMC:
 					f_t_log_probs  = self.f.log_prob(X_prev, X, name = 'f_{}_log_probs'.format(t))
 
 				if self.g is None:
-					g_t_log_probs = self.VRNN_Cell.get_g_log_prob(X, obs[:,0])
+					g_t_log_probs = self.VRNN_Cell.get_g_log_prob(X, obs[:,t])
 				else:
-					g_t_log_probs = self.g.log_prob(X, obs[:,0], name = 'g_{}_log_probs'.format(t))
+					g_t_log_probs = self.g.log_prob(X, obs[:,t], name = 'g_{}_log_probs'.format(t))
 
 				log_W = tf.add(f_t_log_probs - log_k, g_t_log_probs - q_t_log_probs, name = 'log_W_{}'.format(t))
 				W = tf.exp(log_W, name = 'W_{}'.format(t))
-				log_ZSMC = tf.log(tf.reduce_mean(W, axis = 0, name = 'W_0_mean'), name = 'log_ZSMC_{}'.format(t))
+				log_ZSMC += tf.log(tf.reduce_mean(W, axis = 0, name = 'W_0_mean'), name = 'log_ZSMC_{}'.format(t))
 
 				Xs.append(X)
 				Ws.append(W)
