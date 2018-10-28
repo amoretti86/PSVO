@@ -65,7 +65,7 @@ class Encoder:
 	def get_A(self, YInput_NbxTxDy):
 		X_hat_NbxTxDz = self.encoding(YInput_NbxTxDy)
 		B_NbxTxDzxDz = self.evolving(X_hat_NbxTxDz)
-		with tf.variable_scope(self.scope):
+		with tf.variable_scope(self.scope + '/get_A'):
 			self.A_NbxTxDzxDz = tf.add(tf.eye(self.x_dim), self.alpha * B_NbxTxDzxDz, name = 'A_NxTxDzxDz')
 			self.A_NbxDzxDz_list = tf.unstack(self.A_NbxTxDzxDz, axis = 1, name = 'A_NxDzxDz_list')
 			return self.A_NbxTxDzxDz

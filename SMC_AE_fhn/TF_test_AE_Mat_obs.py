@@ -35,15 +35,15 @@ if __name__ == '__main__':
 
 	batch_size = 5
 	lr = 5e-3
-	epoch = 1000
+	epoch = 100
 	seed = 0
 
-	n_train = 200 	* batch_size
+	n_train = 100 	* batch_size
 	n_test  = 1		* batch_size
 
 	print_freq = 10
 	store_res = True
-	rslt_dir_name = 'AutoEncoder'
+	rslt_dir_name = 'AutoEncoder_matrix_obs'
 
 	tf.set_random_seed(seed)
 	np.random.seed(seed)
@@ -56,15 +56,11 @@ if __name__ == '__main__':
 	dt = 0.15
 	Q_true = np.asarray([[1., 0], [0, 1.]])
 	# emission
-	B_true = np.diag([2.0, 3.0])
+	B_true = np.asarray([[2., 0], [0, 2.]])
 	Sigma_true = np.diag([0.15, 0.15])
-	# initial state
-	# x_0_true = np.array([1.0, 1.0])
 
-	B_init 			= B_true
-	L_Q_init 		= np.linalg.cholesky(Q_true)
-	L_Sigma_init 	= np.linalg.cholesky(Sigma_true)
-	# x_0_init = x_0_true
+	B_init 			= np.asarray([[1., 0], [0, 1.]]) 	# B_true
+	L_Sigma_init 	= np.asarray([[10., 0], [0, 10.]])	# np.linalg.cholesky(Sigma_true)
 
 	# create dir to store results
 	if store_res == True:
@@ -95,26 +91,24 @@ if __name__ == '__main__':
 	Q_true_tnsr 	= tf.Variable(Q_true, 		dtype=tf.float32, trainable = False, name='Q_true')
 	# emission
 	B_true_tnsr 	= tf.Variable(B_true, 		dtype=tf.float32, trainable = False, name='B_true')
-	Sigma_true_tnsr = tf.Variable(Sigma_true, 	dtype=tf.float32, trainable = False, name='Q_true')
+	Sigma_true_tnsr = tf.Variable(Sigma_true, 	dtype=tf.float32, trainable = False, name='Sigma_true')
 	fhn_params = (mya, myb, myc, I, dt)
 	q_true = tf_mvn(n_particles, batch_size, tf.eye(Dx),  (2**2)*tf.eye(Dx), None, name = 'q_true')
 	f_true = tf_fhn(n_particles, batch_size, fhn_params,  Q_true_tnsr, 		 x_0,  name = 'f_true')
 	g_true = tf_mvn(n_particles, batch_size, B_true_tnsr, Sigma_true_tnsr,	 None, name = 'g_true')
 
 	# for training
-	# transition
-	L_Q 	= tf.Variable(L_Q_init, 	dtype=tf.float32, trainable = False, name='L_Q')
 	# emission
-	B 		= tf.Variable(B_init, 		dtype=tf.float32, trainable = False, name='B')
-	L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, trainable = False, name='L_Sigma')
-	Q 		= tf.matmul(L_Q, 	 L_Q, 	  transpose_b = True, name = 'Q')
+	B 		= tf.Variable(B_init, 		dtype=tf.float32, name='B')
+	L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, name='L_Sigma')
 	Sigma 	= tf.matmul(L_Sigma, L_Sigma, transpose_b = True, name = 'Sigma')
 
 	q_train = tf_mvn(n_particles, batch_size, tf.eye(Dx), (2**2)*tf.eye(Dx), None,  name = 'q_train')
-	g_train = tf_mvn(n_particles, batch_size, B, 		  Sigma, 			  None, name = 'g_train')
+	g_train = tf_mvn(n_particles, batch_size, B, 		  Sigma, 			 None,  name = 'g_train')
 
 	# for train_op
 	SMC_true  = SMC(q_true,  f_true, g_true,  n_particles, batch_size, name = 'log_ZSMC_true')
+	# f_true is passed in to calculate f_nu_log_probs at t = 0, not used for t = 1, 2, ...
 	SMC_train = SMC(q_train, f_true, g_train, n_particles, batch_size, encoder_cell = encoder_cell, name = 'log_ZSMC_train')
 	log_ZSMC_true,  log_true  = SMC_true.get_log_ZSMC(obs)
 	log_ZSMC_train, log_train = SMC_train.get_log_ZSMC(obs)
@@ -125,9 +119,12 @@ if __name__ == '__main__':
 	if store_res == True:
 		writer = tf.summary.FileWriter(RLT_DIR)
 
-	init = tf.global_variables_initializer()
+	# check trainable variables
+	# print('trainable variables:')
+	# for var in tf.trainable_variables():
+	# 	print(var)
 
-	print(tf.trainable_variables())
+	init = tf.global_variables_initializer()
 
 	# for plot
 	log_ZSMC_trains = []
@@ -143,7 +140,6 @@ if __name__ == '__main__':
 		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
 
 		for i in range(epoch):
-			# train A, B, Q, x_0 using each training sample
 			obs_train, hidden_train = shuffle(obs_train, hidden_train)
 			for j in range(0, len(obs_train), batch_size):
 				sess.run(train_op, feed_dict={obs:obs_train[j:j+batch_size], 
@@ -159,17 +155,20 @@ if __name__ == '__main__':
 				log_ZSMC_trains.append(log_ZSMC_train_val)
 				log_ZSMC_tests.append(log_ZSMC_test_val)
 
-		Q_learned = Q.eval()
 		B_learned = B.eval()
 		Sigma_learned = Sigma.eval()
 
 		Xs = log_train[0]
 		As = log_train[-1]
 		Xs_val = np.zeros((n_train, time, n_particles, Dx))
+		As_val = np.zeros((n_train, time-1, Dx, Dx))
 		for i in range(0, len(obs_train), batch_size):
-			X_val, As_val = sess.run([Xs, As], 
+			X_val, A_val = sess.run([Xs, As], 
 									  feed_dict = {obs:obs_train[i:i+batch_size],
-									  x_0:[hidden[0] for hidden in hidden_train[j:j+batch_size]]})
+									  			   x_0:[hidden[0] for hidden in hidden_train[i:i+batch_size]]})
+			for j in range(batch_size):
+				Xs_val[i+j] = X_val[:, :, j, :]
+				As_val[i+j] = A_val[j]
 
 	sess.close()
 
@@ -183,14 +182,12 @@ if __name__ == '__main__':
 		hyperparams_dict = {"T":time, "n_particles":n_particles, "batch_size":batch_size, "lr":lr,
 				 			"epoch":epoch, "n_train":n_train, "seed":seed}
 		modelparams_dict = {"mya":mya, "myb":myb, "myc":myc, "I":I, "dt":dt}
-		true_model_dict = { "Q_true":Q_true, 
-							"B_true":B_true, "Sigma_true":Sigma_true}
-		init_model_dict = { "Q_init":np.dot(L_Q_init, L_Q_init.T), 
-							"B_init":B_init, "Sigma_int":np.dot(L_Sigma_init, L_Sigma_init.T)}
-		learned_model_dict = {"Q_learned":Q_learned, 
-							  "B_learned":B_learned, "Sigma_learned":Sigma_learned,
+		true_model_dict = {"B_true":B_true, "Sigma_true":Sigma_true}
+		init_model_dict = {"B_init":B_init, "Sigma_int":np.dot(L_Sigma_init, L_Sigma_init.T)}
+		learned_model_dict = {"B_learned":B_learned, "Sigma_learned":Sigma_learned,
 							  "As_val":As_val}
-		log_ZSMC_dict = {"log_ZSMC_true":log_ZSMC_true_val, "log_ZSMC_trains": log_ZSMC_trains, 
+		log_ZSMC_dict = {"log_ZSMC_true":log_ZSMC_true_val, 
+						 "log_ZSMC_trains": log_ZSMC_trains, 
 						 "log_ZSMC_tests":log_ZSMC_tests}
 		data_dict = {"hyperparams_dict":hyperparams_dict, 
 					 "modelparams_dict":modelparams_dict, 
