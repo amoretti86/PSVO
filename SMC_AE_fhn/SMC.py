@@ -28,7 +28,6 @@ class SMC:
 			batch_size, time, Dy = obs.get_shape().as_list()
 
 			if self.encoder_cell is not None:
-				print('a')
 				A_NbxTxDzxDz = self.encoder_cell.get_A(obs[:, 0:-1])
 			else:
 				A_NbxTxDzxDz = None
@@ -50,7 +49,6 @@ class SMC:
 			W = tf.exp(log_W, name = 'W_0')
 			log_ZSMC = tf.log(tf.reduce_mean(W, axis = 0, name = 'W_0_mean'), name = 'log_ZSMC_0')
 
-			Xs.append(X)
 			log_Ws.append(log_W)
 			Ws.append(W)
 			fs.append(f_nu_log_probs)
@@ -65,6 +63,11 @@ class SMC:
 					idx = tf.stop_gradient(categoriucal.sample(self.n_particles))	# (n_particles, batch_size)
 				else:
 					idx = categorical.sample(self.n_particles)
+
+
+				# change Xs to collect X after rather than before resampling
+				Xs.append(X)
+
 
 				# ugly stuff used to resample X
 				ugly_stuff = tf.tile(tf.expand_dims(tf.range(batch_size), axis = 0), (self.n_particles, 1)) 	# (n_particles, batch_size)
@@ -87,12 +90,15 @@ class SMC:
 				W = tf.exp(log_W, name = 'W_{}'.format(t))
 				log_ZSMC += tf.log(tf.reduce_mean(W, axis = 0, name = 'W_0_mean'), name = 'log_ZSMC_{}'.format(t))
 
-				Xs.append(X)
 				Ws.append(W)
 				log_Ws.append(log_W)
 				fs.append(f_t_log_probs)
 				gs.append(g_t_log_probs)
 				qs.append(q_t_log_probs)
+
+			# to make sure len(Xs) = time
+			Xs.append(X)
+
 
 			Xs = tf.stack(Xs)
 			Ws = tf.stack(Ws)
