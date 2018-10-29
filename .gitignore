@@ -1,3 +1,7 @@
 # ignore all SMC_xxx/rslt
 **/rslts/**
 **/__pycache__/**
+rslts
+rslts/*
+*.sh
+*.o*
