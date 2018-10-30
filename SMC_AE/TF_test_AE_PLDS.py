@@ -9,7 +9,6 @@ import pdb
 from Encoder import Encoder
 from SMC_sampler import create_train_test_dataset
 from distributions import mvn, poisson, tf_mvn, tf_poisson
-from posterior_approx import *
 from SMC import SMC
 from rslts_saving import create_RLT_DIR, NumpyEncoder, plot_training_data, plot_learning_results, plot_losses
 
@@ -35,10 +34,10 @@ if __name__ == '__main__':
 
 	batch_size = 5
 	lr = 1e-4
-	epoch = 100
+	epoch = 50
 	seed = 0
 
-	n_train = 200	* batch_size
+	n_train = 100	* batch_size
 	n_test  = 1 	* batch_size
 
 	print_freq = 10
@@ -157,8 +156,9 @@ if __name__ == '__main__':
 		Xs = log_train[0]
 		As = log_train[-1]
 		Xs_val = np.zeros((n_train, time, n_particles, Dx))
+		As_val = np.zeros((n_train, time-1, Dx, Dx))
 		for i in range(0, len(obs_train), batch_size):
-			X_val, As_val = sess.run([Xs, As], feed_dict = {obs:obs_train[i:i+batch_size]})
+			X_val, A_val = sess.run([Xs, As], feed_dict = {obs:obs_train[i:i+batch_size]})
 			for j in range(batch_size):
 				Xs_val[i+j] = X_val[:, :, j, :]
 				As_val[i+j] = A_val[j]
@@ -198,11 +198,15 @@ if __name__ == '__main__':
 		init_model_dict = { "A_init":A_init, "Q_init":np.dot(L_Q_init, L_Q_init.T), 
 							"B_init":B_init, "x_0_init":x_0_init}
 		learned_model_dict = {"A_val":A_val, "Q_val":Q_val, 
-							  "B_val":B_val, "x_0_val":x_0_val}
-		log_ZSMC_dict = {"log_ZSMC_true":log_ZSMC_true_val, "log_ZSMC_trains": log_ZSMC_trains, 
+							  "B_val":B_val, "x_0_val":x_0_val,
+							  "As_val":As_val}
+		log_ZSMC_dict = {"log_ZSMC_true":log_ZSMC_true_val, 
+						 "log_ZSMC_trains": log_ZSMC_trains, 
 						 "log_ZSMC_tests":log_ZSMC_tests}
-		data_dict = {"params_dict":params_dict, "true_model_dict":true_model_dict, 
-					 "learned_model_dict":learned_model_dict, "log_ZSMC_dict":log_ZSMC_dict}
+		data_dict = {"params_dict":params_dict, 
+					 "true_model_dict":true_model_dict, 
+					 "learned_model_dict":learned_model_dict, 
+					 "log_ZSMC_dict":log_ZSMC_dict}
 		with open(RLT_DIR + 'data.p', 'wb') as f:
 			pickle.dump(data_dict, f)
 		with open(RLT_DIR + 'data.json', 'w') as f:

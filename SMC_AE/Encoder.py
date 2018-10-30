@@ -15,7 +15,7 @@ class Encoder:
 		self.Ev_layer_1_dim = 200
 		self.Ev_layer_2_dim = 200
 
-		self.alpha = 0.1
+		self.alpha = -0.1
 		self.Sigma = tf.eye(self.x_dim)
 
 	# ================================ keep an eye on len of YInput ================================ #
@@ -65,8 +65,13 @@ class Encoder:
 	def get_A(self, YInput_NbxTxDy):
 		X_hat_NbxTxDz = self.encoding(YInput_NbxTxDy)
 		B_NbxTxDzxDz = self.evolving(X_hat_NbxTxDz)
-		with tf.variable_scope(self.scope):
-			self.A_NbxTxDzxDz = tf.add(tf.eye(self.x_dim), self.alpha * B_NbxTxDzxDz, name = 'A_NxTxDzxDz')
+		with tf.variable_scope(self.scope, reuse=tf.AUTO_REUSE):
+			alpha = tf.get_variable("alpha",
+									shape = [1],
+									dtype = tf.float32,
+									initializer = tf.constant_initializer(self.alpha),
+									trainable = True)
+			self.A_NbxTxDzxDz = tf.add(tf.eye(self.x_dim), alpha * B_NbxTxDzxDz, name = 'A_NxTxDzxDz')
 			self.A_NbxDzxDz_list = tf.unstack(self.A_NbxTxDzxDz, axis = 1, name = 'A_NxDzxDz_list')
 			return self.A_NbxTxDzxDz
 
