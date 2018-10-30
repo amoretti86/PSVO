@@ -3,7 +3,7 @@ from tensorflow_probability import distributions as tfd
 from tensorflow.contrib.layers import fully_connected, xavier_initializer
 
 class MLP_mvn:
-	def __init__(self, Dx, Dy, sigma_cons = 5, name = 'MLP_mvn'):
+	def __init__(self, Dx, Dy, sigma_cons = 10, name = 'MLP_mvn'):
 		self.Dx = Dx
 		self.Dy = Dy
 		self.Dh1 = 20
@@ -37,6 +37,7 @@ class MLP_mvn:
 			mvn = tfd.MultivariateNormalFullCovariance(loc = mu, 
 													   covariance_matrix = tf.matrix_diag(sigma), 
 													   validate_args=True, 
+													   allow_nan_stats=False, 
 													   name = "mvn")
 			return mvn
 
@@ -79,7 +80,10 @@ class MLP_poisson:
 									  biases_initializer=tf.constant_initializer(0.6),
 									  activation_fn = tf.nn.softplus,
 									  reuse = tf.AUTO_REUSE, scope = "lambdas") + self.lambda_cons
-			poisson = tfd.Poisson(rate = lambdas, validate_args=True, name = "Poisson")
+			poisson = tfd.Poisson(rate = rate, 
+								  validate_args=True, 
+								  allow_nan_stats=False, 
+								  name = "Poisson")
 			return poisson
 
 	def sample(self, x, name = None):
