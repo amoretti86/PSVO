@@ -68,8 +68,8 @@ class poisson:
 		self.Dout, self.Din = B.shape
 
 	def get_lambdas(self, x):
-		lambdas = np.exp(np.dot(self.B, x))
-		# lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
+		# lambdas = np.exp(np.dot(self.B, x))
+		lambdas = np.log(np.exp(np.dot(self.B, x)) + 2)
 		return lambdas
 
 	def sample(self, x):
@@ -123,6 +123,8 @@ class tf_mvn:
 			if Input is None:
 				mvn = tfd.MultivariateNormalFullCovariance(loc = self.output_0, 
 														   covariance_matrix = self.Sigma,
+														   validate_args=True,
+														   allow_nan_stats=False, 
 														   name = "mvn")
 			else:
 				Input_r = tf.reshape(Input, (self.n_particles*self.batch_size, self.Din), name = 'Input_r')
@@ -130,6 +132,8 @@ class tf_mvn:
 				loc = tf.reshape(loc_r, (self.n_particles, self.batch_size, self.Dout), name = 'loc')
 				mvn = tfd.MultivariateNormalFullCovariance(loc = loc, 
 														   covariance_matrix = self.Sigma,
+														   validate_args=True,
+														   allow_nan_stats=False, 
 														   name = "mvn")
 			return mvn
 
@@ -183,15 +187,18 @@ class tf_poisson:
 			self.name = name
 			self.dtype = dtype
 
-	def get_poisson(Input, name = None):
+	def get_poisson(self, Input, name = None):
 		with tf.name_scope(name or self.name):
 			Input_r = tf.reshape(Input, (self.n_particles*self.batch_size, self.Din), name = 'Input_reshape')
 			log_rate_r = tf.matmul(Input_r, self.B, transpose_b = True, name = 'log_rate_reshape')
 			# log_rate = tf.reshape(log_rate_r, (self.n_particles, self.batch_size, self.Dout), name = 'log_rate')
 			# poisson = tfd.Poisson(log_rate = log_rate, validate_args=False, name = "Poisson")
-			rate_r = tf.log(1 + tf.exp(log_rate_r))
+			rate_r = tf.log(2 + tf.exp(log_rate_r))
 			rate = tf.reshape(rate_r, (self.n_particles, self.batch_size, self.Dout), name = 'rate')
-			poisson = tfd.Poisson(rate = rate, validate_args=False, name = "Poisson")
+			poisson = tfd.Poisson(rate = rate, 
+								  validate_args=True, 
+								  allow_nan_stats=False, 
+								  name = "Poisson")
 			return poisson
 
 	def sample(self, Input, name = None):
@@ -205,6 +212,7 @@ class tf_poisson:
 		# Input: 	tensor, shape = (n_particles, batch_size, Din), dtype = self.dtype
 		# output: 	tensor, shape = (batch_size, Dy), dtype = self.dtype
 		# prob:		tensor, shape = (n_particles, batch_siz), dtype = self.dtype
+		poisson = self.get_poisson(Input, name)
 		with tf.name_scope(name or self.name):
 			return tf.reduce_prod(poisson.prob(output, name = "element_wise_prob"), axis = 2, name = "prob")
 
@@ -212,5 +220,6 @@ class tf_poisson:
 		# Input: 	tensor, shape = (n_particles, batch_size, Din), dtype = self.dtype
 		# output: 	tensor, shape = (batch_size, Dy), dtype = self.dtype
 		# prob:		tensor, shape = (n_particles, batch_siz), dtype = self.dtype
+		poisson = self.get_poisson(Input, name)
 		with tf.name_scope(name or self.name):
-			return tf.reduce_sum(poisson.log_prob(output, name = "element_wise_prob"), axis = 2, name = "prob")
+			return tf.reduce_sum(poisson.log_prob(output, name = "element_wise_log_prob"), axis = 2, name = "log_prob")

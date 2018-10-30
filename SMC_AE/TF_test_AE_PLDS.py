@@ -31,34 +31,34 @@ if __name__ == '__main__':
 
 	Dy, Dx = 2, 2
 	n_particles = 1000
-	time = 10
+	time = 50
 
 	batch_size = 5
-	lr = 5e-3
-	epoch = 2
+	lr = 1e-4
+	epoch = 100
 	seed = 0
 
-	n_train = 5	* batch_size
+	n_train = 200	* batch_size
 	n_test  = 1 	* batch_size
 
 	print_freq = 10
 	store_res = True
-	rslt_dir_name = 'AutoEncoder'
+	rslt_dir_name = 'AutoEncoder_PLDS'
 
 	tf.set_random_seed(seed)
 	np.random.seed(seed)
 	
 	A_true = np.diag([0.95, 0.25])
 	Q_true = np.asarray([[1., 0], [0, 1.]])
-	B_true = np.diag([2.0, 4.0])
+	B_true = np.diag([1.0, 2.0])
 	Sigma_true = np.asarray([[1., 0], [0, 1.]])
 	x_0_true = np.array([1.0, 1.0])
 
-	A_init = A_true 				# np.diag([0.5, 0.95])
-	B_init = B_true 				# np.diag([1.5, 1.5])
-	L_Q_init = Q_true 				# np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
-	L_Sigma_init = Sigma_true 		# np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
-	x_0_init = x_0_true 			# np.array([0.8, 0.8])
+	A_init = A_true 									# np.diag([0.5, 0.95])
+	B_init = B_true 									# np.diag([1.5, 1.5])
+	L_Q_init = np.linalg.cholesky(Q_true) 				# np.asarray([[1.2, 0], [0, 1.2]])
+	L_Sigma_init = np.linalg.cholesky(Sigma_true) 		# np.asarray([[1.2, 0], [0, 1.2]])
+	x_0_init = x_0_true 								# np.array([0.8, 0.8])
 
 	# create dir to store results
 	if store_res == True:
@@ -69,7 +69,8 @@ if __name__ == '__main__':
 
 	# Create train and test dataset
 	f = mvn(A_true, Q_true, x_0_true)
-	g = mvn(B_true, Sigma_true)
+	# g = mvn(B_true, Sigma_true)
+	g = poisson(B_true)
 	hidden_train, obs_train, hidden_test, obs_test = create_train_test_dataset(n_train, n_test, time, x_0_true, f, g, Dx, Dy)
 	print("finish creating dataset")
 	# ================================ TF stuffs starts ================================ #
@@ -85,28 +86,29 @@ if __name__ == '__main__':
 	Q_true_tnsr 	= tf.Variable(Q_true, 		dtype=tf.float32, trainable = False, name='Q_true')
 	Sigma_true_tnsr = tf.Variable(Sigma_true, 	dtype=tf.float32, trainable = False, name='Q_true')
 	x_0_true_tnsr 	= tf.Variable(x_0_true, 	dtype=tf.float32, trainable = False, name='x_0_true')
-	q_true = tf_mvn(n_particles, batch_size, tf.eye(Dx),  (10**2)*tf.eye(Dx), 		  name = 'q_true')
+	q_true = tf_mvn(n_particles, batch_size, tf.eye(Dx),  (5**2)*tf.eye(Dx), 		  name = 'q_true')
 	f_true = tf_mvn(n_particles, batch_size, A_true_tnsr, Q_true_tnsr, x_0_true_tnsr, name = 'f_true')
-	g_true = tf_mvn(n_particles, batch_size, B_true_tnsr, Sigma_true_tnsr, 			  name = 'g_true')
-	p_true = TensorGaussianPostApprox(A_true_tnsr, B_true_tnsr, Q_true_tnsr, Sigma_true_tnsr, name = 'p_true')
+	# g_true = tf_mvn(n_particles, batch_size, B_true_tnsr, Sigma_true_tnsr, 			  name = 'g_true')
+	g_true = tf_poisson(n_particles, batch_size, B_true_tnsr, name = 'g_true')
 
 	# A, B, Q, x_0 to train
+	# transition
 	A 		= tf.Variable(A_init, 		dtype=tf.float32, trainable = False, name='A', )
+	L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, trainable = False, name='L_Sigma')
+	Sigma 	= tf.matmul(L_Sigma, L_Sigma, transpose_b = True, name = 'Sigma')
+	# emission
 	B 		= tf.Variable(B_init, 		dtype=tf.float32, trainable = False, name='B')
 	L_Q 	= tf.Variable(L_Q_init, 	dtype=tf.float32, trainable = False, name='L_Q')
-	L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, trainable = False, name='L_Sigma')
-	x_0 	= tf.Variable(x_0_init, 	dtype=tf.float32, trainable = False, name='x_0')
 	Q 		= tf.matmul(L_Q, 	 L_Q, 	  transpose_b = True, name = 'Q')
-	Sigma 	= tf.matmul(L_Sigma, L_Sigma, transpose_b = True, name = 'Sigma')
+	x_0 	= tf.Variable(x_0_init, 	dtype=tf.float32, trainable = False, name='x_0')
 
-	q_train = tf_mvn(n_particles, batch_size, tf.eye(Dx), (10**2)*tf.eye(Dx), 	name = 'q_train')
+	q_train = tf_mvn(n_particles, batch_size, tf.eye(Dx), (5**2)*tf.eye(Dx), 	name = 'q_train')
 	f_train = tf_mvn(n_particles, batch_size, A, 		  Q, x_0, 	  			name = 'f_train')
-	g_train = tf_mvn(n_particles, batch_size, B, 		  Sigma, 			  	name = 'g_true')
-	p_train = TensorGaussianPostApprox(A, B, Q, Sigma, name = 'p_train') # Revisit me
+	g_train = tf_poisson(n_particles, batch_size, B, 							name = 'g_true')
 
 	# for train_op
-	SMC_true  = SMC(q_true,  f_true,  g_true,  p_true,  n_particles, name = 'log_ZSMC_true')
-	SMC_train = SMC(q_train, f_train, g_train, p_train, n_particles, encoder_cell = encoder_cell, name = 'log_ZSMC_train')
+	SMC_true  = SMC(q_true,  f_true,  g_true,  n_particles, batch_size, name = 'log_ZSMC_true')
+	SMC_train = SMC(q_train, f_train, g_train, n_particles, batch_size, encoder_cell = encoder_cell, name = 'log_ZSMC_train')
 	log_ZSMC_true,  log_true  = SMC_true.get_log_ZSMC(obs)
 	log_ZSMC_train, log_train = SMC_train.get_log_ZSMC(obs)
 	
@@ -128,7 +130,7 @@ if __name__ == '__main__':
 		if store_res == True:
 			writer.add_graph(sess.graph)
 
-		log_ZSMC_true_val = SMC_true.tf_accuracy(obs_train + obs_test, obs, log_ZSMC_true, sess, batch_size)
+		log_ZSMC_true_val = SMC_true.tf_accuracy(sess, log_ZSMC_true, obs, obs_train+obs_test)
 		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
 
 		for i in range(epoch):
@@ -139,8 +141,8 @@ if __name__ == '__main__':
 				
 			# print training and testing loss
 			if (i+1)%print_freq == 0:
-				log_ZSMC_train_val = SMC_true.tf_accuracy(obs_train, obs, log_ZSMC_train, sess, batch_size)
-				log_ZSMC_test_val  = SMC_true.tf_accuracy(obs_test,  obs, log_ZSMC_train, sess, batch_size)
+				log_ZSMC_train_val = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_train)
+				log_ZSMC_test_val  = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_test)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val))
 
@@ -159,9 +161,7 @@ if __name__ == '__main__':
 			X_val, As_val = sess.run([Xs, As], feed_dict = {obs:obs_train[i:i+batch_size]})
 			for j in range(batch_size):
 				Xs_val[i+j] = X_val[:, :, j, :]
-				print("A")
-				print(i, j)
-				print(As_val)
+				As_val[i+j] = A_val[j]
 
 	sess.close()
 
