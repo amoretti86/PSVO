@@ -18,7 +18,7 @@ class Encoder_two_obs:
 
 		self.alpha = 0.1
 		self.sigma_init = 25
-		self.sigma_cons = 1
+		self.sigma_cons_stablizer = 1e-6
 
 	# ================================ keep an eye on len of YInput ================================ #
 	# =================================== len = time or time - 1 =================================== #
@@ -79,13 +79,14 @@ class Encoder_two_obs:
 			# check idx! t or t - 1
 			A_NbxDzxDz = self.A_NbxDzxDz_list[t - 1]
 			mu = tf.einsum('bjk, pbk->pbj', A_NbxDzxDz, x_prev_NpxNbxDz, name = 'mu')
-			sigma_cons = self.sigma_cons + tf.get_variable("sigma_cons",
-														   shape = [1],
-														   dtype = tf.float32,
-														   initializer = tf.constant_initializer(self.sigma_init),
-														   trainable = True)
+			sigma_cons = tf.get_variable("sigma_cons",
+										 shape = [1],
+										 dtype = tf.float32,
+										 initializer = tf.constant_initializer(self.sigma_init),
+										 trainable = True)
+			sigma = tf.eye(self.x_dim) * (tf.nn.softplus(sigma_cons) + self.sigma_cons_stablizer)
 			mvn = tfd.MultivariateNormalFullCovariance(loc = mu, 
-													   covariance_matrix = tf.eye(self.x_dim) * sigma_cons, 
+													   covariance_matrix = sigma,
 													   validate_args=True, 
 													   name = "mvn")
 			return mvn

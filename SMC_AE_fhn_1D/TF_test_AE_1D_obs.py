@@ -185,7 +185,7 @@ if __name__ == '__main__':
 				log_ZSMC_tests.append(log_ZSMC_test_val)
 
 			if store_res == True and (i+1)%save_freq == 0:
-				saver.save(sess, os.path.join(RLT_DIR, 'model_iter'), global_step=i)
+				saver.save(sess, os.path.join(RLT_DIR, 'model/model_epoch'), global_step=i)
 
 		Q_learned = Q.eval()
 		B_learned = B.eval()

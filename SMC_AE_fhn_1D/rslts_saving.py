@@ -22,8 +22,10 @@ def create_RLT_DIR(Experiment_params):
         params_str += param_name + '_' + str(param) + '_'
 
     RLT_DIR = os.path.join(os.getcwd(), local_rlt_root + params_str + cur_date + '/')
+    MODEL_DIR = os.path.join(RLT_DIR, 'model/')
 
     if not os.path.exists(RLT_DIR): os.makedirs(RLT_DIR)
+    if not os.path.exists(MODEL_DIR): os.makedirs(MODEL_DIR)
 
     return RLT_DIR
 
