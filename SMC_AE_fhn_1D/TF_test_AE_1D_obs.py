@@ -31,21 +31,21 @@ if __name__ == '__main__':
 
 	# ============================== hyperparameters ============================== #
 
-	Dy, Dx = 2, 2
+	Dy, Dx = 1, 2
 	n_particles = 1000
-	time = 200
+	time = 5
 
 	batch_size = 5
 	lr = 5e-3
-	epoch = 150
+	epoch = 5
 	seed = 0
 
-	n_train = 200 	* batch_size
+	n_train = 5 	* batch_size
 	n_test  = 1		* batch_size
 
 	print_freq = 10
 	store_res = True
-	encoder_architecture = "Encoder_two_obs" # or "Encoder_full_obs"
+	encoder_architecture = "Encoder_full_obs" # "Encoder_two_obs" or "Encoder_full_obs" or "Encoder"
 	rslt_dir_name = 'AutoEncoder_1D_obs'
 
 	tf.set_random_seed(seed)
@@ -59,8 +59,8 @@ if __name__ == '__main__':
 	dt = 0.15
 	Q_true = np.asarray([[1., 0], [0, 1.]])
 	# emission
-	B_true = np.asarray([[1., 0], [1., 0]])
-	Sigma_true = np.diag([0.15, 0.15])
+	B_true = np.asarray([[1., 0]])
+	Sigma_true = np.diag([0.15])
 	# initial state
 	# x_0_true = np.array([1.0, 1.0])
 
@@ -73,7 +73,7 @@ if __name__ == '__main__':
 	if store_res == True:
 		Experiment_params = {"n_particles":n_particles, "time":time, "batch_size":batch_size,
 							 "lr":lr, "epoch":epoch, "seed":seed, "n_train":n_train,
-							 "encoder_architecture":encoder_architecture
+							 "encoder_architecture":encoder_architecture,
 							 "rslt_dir_name":rslt_dir_name}
 		RLT_DIR = create_RLT_DIR(Experiment_params)
 
