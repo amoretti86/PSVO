@@ -1,4 +1,4 @@
-SMC_trainimport numpy as np
+import numpy as np
 import math
 from sklearn.utils import shuffle
 
