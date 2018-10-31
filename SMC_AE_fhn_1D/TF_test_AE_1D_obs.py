@@ -33,19 +33,19 @@ if __name__ == '__main__':
 
 	Dy, Dx = 1, 2
 	n_particles = 1000
-	time = 5
+	time = 200
 
 	batch_size = 5
 	lr = 5e-3
-	epoch = 5
+	epoch = 150
 	seed = 0
 
-	n_train = 5 	* batch_size
+	n_train = 200 	* batch_size
 	n_test  = 1		* batch_size
 
 	print_freq = 10
 	store_res = True
-	encoder_architecture = "Encoder_full_obs" # "Encoder_two_obs" or "Encoder_full_obs" or "Encoder"
+	encoder_architecture = "Encoder" # "Encoder_two_obs" or "Encoder_full_obs" or "Encoder"
 	rslt_dir_name = 'AutoEncoder_1D_obs'
 
 	tf.set_random_seed(seed)
@@ -197,7 +197,7 @@ if __name__ == '__main__':
 
 	sess.close()
 
-	print("fin")
+	print("finish training")
 
 	if store_res == True:
 		plot_training_data(RLT_DIR, hidden_train, obs_train)
@@ -228,4 +228,6 @@ if __name__ == '__main__':
 			pickle.dump(data_dict, f)
 		with open(RLT_DIR + 'data.json', 'w') as f:
 			json.dump(data_dict, f, indent = 4, cls = NumpyEncoder)
+
+	print("fin")
  

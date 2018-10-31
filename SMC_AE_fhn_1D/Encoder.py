@@ -63,7 +63,7 @@ class Encoder:
 			return B_NbxTxDzxDz
 
 	def get_A(self, YInput_NbxTxDy):
-		X_hat_NbxTxDz = self.encoding(YInput_NbxTxDy)
+		X_hat_NbxTxDz = self.encoding(YInput_NbxTxDy[:, :-1])
 		B_NbxTxDzxDz = self.evolving(X_hat_NbxTxDz)
 		with tf.variable_scope(self.scope + '/get_A'):
 			self.A_NbxTxDzxDz = tf.add(tf.eye(self.x_dim), self.alpha * B_NbxTxDzxDz, name = 'A_NxTxDzxDz')
