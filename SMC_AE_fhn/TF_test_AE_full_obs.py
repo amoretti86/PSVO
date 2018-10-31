@@ -31,14 +31,14 @@ if __name__ == '__main__':
 
 	Dy, Dx = 2, 2
 	n_particles = 1000
-	time = 100
+	time = 200
 
 	batch_size = 5
 	lr = 5e-3
-	epoch = 200
+	epoch = 100
 	seed = 0
 
-	n_train = 100 	* batch_size
+	n_train = 200 	* batch_size
 	n_test  = 1		* batch_size
 
 	print_freq = 10
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 	dt = 0.15
 	Q_true = np.asarray([[1., 0], [0, 1.]])
 	# emission
-	B_true = np.asarray([[1., 1.], [2., 2.]])
+	B_true = np.asarray([[1., 0.], [2., 0.]])
 	Sigma_true = np.diag([0.15, 0.15])
 	# initial state
 	# x_0_true = np.array([1.0, 1.0])

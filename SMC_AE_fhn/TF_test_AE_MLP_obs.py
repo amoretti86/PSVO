@@ -32,14 +32,14 @@ if __name__ == '__main__':
 
 	Dy, Dx = 2, 2
 	n_particles = 1000
-	time = 50
+	time = 200
 
 	batch_size = 5
 	lr = 5e-3
-	epoch = 50
+	epoch = 100
 	seed = 0
 
-	n_train = 50 	* batch_size
+	n_train = 100 	* batch_size
 	n_test  = 1		* batch_size
 
 	print_freq = 10
@@ -185,7 +185,7 @@ if __name__ == '__main__':
 		modelparams_dict = {"mya":mya, "myb":myb, "myc":myc, "I":I, "dt":dt}
 		true_model_dict = {"Q_true":Q_true, 
 						   "B_true":B_true, "Sigma_true":Sigma_true}
-		init_model_dict = {"Q_init":Q_init,
+		init_model_dict = {"Q_init":np.dot(L_Q_init, L_Q_init.T),
 						   "B_init":B_init, "Sigma_int":np.dot(L_Sigma_init, L_Sigma_init.T)}
 		learned_model_dict = {"Q_learned":Q_learned,
 							  "B_learned":B_learned, "Sigma_learned":Sigma_learned,
