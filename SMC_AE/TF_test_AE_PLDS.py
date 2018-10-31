@@ -130,7 +130,15 @@ if __name__ == '__main__':
 			writer.add_graph(sess.graph)
 
 		log_ZSMC_true_val = SMC_true.tf_accuracy(sess, log_ZSMC_true, obs, obs_train+obs_test)
+		log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train)
+		log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_test)
 		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
+		print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
+			.format(0, log_ZSMC_train_val, log_ZSMC_test_val))
+
+		log_ZSMC_trains.append(log_ZSMC_train_val)
+		log_ZSMC_tests.append(log_ZSMC_test_val)
+
 
 		for i in range(epoch):
 			# train A, B, Q, x_0 using each training sample
@@ -164,8 +172,8 @@ if __name__ == '__main__':
 				As_val[i+j] = A_val[j]
 
 	sess.close()
-
-	print("fin")
+	
+	print("finish training")
 
 	print("-------------------true val-------------------")
 	print("A_true")
@@ -212,3 +220,4 @@ if __name__ == '__main__':
 		with open(RLT_DIR + 'data.json', 'w') as f:
 			json.dump(data_dict, f, indent = 4, cls = NumpyEncoder)
  
+	print("fin")
