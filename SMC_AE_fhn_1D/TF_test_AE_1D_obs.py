@@ -45,6 +45,7 @@ if __name__ == '__main__':
 
 	print_freq = 10
 	store_res = True
+	encoder_architecture = "Encoder_two_obs" # or "Encoder_full_obs"
 	rslt_dir_name = 'AutoEncoder_1D_obs'
 
 	tf.set_random_seed(seed)
@@ -72,6 +73,7 @@ if __name__ == '__main__':
 	if store_res == True:
 		Experiment_params = {"n_particles":n_particles, "time":time, "batch_size":batch_size,
 							 "lr":lr, "epoch":epoch, "seed":seed, "n_train":n_train,
+							 "encoder_architecture":encoder_architecture
 							 "rslt_dir_name":rslt_dir_name}
 		RLT_DIR = create_RLT_DIR(Experiment_params)
 
@@ -90,8 +92,12 @@ if __name__ == '__main__':
 	obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name = 'obs')
 	x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name = 'x_0')
 
-	encoder_cell = Encoder_two_obs(Dx, Dy, n_particles, batch_size, time)
-	# encoder_cell = Encoder_full_obs(Dx, Dy, n_particles, batch_size, time)
+	if encoder_architecture == "Encoder_two_obs":
+		encoder_cell = Encoder_two_obs(Dx, Dy, n_particles, batch_size, time)
+	elif encoder_architecture == "Encoder_full_obs":
+		encoder_cell = Encoder_full_obs(Dx, Dy, n_particles, batch_size, time)
+	else:
+		encoder_cell = Encoder(Dx, n_particles, batch_size, time)
 
 	# for evaluating true log_ZSMC
 	# transition
@@ -199,7 +205,8 @@ if __name__ == '__main__':
 		plot_losses(RLT_DIR, log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests)
 
 		hyperparams_dict = {"T":time, "n_particles":n_particles, "batch_size":batch_size, "lr":lr,
-				 			"epoch":epoch, "n_train":n_train, "seed":seed}
+				 			"epoch":epoch, "n_train":n_train, "seed":seed,
+				 			"encoder_architecture":encoder_architecture}
 		modelparams_dict = {"mya":mya, "myb":myb, "myc":myc, "I":I, "dt":dt}
 		true_model_dict = { "Q_true":Q_true, 
 							"B_true":B_true, "Sigma_true":Sigma_true}
