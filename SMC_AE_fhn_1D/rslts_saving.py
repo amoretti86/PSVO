@@ -13,7 +13,7 @@ def create_RLT_DIR(Experiment_params):
     # Experiment_params must contain "rslt_dir_name":rslt_dir_name
     cur_date = addDateTime()
 
-    local_rlt_root = './rslts/' + Experiment_params['rslt_dir_name'] + '/'
+    local_rlt_root = 'rslts/' + Experiment_params['rslt_dir_name'] + '/'
 
     params_str = ""
     for param_name, param in Experiment_params.items():
@@ -21,7 +21,7 @@ def create_RLT_DIR(Experiment_params):
             continue
         params_str += param_name + '_' + str(param) + '_'
 
-    RLT_DIR = local_rlt_root + params_str + cur_date + '/'
+    RLT_DIR = os.path.join(os.getcwd(), local_rlt_root + params_str + cur_date + '/')
 
     if not os.path.exists(RLT_DIR): os.makedirs(RLT_DIR)
 

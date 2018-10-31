@@ -37,15 +37,16 @@ if __name__ == '__main__':
 
 	batch_size = 5
 	lr = 5e-3
-	epoch = 150
+	epoch = 100
 	seed = 0
 
 	n_train = 200 	* batch_size
 	n_test  = 1		* batch_size
 
 	print_freq = 10
+	save_freq = 10
 	store_res = True
-	encoder_architecture = "Encoder" # "Encoder_two_obs" or "Encoder_full_obs" or "Encoder"
+	encoder_architecture = "Encoder_full_obs" # "Encoder_two_obs" or "Encoder_full_obs" or "Encoder"
 	rslt_dir_name = 'AutoEncoder_1D_obs'
 
 	tf.set_random_seed(seed)
@@ -75,6 +76,9 @@ if __name__ == '__main__':
 							 "lr":lr, "epoch":epoch, "seed":seed, "n_train":n_train,
 							 "encoder_architecture":encoder_architecture,
 							 "rslt_dir_name":rslt_dir_name}
+		print('Experiment_params')
+		for key, val in Experiment_params.items():
+			print('\t{}:{}'.format(key, val))
 		RLT_DIR = create_RLT_DIR(Experiment_params)
 
 	# Create train and test dataset
@@ -134,6 +138,7 @@ if __name__ == '__main__':
 	
 	if store_res == True:
 		writer = tf.summary.FileWriter(RLT_DIR)
+		saver = tf.train.Saver()
 
 	# check trainable variables
 	# print('trainable variables:')
@@ -179,6 +184,9 @@ if __name__ == '__main__':
 				log_ZSMC_trains.append(log_ZSMC_train_val)
 				log_ZSMC_tests.append(log_ZSMC_test_val)
 
+			if store_res == True and (i+1)%save_freq == 0:
+				saver.save(sess, os.path.join(RLT_DIR, 'model_iter'), global_step=i)
+
 		Q_learned = Q.eval()
 		B_learned = B.eval()
 		Sigma_learned = Sigma.eval()
@@ -214,6 +222,7 @@ if __name__ == '__main__':
 							"B_init":B_init, "Sigma_int":np.dot(L_Sigma_init, L_Sigma_init.T)}
 		learned_model_dict = {"Q_learned":Q_learned, 
 							  "B_learned":B_learned, "Sigma_learned":Sigma_learned,
+							  "Xs_val":Xs_val,
 							  "As_val":As_val}
 		log_ZSMC_dict = {"log_ZSMC_true":log_ZSMC_true_val, 
 						 "log_ZSMC_trains": log_ZSMC_trains, 
