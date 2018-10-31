@@ -1,4 +1,4 @@
-import numpy as np
+SMC_trainimport numpy as np
 import math
 from sklearn.utils import shuffle
 
@@ -140,8 +140,8 @@ if __name__ == '__main__':
 				
 			# print training and testing loss
 			if (i+1)%print_freq == 0:
-				log_ZSMC_train_val = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_train)
-				log_ZSMC_test_val  = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_test)
+				log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train)
+				log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_test)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val))
 

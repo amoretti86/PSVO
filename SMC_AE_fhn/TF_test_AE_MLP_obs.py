@@ -1,4 +1,4 @@
-import numpy as np
+SMC_trainimport numpy as np
 import math
 from sklearn.utils import shuffle
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
 	SMC_true  = SMC(q_true,  f_true, g_true,  n_particles, batch_size, name = 'log_ZSMC_true')
 	# f_true is passed in to calculate f_nu_log_probs at t = 0, not used for t = 1, 2, ...
 	SMC_train = SMC(q_train, f_true, g_train, n_particles, batch_size, encoder_cell = encoder_cell, name = 'log_ZSMC_train')
-	log_ZSMC_true,  log_true  = SMC_true.get_log_ZSMC(obs)
+	log_ZSMC_true,  log_true  = SMC_tSMC_trainrue.get_log_ZSMC(obs)
 	log_ZSMC_train, log_train = SMC_train.get_log_ZSMC(obs)
 	
 	with tf.name_scope('train'):
@@ -147,8 +147,8 @@ if __name__ == '__main__':
 				
 			# print training and testing loss
 			if (i+1)%print_freq == 0:
-				log_ZSMC_train_val = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-				log_ZSMC_test_val  = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_test,  x_0, hidden_test)
+				log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
+				log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_test,  x_0, hidden_test)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val))
 
