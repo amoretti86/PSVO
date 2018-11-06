@@ -13,7 +13,7 @@ from fhn_sampler import create_train_test_dataset
 from distributions import mvn, poisson, tf_mvn, tf_poisson
 from fhn_transition import tf_fhn
 from SMC import SMC
-from rslts_saving import create_RLT_DIR, NumpyEncoder, plot_training_data, plot_learning_results, plot_losses
+from rslts_saving import create_RLT_DIR, NumpyEncoder, plot_training_data, plot_learning_results, plot_2D_results, plot_losses
 
 # for data saving stuff
 import sys
@@ -110,7 +110,7 @@ if __name__ == '__main__':
 	B_true_tnsr 	= tf.Variable(B_true, 		dtype=tf.float32, trainable = False, name='B_true')
 	Sigma_true_tnsr = tf.Variable(Sigma_true, 	dtype=tf.float32, trainable = False, name='Q_true')
 	fhn_params = (mya, myb, myc, I, dt)
-	q_true = tf_mvn(n_particles, batch_size, tf.eye(Dx),  (2**2)*tf.eye(Dx), None, name = 'q_true')
+	q_true = tf_mvn(n_particles, batch_size, tf.eye(Dx),  (1**2)*tf.eye(Dx), None, name = 'q_true')
 	f_true = tf_fhn(n_particles, batch_size, fhn_params,  Q_true_tnsr, 		 x_0,  name = 'f_true')
 	g_true = tf_mvn(n_particles, batch_size, B_true_tnsr, Sigma_true_tnsr,	 None, name = 'g_true')
 
@@ -123,7 +123,7 @@ if __name__ == '__main__':
 	L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, trainable = False, name='L_Sigma')
 	Sigma 	= tf.matmul(L_Sigma, L_Sigma, transpose_b = True, name = 'Sigma')
 
-	q_train = tf_mvn(n_particles, batch_size, tf.eye(Dx), (2**2)*tf.eye(Dx), None,  name = 'q_train')
+	q_train = tf_mvn(n_particles, batch_size, tf.eye(Dx), (1**2)*tf.eye(Dx), None,  name = 'q_train')
 	g_train = tf_mvn(n_particles, batch_size, B, 		  Sigma, 			  None, name = 'g_train')
 
 	# for train_op
@@ -212,12 +212,13 @@ if __name__ == '__main__':
 	if store_res == True:
 		plot_training_data(RLT_DIR, hidden_train, obs_train, max_fig_num = max_fig_num)
 		plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = max_fig_num)
-		plot_losses(RLT_DIR, log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests)
+		plot_2D_results(RLT_DIR, As_val, hidden_train)
 
 		hyperparams_dict = {"T":time, "n_particles":n_particles, "batch_size":batch_size, "lr":lr,
 				 			"epoch":epoch, "n_train":n_train, "seed":seed,
 				 			"encoder_architecture":encoder_architecture}
 		modelparams_dict = {"mya":mya, "myb":myb, "myc":myc, "I":I, "dt":dt}
+		training_data_dict = {"hidden_train":hidden_train[:max_fig_num]}
 		true_model_dict = { "Q_true":Q_true, 
 							"B_true":B_true, "Sigma_true":Sigma_true}
 		init_model_dict = { "Q_init":np.dot(L_Q_init, L_Q_init.T), 
@@ -231,6 +232,7 @@ if __name__ == '__main__':
 						 "log_ZSMC_tests":log_ZSMC_tests}
 		data_dict = {"hyperparams_dict":hyperparams_dict, 
 					 "modelparams_dict":modelparams_dict, 
+					 "training_data_dict":training_data_dict,
 					 "true_model_dict":true_model_dict, 
 					 "init_model_dict":init_model_dict, 
 					 "learned_model_dict":learned_model_dict,
@@ -239,6 +241,7 @@ if __name__ == '__main__':
 			pickle.dump(data_dict, f)
 		with open(RLT_DIR + 'data.json', 'w') as f:
 			json.dump(data_dict, f, indent = 4, cls = NumpyEncoder)
+		plot_losses(RLT_DIR, log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests)
 
 	print("fin")
  

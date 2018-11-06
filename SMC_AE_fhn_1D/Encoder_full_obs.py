@@ -63,7 +63,8 @@ class Encoder_full_obs:
 			# check dim! time or time - 1
 			B_NbxTxDzxDz = tf.reshape(B_flat, [self.batch_size, self.time - 1, self.x_dim, self.x_dim])
 			# B must be symmetric
-			B_NbxTxDzxDz = tf.einsum('btij, btkj->btik', B_NbxTxDzxDz, B_NbxTxDzxDz)
+			B_NbxTxDzxDz = tf.matrix_band_part(B_NbxTxDzxDz, 0, -1)
+			B_NbxTxDzxDz = 0.5 * (B_NbxTxDzxDz + tf.transpose(B_NbxTxDzxDz))
 			return B_NbxTxDzxDz
 
 	def get_A(self, YInput_NbxTxDy):

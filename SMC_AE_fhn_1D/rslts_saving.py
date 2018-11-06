@@ -89,3 +89,22 @@ def plot_losses(RLT_DIR, true_log_ZSMC_val, log_ZSMC_trains, log_ZSMC_tests):
     sns.despine()
     plt.savefig(RLT_DIR + "log_ZSMC")
     plt.show()
+
+def plot_2D_results(RLT_DIR, As_val, hidden_train):
+    if not os.path.exists(RLT_DIR+"/2D Learning Results"): os.makedirs(RLT_DIR+"/2D Learning Results")
+    len_As, time, Dx, _ = As_val.shape
+    for i in range(len_As):
+        plt.figure()
+        plt.plot(hidden_train[i][:, 0], hidden_train[i][:, 1], c='yellow')
+
+        Xs_val = np.zeros((time, Dx))
+        Xs_val[0] = hidden_train[i][0]
+        for j in range(0, time-1):
+            Xs_val[j+1] = np.dot(As_val[i][j], Xs_val[j])
+
+        plt.plot(np.average(Xs_val[:, 0], Xs_val[:, 1], axis = 1), alpha = 0.5, c = 'black')
+        plt.xlabel("V")
+        plt.ylabel("w")
+        sns.despine()
+        plt.savefig(RLT_DIR+"/2D Learning Results/{}".format(i))
+        plt.close()
