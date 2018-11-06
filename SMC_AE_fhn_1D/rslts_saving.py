@@ -59,7 +59,7 @@ def plot_training_data(RLT_DIR, hidden_train, obs_train, max_fig_num = 20):
 def plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = 20):
     # Plot and save learning results
     if not os.path.exists(RLT_DIR+"/Learning Results"): os.makedirs(RLT_DIR+"/Learning Results")
-    n_train = len(min(len(hidden_train), max_fig_num))
+    n_train = min(len(hidden_train), max_fig_num)
     for i in range(n_train):
         plt.figure()
         plt.title("hidden state 0")
@@ -102,7 +102,7 @@ def plot_2D_results(RLT_DIR, As_val, hidden_train):
         for j in range(0, time-1):
             Xs_val[j+1] = np.dot(As_val[i][j], Xs_val[j])
 
-        plt.plot(np.average(Xs_val[:, 0], Xs_val[:, 1], axis = 1), alpha = 0.5, c = 'black')
+        plt.plot(Xs_val[:, 0], Xs_val[:, 1], alpha = 0.8, c = 'black')
         plt.xlabel("V")
         plt.ylabel("w")
         sns.despine()

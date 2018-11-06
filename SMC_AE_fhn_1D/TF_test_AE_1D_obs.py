@@ -95,6 +95,7 @@ if __name__ == '__main__':
 	# placeholders
 	obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name = 'obs')
 	x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name = 'x_0')
+	trueX = tf.placeholder(tf.float32, shape=(batch_size, time,Dx), name='trueX')
 
 	if encoder_architecture == "Encoder_two_obs":
 		encoder_cell = Encoder_two_obs(Dx, Dy, n_particles, batch_size, time)
@@ -127,9 +128,9 @@ if __name__ == '__main__':
 	g_train = tf_mvn(n_particles, batch_size, B, 		  Sigma, 			  None, name = 'g_train')
 
 	# for train_op
-	SMC_true  = SMC(q_true,  f_true, g_true,  n_particles, batch_size, name = 'log_ZSMC_true')
+	SMC_true  = SMC(q_true,  f_true, g_true,  n_particles, batch_size, trueX, name = 'log_ZSMC_true')
 	# f_true is passed in to calculate f_nu_log_probs at t = 0, not used for t = 1, 2, ...
-	SMC_train = SMC(q_train, f_true, g_train, n_particles, batch_size, encoder_cell = encoder_cell, name = 'log_ZSMC_train')
+	SMC_train = SMC(q_train, f_true, g_train, n_particles, batch_size, trueX, encoder_cell = encoder_cell, name = 'log_ZSMC_train')
 	log_ZSMC_true,  log_true  = SMC_true.get_log_ZSMC(obs)
 	log_ZSMC_train, log_train = SMC_train.get_log_ZSMC(obs)
 	
@@ -157,9 +158,9 @@ if __name__ == '__main__':
 		if store_res == True:
 			writer.add_graph(sess.graph)
 
-		log_ZSMC_true_val = SMC_true.tf_accuracy(sess, log_ZSMC_true, obs, obs_train+obs_test, x_0, hidden_train+hidden_test)
-		log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-		log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_test,  x_0, hidden_test)
+		log_ZSMC_true_val = SMC_true.tf_accuracy(sess, log_ZSMC_true, obs, obs_train+obs_test, x_0, hidden_train+hidden_test, trueX)
+		log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train, trueX)
+		log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_test,  x_0, hidden_test,  trueX)
 		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
 		print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 			.format(0, log_ZSMC_train_val, log_ZSMC_test_val))
@@ -174,12 +175,13 @@ if __name__ == '__main__':
 				# print("encoder_cell.sigma")
 				# print(encoder_cell.sigma.eval())
 				sess.run(train_op, feed_dict={obs:obs_train[j:j+batch_size], 
-											  x_0:[hidden[0] for hidden in hidden_train[j:j+batch_size]]})
+											  x_0:[hidden[0] for hidden in hidden_train[j:j+batch_size]],
+											  trueX:hidden_train[j:j+batch_size]})
 				
 			# print training and testing loss
 			if (i+1)%print_freq == 0:
-				log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-				log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_test,  x_0, hidden_test)
+				log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train, trueX)
+				log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_test,  x_0, hidden_test, trueX)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val))
 
@@ -200,7 +202,8 @@ if __name__ == '__main__':
 		for i in range(0, min(len(hidden_train), max_fig_num), batch_size):
 			X_val, A_val = sess.run([Xs, As], 
 									  feed_dict = {obs:obs_train[i:i+batch_size],
-									  			   x_0:[hidden[0] for hidden in hidden_train[i:i+batch_size]]})
+									  			   x_0:[hidden[0] for hidden in hidden_train[i:i+batch_size]],
+												   trueX: hidden_train[i:i+batch_size]})
 			for j in range(batch_size):
 				Xs_val[i+j] = X_val[:, :, j, :]
 				As_val[i+j] = A_val[j]

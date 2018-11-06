@@ -3,7 +3,8 @@ import tensorflow.contrib.distributions as tfd
 
 class SMC:
 	def __init__(self, q, f, g,
-				 n_particles, batch_size,
+				 n_particles, batch_size, 
+				 trueX = None,
 				 encoder_cell = None,
 				 use_stop_gradient = False,
 				 name = "get_log_ZSMC"):
@@ -15,6 +16,7 @@ class SMC:
 		self.batch_size = batch_size
 		self.use_stop_gradient = use_stop_gradient
 		self.name = name
+		self.trueX = trueX # placeholder of shape MxTxDz
 
 	def get_log_ZSMC(self, obs):
 		"""
@@ -40,7 +42,10 @@ class SMC:
 			qs = []
 
 			# time = 0
-			X = self.q.sample(None, name = 'X0')
+			if self.trueX is None:
+				X = self.q.sample(None, name='X0')
+			else:
+				X = self.q.sample(tf.tile(tf.expand_dims(self.trueX[:,0], axis=0),(self.n_particles, 1,1)), name='X0')
 			q_uno_log_probs = self.q.log_prob(None, X, name = 'q_uno_probs')
 			f_nu_log_probs  = self.f.log_prob(None, X, name = 'f_nu_probs')
 			g_uno_log_probs = self.g.log_prob(X, obs[:,0], name = 'g_uno_probs')
@@ -76,7 +81,10 @@ class SMC:
 				final_idx = tf.concat((idx_expanded, ugly_expanded), axis = 2)							# (n_particles, batch_size, 2)
 				X_prev = tf.gather_nd(X, final_idx)														# (n_particles, batch_size, Dx)
 				
-				X = self.q.sample(X_prev, name = 'q_{}_sample'.format(t))
+				if self.trueX is None:
+					X = self.q.sample(X_prev, name = 'q_{}_sample'.format(t))
+				else:
+					X = self.q.sample(tf.tile(tf.expand_dims(self.trueX[:,t], axis=0),(self.n_particles, 1,1)), name='q_{}_sample'.format(t))
 				q_t_log_probs = self.q.log_prob(X_prev, X, name = 'q_{}_log_probs'.format(t))
 
 				if self.encoder_cell is None:
@@ -111,14 +119,15 @@ class SMC:
 
 		return mean_log_ZSMC, [Xs, log_Ws, Ws, fs, gs, qs, A_NbxTxDzxDz]
 
-	def tf_accuracy(self, sess, log_ZSMC, obs, obs_set, x_0, hidden_set):
+	def tf_accuracy(self, sess, log_ZSMC, obs, obs_set, x_0, hidden_set, trueX=None):
 		"""
 		used for evaluating true_log_ZSMC, train_log_ZSMC, test_log_ZSMC
 		"""
 		accuracy = 0
 		for i in range(0, len(obs_set), self.batch_size):
 			log_ZSMC_val = sess.run(log_ZSMC, feed_dict = {obs:obs_set[i:i+self.batch_size], 
-														   x_0:[hidden[0] for hidden in hidden_set[i:i+self.batch_size]]})
+														   x_0:[hidden[0] for hidden in hidden_set[i:i+self.batch_size]],
+														   trueX: hidden_set[i:i+self.batch_size]})
 			# print(i, log_ZSMC_val)
 			accuracy += log_ZSMC_val
 		return accuracy/(len(obs_set)/self.batch_size)
