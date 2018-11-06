@@ -18,7 +18,7 @@ def addDateTime(s = ""):
     """
     date = str(datetime.datetime.now())
     date = date[2:4] + date[5:7] + date[8:10] + '_' + date[11:13] + date[14:16]
-    return s + '_D' + date
+    return s + 'D' + date
 
 
 

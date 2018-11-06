@@ -19,9 +19,9 @@ def create_RLT_DIR(Experiment_params):
     for param_name, param in Experiment_params.items():
         if param_name == 'rslt_dir_name':
             continue
-        params_str += param_name + '_' + str(param) + '_'
+        params_str += '_' + param_name + '_' + str(param)
 
-    RLT_DIR = os.path.join(os.getcwd(), local_rlt_root + params_str + cur_date + '/')
+    RLT_DIR = os.path.join(os.getcwd(), local_rlt_root + cur_date + params_str  + '/')
     MODEL_DIR = os.path.join(RLT_DIR, 'model/')
 
     if not os.path.exists(RLT_DIR): os.makedirs(RLT_DIR)
@@ -43,10 +43,10 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
 
-def plot_training_data(RLT_DIR, hidden_train, obs_train):
+def plot_training_data(RLT_DIR, hidden_train, obs_train, max_fig_num = 20):
     # Plot and save training data
     if not os.path.exists(RLT_DIR+"/Training Data"): os.makedirs(RLT_DIR+"/Training Data")
-    for i in range(len(hidden_train)):
+    for i in range(min(len(hidden_train), 20)):
         plt.figure()
         plt.title("Training Time Series")
         plt.xlabel("Time")
@@ -56,10 +56,10 @@ def plot_training_data(RLT_DIR, hidden_train, obs_train):
         plt.savefig(RLT_DIR+"Training Data/{}".format(i))
         plt.close()
 
-def plot_learning_results(RLT_DIR, Xs_val, hidden_train):
+def plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = 20):
     # Plot and save learning results
     if not os.path.exists(RLT_DIR+"/Learning Results"): os.makedirs(RLT_DIR+"/Learning Results")
-    n_train = len(hidden_train)
+    n_train = len(min(len(hidden_train), max_fig_num))
     for i in range(n_train):
         plt.figure()
         plt.title("hidden state 0")

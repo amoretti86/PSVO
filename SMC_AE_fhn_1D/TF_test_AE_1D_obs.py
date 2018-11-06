@@ -36,8 +36,8 @@ if __name__ == '__main__':
 	time = 200
 
 	batch_size = 5
-	lr = 5e-3
-	epoch = 100
+	lr = 2e-3
+	epoch = 300
 	seed = 0
 
 	n_train = 200 	* batch_size
@@ -46,6 +46,7 @@ if __name__ == '__main__':
 	print_freq = 10
 	save_freq = 10
 	store_res = True
+	max_fig_num = 20
 	encoder_architecture = "Encoder_full_obs" # "Encoder_two_obs" or "Encoder_full_obs" or "Encoder"
 	rslt_dir_name = 'AutoEncoder_1D_obs'
 
@@ -80,6 +81,7 @@ if __name__ == '__main__':
 		for key, val in Experiment_params.items():
 			print('\t{}:{}'.format(key, val))
 		RLT_DIR = create_RLT_DIR(Experiment_params)
+		print("RLT_DIR:", RLT_DIR)
 
 	# Create train and test dataset
 	fhn_params = (mya, myb, myc, I)
@@ -87,8 +89,6 @@ if __name__ == '__main__':
 	t = np.arange(0.0, time*dt, dt)
 	hidden_train, obs_train, hidden_test, obs_test = create_train_test_dataset(n_train, n_test, fhn_params, g, t)
 	print("finish creating dataset")
-	if store_res == True:
-		plot_training_data(RLT_DIR, hidden_train, obs_train)
 
 	# ================================ TF stuffs starts ================================ #
 
@@ -171,6 +171,8 @@ if __name__ == '__main__':
 			# train A, B, Q, x_0 using each training sample
 			obs_train, hidden_train = shuffle(obs_train, hidden_train)
 			for j in range(0, len(obs_train), batch_size):
+				# print("encoder_cell.sigma")
+				# print(encoder_cell.sigma.eval())
 				sess.run(train_op, feed_dict={obs:obs_train[j:j+batch_size], 
 											  x_0:[hidden[0] for hidden in hidden_train[j:j+batch_size]]})
 				
@@ -185,7 +187,7 @@ if __name__ == '__main__':
 				log_ZSMC_tests.append(log_ZSMC_test_val)
 
 			if store_res == True and (i+1)%save_freq == 0:
-				saver.save(sess, os.path.join(RLT_DIR, 'model/model_epoch'), global_step=i)
+				saver.save(sess, os.path.join(RLT_DIR, 'model/model_epoch'), global_step=i+1)
 
 		Q_learned = Q.eval()
 		B_learned = B.eval()
@@ -195,7 +197,7 @@ if __name__ == '__main__':
 		As = log_train[-1]
 		Xs_val = np.zeros((n_train, time, n_particles, Dx))
 		As_val = np.zeros((n_train, time-1, Dx, Dx))
-		for i in range(0, len(obs_train), batch_size):
+		for i in range(0, min(len(hidden_train), max_fig_num), batch_size):
 			X_val, A_val = sess.run([Xs, As], 
 									  feed_dict = {obs:obs_train[i:i+batch_size],
 									  			   x_0:[hidden[0] for hidden in hidden_train[i:i+batch_size]]})
@@ -208,8 +210,8 @@ if __name__ == '__main__':
 	print("finish training")
 
 	if store_res == True:
-		plot_training_data(RLT_DIR, hidden_train, obs_train)
-		plot_learning_results(RLT_DIR, Xs_val, hidden_train)
+		plot_training_data(RLT_DIR, hidden_train, obs_train, max_fig_num = max_fig_num)
+		plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = max_fig_num)
 		plot_losses(RLT_DIR, log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests)
 
 		hyperparams_dict = {"T":time, "n_particles":n_particles, "batch_size":batch_size, "lr":lr,

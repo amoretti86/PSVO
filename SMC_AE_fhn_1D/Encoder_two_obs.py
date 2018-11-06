@@ -25,7 +25,6 @@ class Encoder_two_obs:
 	def encoding(self, YInput_NbxTxDy):
 		with tf.variable_scope(self.scope + '/encoding'):
 			Y_concat_NbxTx2Dy = tf.concat([YInput_NbxTxDy[:, :-1], YInput_NbxTxDy[:, 1:]], axis = -1, name = 'Y_concat')
-			print(Y_concat_NbxTx2Dy.shape)
 			Enc_layer_1 = fully_connected(Y_concat_NbxTx2Dy, self.Enc_layer_1_dim,
 										  weights_initializer=tf.orthogonal_initializer(),
 										  biases_initializer=tf.zeros_initializer(),
