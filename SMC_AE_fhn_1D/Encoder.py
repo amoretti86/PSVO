@@ -16,7 +16,7 @@ class Encoder:
 		self.Ev_layer_2_dim = 200
 
 		self.alpha = 0.1
-		self.sigma_init = 25
+		self.sigma_init = 5
 		self.sigma_cons_stablizer = 1e-6
 
 	# ================================ keep an eye on len of YInput ================================ #
@@ -59,8 +59,11 @@ class Encoder:
 									  reuse = tf.AUTO_REUSE, scope = "B_flat")
 			# check dim! time or time - 1
 			B_NbxTxDzxDz = tf.reshape(B_flat, [self.batch_size, self.time - 1, self.x_dim, self.x_dim])
+
+			B_upper = tf.matrix_band_part(B_NbxTxDzxDz,0, -1)
+			B_NbxTxDzxDz = 0.5 * (B_upper + tf.transpose(B_upper, perm=[0,1,3,2]))
 			# B must be symmetric
-			B_NbxTxDzxDz = tf.einsum('btij, btkj->btik', B_NbxTxDzxDz, B_NbxTxDzxDz)
+			#B_NbxTxDzxDz = tf.einsum('btij, btkj->btik', B_NbxTxDzxDz, B_NbxTxDzxDz)
 			return B_NbxTxDzxDz
 
 	def get_A(self, YInput_NbxTxDy):
