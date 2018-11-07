@@ -46,7 +46,7 @@ class NumpyEncoder(json.JSONEncoder):
 def plot_training_data(RLT_DIR, hidden_train, obs_train, max_fig_num = 20):
     # Plot and save training data
     if not os.path.exists(RLT_DIR+"/Training Data"): os.makedirs(RLT_DIR+"/Training Data")
-    for i in range(min(len(hidden_train), 20)):
+    for i in range(min(len(hidden_train), max_fig_num)):
         plt.figure()
         plt.title("Training Time Series")
         plt.xlabel("Time")

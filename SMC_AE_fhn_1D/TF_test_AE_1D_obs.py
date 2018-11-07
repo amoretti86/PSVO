@@ -44,8 +44,8 @@ if __name__ == '__main__':
 	n_test  = 1		* batch_size
 
 	print_freq = 10
-	save_freq = 10
 	store_res = True
+	save_freq = 10
 	max_fig_num = 20
 	encoder_architecture = "Encoder_full_obs" # "Encoder_two_obs" or "Encoder_full_obs" or "Encoder"
 	rslt_dir_name = 'AutoEncoder_1D_obs'
