@@ -78,6 +78,15 @@ def plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = 20):
         sns.despine()
         plt.savefig(RLT_DIR+"/Learning Results/h_1_{}".format(i))
         plt.close()
+        
+        plt.figure(figsize=(10,10))
+        for i in range(n_train):
+            plt.plot(np.average(Xs_val[i, :, :, 0], axis = 1), np.average(Xs_val[i, :, :, 1], axis = 1))
+            plt.scatter(np.average(Xs_val[i, 0, :, 0]), np.average(Xs_val[i, 0, :, 1]))
+            plt.xlabel("xDim 1")
+            plt.ylabel("xDim 2")
+            sns.despine()
+        plt.savefig(RLT_DIR+"/Learning Results/All_X_Paths")
 
 def plot_losses(RLT_DIR, true_log_ZSMC_val, log_ZSMC_trains, log_ZSMC_tests):
     # Plot and save losses
