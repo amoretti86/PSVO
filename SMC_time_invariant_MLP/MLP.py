@@ -40,7 +40,7 @@ class MLP_mvn:
 			# 						biases_initializer=tf.constant_initializer(0.6),
 			# 						activation_fn = tf.nn.softplus,
 			# 						reuse = tf.AUTO_REUSE, scope = "sigma")
-			sigma = tf.maximum(sigma_cons, self.sigma_min)
+			sigma = tf.maximum(tf.nn.softplus(sigma_cons), self.sigma_min)
 			mvn = tfd.MultivariateNormalFullCovariance(loc = mu, 
 													   covariance_matrix = tf.matrix_diag(sigma), 
 													   validate_args=True, 
