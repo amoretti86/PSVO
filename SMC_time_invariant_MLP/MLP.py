@@ -5,6 +5,7 @@ from tensorflow.contrib.layers import fully_connected, xavier_initializer
 class MLP_mvn:
 	def __init__(self, Dx, Dy, 
 				 n_particles, batch_size,
+				 sigma_init = 5,
 				 name = 'MLP_mvn'):
 		self.Dx = Dx
 		self.Dy = Dy
@@ -13,7 +14,7 @@ class MLP_mvn:
 		self.n_particles = n_particles
 		self.batch_size = batch_size
 
-		self.sigma_init = 5
+		self.sigma_init = sigma_init
 		self.sigma_min = 1
 
 		self.name = name
@@ -66,7 +67,9 @@ class MLP_mvn:
 
 
 class MLP_poisson:
-	def __init__(self, Dx, Dy, lambda_cons = 1e-2, name = 'MLP_poisson'):
+	def __init__(self, Dx, Dy,
+				 n_particles, batch_size, 
+				 lambda_cons = 1e-6, name = 'MLP_poisson'):
 		self.Dx = Dx
 		self.Dy = Dy
 		self.Dh1 = 50
@@ -87,7 +90,7 @@ class MLP_poisson:
 									  biases_initializer=tf.constant_initializer(0.6),
 									  activation_fn = tf.nn.softplus,
 									  reuse = tf.AUTO_REUSE, scope = "lambdas") + self.lambda_cons
-			poisson = tfd.Poisson(rate = rate, 
+			poisson = tfd.Poisson(rate = lambdas, 
 								  validate_args=True, 
 								  allow_nan_stats=False, 
 								  name = "Poisson")

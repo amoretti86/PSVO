@@ -7,8 +7,7 @@ import pdb
 
 # import from files
 from MLP import MLP_mvn, MLP_poisson
-from fhn_sampler import create_train_test_dataset
-from fhn_transition import tf_fhn
+from SMC_sampler import create_train_test_dataset
 from distributions import mvn, poisson, tf_mvn, tf_poisson
 from SMC import SMC
 from rslts_saving import create_RLT_DIR, NumpyEncoder, plot_training_data, plot_learning_results, plot_losses
@@ -35,36 +34,25 @@ if __name__ == '__main__':
 
 	batch_size = 5
 	lr = 2e-3
-	epoch = 100
+	epoch = 150
 	seed = 0
 
-	n_train = 100	* batch_size
+	n_train = 50	* batch_size
 	n_test  = 1 	* batch_size
 
 	print_freq = 10
 	store_res = True
 	save_freq = 10
 	max_fig_num = 20
-	rslt_dir_name = 'time_invariant_MLP_fhn'
+	rslt_dir_name = 'time_invariant_MLP_PLDS'
 
 	tf.set_random_seed(seed)
 	np.random.seed(seed)
 	
-	# ============================== model parameters ============================== #
-
-	# transition
-	mya, myb, myc = 1.0, 0.95, 0.05
-	I = 1.0
-	dt = 0.15
+	A_true = np.diag([0.95, 0.25])
 	Q_true = np.asarray([[1., 0], [0, 1.]])
-	B_true = np.diag([1.0, 1.0])
-	Sigma_true = np.diag([0.15, 0.15])
-	# initial state
-	# x_0_true = np.array([1.0, 1.0])
-
-	B_init 			= B_true
-	L_Q_init 		= np.linalg.cholesky(Q_true)
-	L_Sigma_init 	= np.linalg.cholesky(Sigma_true)
+	B_true = np.diag([2.0, 4.0])
+	x_0_true = np.array([1.0, 1.0])
 
 	# create dir to store results
 	if store_res == True:
@@ -78,10 +66,9 @@ if __name__ == '__main__':
 		print("RLT_DIR:", RLT_DIR)
 
 	# Create train and test dataset
-	fhn_params = (mya, myb, myc, I)
-	g = mvn(B_true, Sigma_true)
-	t = np.arange(0.0, time*dt, dt)
-	hidden_train, obs_train, hidden_test, obs_test = create_train_test_dataset(n_train, n_test, fhn_params, g, t)
+	f = mvn(A_true, Q_true, x_0_true)
+	g = poisson(B_true)
+	hidden_train, obs_train, hidden_test, obs_test = create_train_test_dataset(n_train, n_test, time, x_0_true, f, g, Dx, Dy)
 	print("finish creating dataset")
 	# ================================ TF stuffs starts ================================ #
 
@@ -90,26 +77,17 @@ if __name__ == '__main__':
 	x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name = 'x_0')
 
 	# for evaluating true log_ZSMC
+	A_true_tnsr 	= tf.Variable(A_true, 		dtype=tf.float32, trainable = False, name='A_true')
 	B_true_tnsr 	= tf.Variable(B_true, 		dtype=tf.float32, trainable = False, name='B_true')
 	Q_true_tnsr 	= tf.Variable(Q_true, 		dtype=tf.float32, trainable = False, name='Q_true')
-	Sigma_true_tnsr = tf.Variable(Sigma_true, 	dtype=tf.float32, trainable = False, name='Q_true')
-	fhn_params = (mya, myb, myc, I, dt)
+	x_0_true_tnsr 	= tf.Variable(x_0_true, 	dtype=tf.float32, trainable = False, name='x_0_true')
 	q_true = tf_mvn(n_particles, batch_size, tf.eye(Dx),  (5)*tf.eye(Dx), x_0, 	name = 'q_true')
-	f_true = tf_fhn(n_particles, batch_size, fhn_params,  Q_true_tnsr, 	  x_0,  name = 'f_true')
-	g_true = tf_mvn(n_particles, batch_size, B_true_tnsr, Sigma_true_tnsr, 		name = 'g_true')
-
-	# A, B, Q, x_0 to train
-	# A 		= tf.Variable(A_init, 		dtype=tf.float32, trainable = False, name='A')
-	# B 		= tf.Variable(B_init, 		dtype=tf.float32, trainable = False, name='B')
-	# L_Q 	= tf.Variable(L_Q_init, 	dtype=tf.float32, trainable = False, name='L_Q')
-	# L_Sigma = tf.Variable(L_Sigma_init, dtype=tf.float32, trainable = False, name='L_Sigma')
-	# x_0 	= tf.Variable(x_0_init, 	dtype=tf.float32, trainable = False, name='x_0')
-	# Q 		= tf.matmul(L_Q, 	 L_Q, 	  transpose_b = True, name = 'Q')
-	# Sigma 	= tf.matmul(L_Sigma, L_Sigma, transpose_b = True, name = 'Sigma')
+	f_true = tf_mvn(n_particles, batch_size, A_true_tnsr, Q_true_tnsr,    x_0, 	name = 'f_true')
+	g_true = tf_poisson(n_particles, batch_size, B_true_tnsr, name = 'g_true')
 
 	q_train = MLP_mvn(Dx + Dy, Dx, n_particles, batch_size, name = 'q_train')
 	f_train = MLP_mvn(Dx, Dx, n_particles, batch_size, name = 'f_train')
-	g_train = MLP_mvn(Dx, Dy, n_particles, batch_size, name = 'g_train')
+	g_train = MLP_poisson(Dx, Dy, n_particles, batch_size, name = 'g_train')
 
 	# for train_op
 	SMC_true  = SMC(q_true,  f_true,  g_true,  n_particles, batch_size, name = 'log_ZSMC_true')
@@ -189,8 +167,8 @@ if __name__ == '__main__':
 
 		params_dict = {"T":time, "n_particles":n_particles, "batch_size":batch_size, "lr":lr,
 					   "epoch":epoch, "n_train":n_train, "seed":seed}
-		true_model_dict = { "Q_true":Q_true, 
-							"B_true":B_true}
+		true_model_dict = { "A_true":A_true, "Q_true":Q_true, 
+							"B_true":B_true, "x_0_true":x_0_true}
 		learned_model_dict = {"Xs_val":Xs_val}
 		log_ZSMC_dict = {"log_ZSMC_true":log_ZSMC_true_val, 
 						 "log_ZSMC_trains": log_ZSMC_trains, 

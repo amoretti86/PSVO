@@ -143,8 +143,8 @@ if __name__ == '__main__':
 
 		log_ZSMC_true_val = SMC_true.tf_accuracy(sess, log_ZSMC_true, obs, obs_train+obs_test, x_0, hidden_train+hidden_test)
 		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
-		log_ZSMC_train_val = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-		log_ZSMC_test_val  = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
+		log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
+		log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
 		print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 			.format(0, log_ZSMC_train_val, log_ZSMC_test_val))
 		log_ZSMC_trains.append(log_ZSMC_train_val)
@@ -159,8 +159,8 @@ if __name__ == '__main__':
 				
 			# print training and testing loss
 			if (i+1)%print_freq == 0:
-				log_ZSMC_train_val = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-				log_ZSMC_test_val  = SMC_true.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
+				log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
+				log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val))
 
