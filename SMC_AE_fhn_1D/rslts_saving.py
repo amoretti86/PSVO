@@ -82,7 +82,7 @@ def plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = 20):
         plt.figure(figsize=(10,10))
         for i in range(n_train):
             plt.plot(np.average(Xs_val[i, :, :, 0], axis = 1), np.average(Xs_val[i, :, :, 1], axis = 1))
-            plt.scatter(np.average(Xs_val[i, :, 0, 0], axis = 1), np.average(Xs_val[i, :, 0, 1], axis = 1))
+            plt.scatter(np.average(Xs_val[i, 0, :, 0]), np.average(Xs_val[i, 0, :, 1]))
             plt.xlabel("xDim 1")
             plt.ylabel("xDim 2")
             sns.despine()
