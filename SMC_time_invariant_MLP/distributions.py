@@ -118,8 +118,8 @@ class tf_mvn:
 			self.name = name
 			self.dtype = dtype
 
-	def get_mvn(self, Input, name):
-		with tf.name_scope(self.name):
+	def get_mvn(self, Input, name = None):
+		with tf.name_scope(name or self.name):
 			if Input is None:
 				mvn = tfd.MultivariateNormalFullCovariance(loc = self.output_0, 
 														   covariance_matrix = self.Sigma,
@@ -147,27 +147,13 @@ class tf_mvn:
 			else:
 				return mvn.sample(name = "samples")
 
-	def prob(self, Input, output, name = None):
-		# Input: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		# output: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-		# prob:		tensor, shape = (n_particles, batch_size), dtype = self.dtype
-		mvn = self.get_mvn(Input, name)
-		with tf.name_scope(name or self.name):
-			if Input is None:
-				return mvn.prob(output, name = "prob")
-			else:
-				return mvn.prob(output, name = "prob")
-
 	def log_prob(self, Input, output, name = None):
 		# Input: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
 		# output: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
 		# prob:		tensor, shape = (n_particles, batch_size), dtype = self.dtype
 		mvn = self.get_mvn(Input, name)
 		with tf.name_scope(name or self.name):
-			if Input is None:
-				return mvn.log_prob(output, name = "log_prob")
-			else:
-				return mvn.log_prob(output, name = "log_prob")
+			return mvn.log_prob(output, name = "log_prob")
 
 class tf_poisson:
 	""" 
@@ -208,18 +194,11 @@ class tf_poisson:
 		with tf.name_scope(name or self.name):
 			return poisson.sample(name = "sample")
 
-	def prob(self, Input, output, name = None):
-		# Input: 	tensor, shape = (n_particles, batch_size, Din), dtype = self.dtype
-		# output: 	tensor, shape = (batch_size, Dy), dtype = self.dtype
-		# prob:		tensor, shape = (n_particles, batch_siz), dtype = self.dtype
-		poisson = self.get_poisson(Input, name)
-		with tf.name_scope(name or self.name):
-			return tf.reduce_prod(poisson.prob(output, name = "element_wise_prob"), axis = 2, name = "prob")
-
 	def log_prob(self, Input, output, name = None):
 		# Input: 	tensor, shape = (n_particles, batch_size, Din), dtype = self.dtype
 		# output: 	tensor, shape = (batch_size, Dy), dtype = self.dtype
 		# prob:		tensor, shape = (n_particles, batch_siz), dtype = self.dtype
 		poisson = self.get_poisson(Input, name)
 		with tf.name_scope(name or self.name):
-			return tf.reduce_sum(poisson.log_prob(output, name = "element_wise_log_prob"), axis = 2, name = "log_prob")
+			return tf.reduce_sum(poisson.log_prob(output, name = "element_wise_log_prob"), 
+								 axis = -1, name = "log_prob")

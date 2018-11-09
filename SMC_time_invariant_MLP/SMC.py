@@ -1,11 +1,11 @@
 import tensorflow as tf
-import tensorflow.contrib.distributions as tfd
+from tensorflow_probability import distributions as tfd
 
 class SMC:
 	def __init__(self, q, f, g,
 				 n_particles, batch_size, 
 				 use_stop_gradient = False,
-				 name = "get_log_ZSMC"):
+				 name = "log_ZSMC"):
 		self.q = q
 		self.f = f
 		self.g = g
@@ -120,3 +120,40 @@ class SMC:
 			# print(i, log_ZSMC_val)
 			accuracy += log_ZSMC_val
 		return accuracy/(len(obs_set)/self.batch_size)
+
+
+	def n_step_y_MSE(self, n_steps, hidden, obs):
+		"""
+		compute MSE = (y_hat-y)^2 for n_steps
+		for each x_t, calculate y_t_hat, y_t+1_hat, ..., y_t+n-1_hat
+		then calculate the MSE between y_t:t+n-1_hat and y_t:t+n-1 as MSE_t
+		finally, calculate the average of MSE_t for t in 0, 1, ..., T-n
+		"""
+		batch_size, time, Dx = hidden.shape.as_list()
+		batch_size, time, Dy = obs.shape.as_list()
+		with tf.name_scope(self.name):
+			MSEs = []
+			for t in range(time - n_steps + 1):
+				x = hidden[:, t]
+				ys_hat = []
+				for i in range(n_steps - 1):
+					y_hat = self.g.get_mean(x)
+					ys_hat.append(y_hat)
+					x = self.f.get_mean(x)
+				y_hat = self.g.get_mean(x)
+				ys_hat.append(y_hat)
+				ys_hat = tf.stack(ys_hat, axis = 1)
+				ys = obs[:, t:t+n_steps]
+				MSE = tf.reduce_mean((ys_hat - ys)**2, name = 'MSE_{}'.format(t))
+				MSEs.append(MSE)
+			MSEs = tf.stack(MSEs, name = 'MSEs')
+			MSE_mean = tf.reduce_mean(MSEs, name = 'MSE_mean')
+			return MSE_mean
+
+	def tf_MSE(self, sess, MSE_mean, hidden, hidden_set, obs, obs_set):
+		MSE_means_val = 0
+		for i in range(0, len(hidden_set), self.batch_size):
+			MSE_mean_val = sess.run(MSE_mean, feed_dict = {obs:obs_set[i:i+self.batch_size], 
+														   hidden:hidden_set[i:i+self.batch_size]})
+			MSE_means_val += MSE_mean_val
+		return MSE_means_val/(len(obs_set)/self.batch_size)

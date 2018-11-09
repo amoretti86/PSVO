@@ -5,6 +5,7 @@ import os
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def create_RLT_DIR(Experiment_params):
@@ -89,3 +90,41 @@ def plot_losses(RLT_DIR, true_log_ZSMC_val, log_ZSMC_trains, log_ZSMC_tests):
     sns.despine()
     plt.savefig(RLT_DIR + "log_ZSMC")
     plt.show()
+
+def plot_MSEs(RLT_DIR, MSE_true, MSE_trains, MSE_tests):
+    # Plot and save losses
+    plt.figure()
+    plt.plot([MSE_true] * len(MSE_trains))
+    plt.plot(MSE_trains)
+    plt.plot(MSE_tests)
+    plt.legend(['MSE_trues', 'MSE_trains', 'MSE_tests'])
+    sns.despine()
+    plt.savefig(RLT_DIR + "MSE")
+    plt.show()
+
+def plot_fhn_results(RLT_DIR, Xs_val):
+    if not os.path.exists(RLT_DIR+"/FHN 2D plots"): os.makedirs(RLT_DIR+"/FHN 2D plots")
+    for i in range(Xs_val.shape[0]):
+        plt.figure()
+        plt.title("hidden state for all particles")
+        plt.xlabel("x_dim 1")
+        plt.ylabel("x_dim 2")
+        for j in range(Xs_val.shape[2]):
+            plt.plot(Xs_val[i, :, j, 0], Xs_val[i, :, j, 1])
+        sns.despine()
+        plt.savefig(RLT_DIR+"/FHN 2D plots/All_x_paths_{}".format(i))
+        plt.close()
+
+def plot_lorenz_results(RLT_DIR, Xs_val):
+    if not os.path.exists(RLT_DIR+"/Lorenz 3D plots"): os.makedirs(RLT_DIR+"/Lorenz 3D plots")
+    for i in range(Xs_val.shape[0]):        
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        plt.title("hidden state for all particles")
+        ax.set_xlabel('x_dim 1')
+        ax.set_ylabel('x_dim 2')
+        ax.set_zlabel('x_dim 3')
+        for j in range(Xs_val.shape[2]):
+            ax.plot(Xs_val[i, :, j, 0], Xs_val[i, :, j, 1], Xs_val[i, :, j, 2])
+        plt.savefig(RLT_DIR+"/Lorenz 3D plots/All_x_paths_{}".format(i))
+        plt.close()

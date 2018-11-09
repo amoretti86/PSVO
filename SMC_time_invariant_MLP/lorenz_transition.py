@@ -23,8 +23,8 @@ class tf_lorenz:
             self.name = name
             self.dtype = dtype
 
-    def get_mvn(self, Input, name):
-        with tf.name_scope(self.name):
+    def get_mvn(self, Input, name = None):
+        with tf.name_scope(name or self.name):
             if Input is None:
                 mvn = tfd.MultivariateNormalFullCovariance(loc=self.output_0,
                                                            covariance_matrix=self.CovMat,
@@ -54,24 +54,10 @@ class tf_lorenz:
             else:
                 return mvn.sample(name="samples")
 
-    def prob(self, Input, output, name=None):
-        # Input: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-        # output: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
-        # prob:		tensor, shape = (n_particles, batch_size), dtype = self.dtype
-        mvn = self.get_mvn(Input, name)
-        with tf.name_scope(name or self.name):
-            if Input is None:
-                return mvn.prob(output, name="prob")
-            else:
-                return mvn.prob(output, name="prob")
-
     def log_prob(self, Input, output, name=None):
         # Input: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
         # output: 	tensor, shape = (n_particles, batch_size, Dx), dtype = self.dtype
         # prob:		tensor, shape = (n_particles, batch_size), dtype = self.dtype
         mvn = self.get_mvn(Input, name)
         with tf.name_scope(name or self.name):
-            if Input is None:
-                return mvn.log_prob(output, name="log_prob")
-            else:
-                return mvn.log_prob(output, name="log_prob")
+            return mvn.log_prob(output, name="log_prob")

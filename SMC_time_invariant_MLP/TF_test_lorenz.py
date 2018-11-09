@@ -11,7 +11,7 @@ from lorenz_sampler import create_train_test_dataset
 from lorenz_transition import tf_lorenz
 from distributions import mvn, poisson, tf_mvn, tf_poisson
 from SMC import SMC
-from rslts_saving import create_RLT_DIR, NumpyEncoder, plot_training_data, plot_learning_results, plot_losses
+from rslts_saving import *
 
 # for data saving stuff
 import sys
@@ -29,17 +29,19 @@ if __name__ == '__main__':
 
 	# hyperparameters
 	Dx = 3
-	Dy = 10
+	Dy = 3
 	n_particles = 1000
 	time = 10
 
 	batch_size = 5
-	lr = 2e-3
-	epoch = 50
+	lr = 1e-3
+	epoch = 200
 	seed = 0
 
-	n_train = 5	* batch_size
-	n_test  = 1 * batch_size
+	n_train = 100	* batch_size
+	n_test  = 1 	* batch_size
+
+	MSE_steps = 1
 
 	print_freq = 10
 	store_res = True
@@ -83,6 +85,7 @@ if __name__ == '__main__':
 	# ================================ TF stuffs starts ================================ #
 
 	# placeholders
+	hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name = 'hidden')
 	obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name = 'obs')
 	x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name = 'x_0')
 
@@ -95,15 +98,16 @@ if __name__ == '__main__':
 	f_true = tf_lorenz(n_particles, batch_size, lorenz_params, Q_true_tnsr,     x_0, name = 'f_true')
 	g_true = tf_mvn(n_particles,    batch_size, B_true_tnsr,   Sigma_true_tnsr,      name = 'g_true')
 
-	q_train = MLP_mvn(Dx + Dy, Dx, n_particles, batch_size, sigma_init = 100, name = 'q_train')
-	f_train = MLP_mvn(Dx, Dx, n_particles, batch_size, sigma_init = 100, name = 'f_train')
-	g_train = MLP_mvn(Dx, Dy, n_particles, batch_size, sigma_init = 50*Dy, name = 'g_train')
+	q_train = MLP_mvn(Dx + Dy, Dx, n_particles, batch_size, sigma_init = 100, sigma_min = 10, name = 'q_train')
+	f_train = MLP_mvn(Dx, Dx, n_particles, batch_size,      sigma_init = 100, sigma_min = 10, name = 'f_train')
+	g_train = MLP_mvn(Dx, Dy, n_particles, batch_size,      sigma_init = 100*Dy, sigma_min = 10*Dy, name = 'g_train')
 
 	# for train_op
 	SMC_true  = SMC(q_true,  f_true,  g_true,  n_particles, batch_size, name = 'log_ZSMC_true')
 	SMC_train = SMC(q_train, f_train, g_train, n_particles, batch_size, name = 'log_ZSMC_train')
 	log_ZSMC_true,  log_true  = SMC_true.get_log_ZSMC(obs, x_0)
 	log_ZSMC_train, log_train = SMC_train.get_log_ZSMC(obs, x_0)
+	MSE_mean_train = SMC_train.n_step_y_MSE(MSE_steps, hidden, obs)
 	
 	with tf.name_scope('train'):
 		train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC_train)
@@ -122,6 +126,8 @@ if __name__ == '__main__':
 	# for plot
 	log_ZSMC_trains = []
 	log_ZSMC_tests = []
+	MSE_trains = []
+	MSE_tests = []
 	with tf.Session() as sess:
 
 		sess.run(init)
@@ -131,12 +137,22 @@ if __name__ == '__main__':
 
 		log_ZSMC_true_val = SMC_true.tf_accuracy(sess, log_ZSMC_true, obs, obs_train+obs_test, x_0, hidden_train+hidden_test)
 		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
+
+		MSE_true = 0
+		print("MSE_true: {:<7.3f}".format(MSE_true))
+
 		log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
 		log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-		print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
-			.format(0, log_ZSMC_train_val, log_ZSMC_test_val))
+		MSE_train_val = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_train, obs, obs_train)
+		MSE_test_val  = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_test,  obs, obs_test)
+		print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}, train MSE: {:>7.3f}, test MSE: {:>7.3f}"\
+			.format(0, log_ZSMC_train_val, log_ZSMC_test_val, MSE_train_val, MSE_test_val))
+
+
 		log_ZSMC_trains.append(log_ZSMC_train_val)
 		log_ZSMC_tests.append(log_ZSMC_test_val)
+		MSE_trains.append(MSE_train_val)
+		MSE_tests.append(MSE_test_val)
 
 		for i in range(epoch):
 			# train A, B, Q, x_0 using each training sample
@@ -149,11 +165,15 @@ if __name__ == '__main__':
 			if (i+1)%print_freq == 0:
 				log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
 				log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"\
-					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val))
+				MSE_train_val = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_train, obs, obs_train)
+				MSE_test_val  = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_test,  obs, obs_test)
+				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}, train MSE: {:>7.3f}, test MSE: {:>7.3f}"\
+					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val, MSE_train_val, MSE_test_val))
 
 				log_ZSMC_trains.append(log_ZSMC_train_val)
 				log_ZSMC_tests.append(log_ZSMC_test_val)
+				MSE_trains.append(MSE_train_val)
+				MSE_tests.append(MSE_test_val)
 
 			if store_res == True and (i+1)%save_freq == 0:
 				saver.save(sess, os.path.join(RLT_DIR, 'model/model_epoch'), global_step=i+1)
@@ -168,12 +188,14 @@ if __name__ == '__main__':
 
 	sess.close()
 
-	print("fin")
+	print("finish training")
 
 	if store_res == True:
 		plot_training_data(RLT_DIR, hidden_train, obs_train, max_fig_num = max_fig_num)
 		plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = max_fig_num)
+		plot_lorenz_results(RLT_DIR, Xs_val)
 		plot_losses(RLT_DIR, log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests)
+		plot_MSEs(RLT_DIR, MSE_true, MSE_trains, MSE_tests)
 
 		params_dict = {"T":time, "n_particles":n_particles, "batch_size":batch_size, "lr":lr,
 					   "epoch":epoch, "n_train":n_train, "seed":seed}
@@ -186,10 +208,14 @@ if __name__ == '__main__':
 						 "log_ZSMC_tests":log_ZSMC_tests}
 		data_dict = {"params_dict":params_dict, 
 					 "true_model_dict":true_model_dict, 
+					 "log_ZSMC_dict":log_ZSMC_dict}
+		with open(RLT_DIR + 'data.json', 'w') as f:
+			json.dump(data_dict, f, indent = 4, cls = NumpyEncoder)
+
+		data_dict = {"params_dict":params_dict, 
+					 "true_model_dict":true_model_dict, 
 					 "learned_model_dict":learned_model_dict,
 					 "log_ZSMC_dict":log_ZSMC_dict}
 		with open(RLT_DIR + 'data.p', 'wb') as f:
 			pickle.dump(data_dict, f)
-		with open(RLT_DIR + 'data.json', 'w') as f:
-			json.dump(data_dict, f, indent = 4, cls = NumpyEncoder)
  

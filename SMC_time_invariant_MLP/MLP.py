@@ -5,7 +5,7 @@ from tensorflow.contrib.layers import fully_connected, xavier_initializer
 class MLP_mvn:
 	def __init__(self, Dx, Dy, 
 				 n_particles, batch_size,
-				 sigma_init = 5,
+				 sigma_init = 5, sigma_min = 1,
 				 name = 'MLP_mvn'):
 		self.Dx = Dx
 		self.Dy = Dy
@@ -15,7 +15,7 @@ class MLP_mvn:
 		self.batch_size = batch_size
 
 		self.sigma_init = sigma_init
-		self.sigma_min = 1
+		self.sigma_min = sigma_min
 
 		self.name = name
 
@@ -64,6 +64,11 @@ class MLP_mvn:
 		with tf.variable_scope(name or self.name):
 			return mvn.log_prob(y, name = 'log_prob')
 
+	def get_mean(self, x, name = None):
+		mvn = self.get_mvn(x)
+		with tf.variable_scope(name or self.name):
+			return mvn.mean(name = 'mean')
+
 
 
 class MLP_poisson:
@@ -106,3 +111,9 @@ class MLP_poisson:
 		with tf.variable_scope(name or self.name):
 			return tf.reduce_sum(poisson.log_prob(y, name = 'elementwise_log_prob'), 
 								 axis = -1, name = 'log_prob')
+
+	def get_mean(self, x, name = None):
+		poisson = self.get_poisson(x)
+		with tf.variable_scope(name or self.name):
+			return tf.reduce_sum(poisson.mean(name = 'elementwise_mean'),
+								 axis = -1, name = 'mean')
