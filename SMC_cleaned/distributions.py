@@ -68,22 +68,24 @@ class poisson:
 		self.B = B
 		self.Dy, self.Dx = B.shape
 
+	def get_lambdas(self, x):
+		# lambdas = np.exp(np.dot(self.B, x))
+		lambdas = np.log(np.exp(np.dot(self.B, x)) + 2)
+		return lambdas
+
 	def sample(self, x):
 		# x: tensor, shape = (n_particles, Dx)
-		# lambdas = np.exp(np.dot(self.B, x))
-		lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
+		lambdas = self.get_lambdas(x)
 		return np.random.poisson(lambdas)
 
 	def prob(self, x, y):
-		# lambdas = np.exp(np.dot(self.B, x))
-		lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
+		lambdas = self.get_lambdas(x)
 		element_wise_prob = sp.stats.poisson.pmf(y, lambdas)
 		prob = np.prod(element_wise_prob)
 		return prob
 
 	def log_prob(self, x, y):
-		# lambdas = np.exp(np.dot(self.B, x))
-		lambdas = np.log(np.exp(np.dot(self.B, x)) + 1)
+		lambdas = self.get_lambdas(x)
 		element_wise_log_prob = sp.stats.poisson.logpmf(y, lambdas)
 		log_prob = np.sum(element_wise_log_prob)
 		return log_prob
@@ -128,11 +130,13 @@ class tf_mvn:
 			if x_prev is None:
 				return tfd.MultivariateNormalFullCovariance(loc = self.x_0, 
 															covariance_matrix = self.Sigma,
+															validate_args=True,
 															name = "mvn")
 			else:
 				loc = tf.matmul(x_prev, self.A, transpose_b = True, name = 'loc')
 				return tfd.MultivariateNormalFullCovariance(loc = loc, 
 															covariance_matrix = self.Sigma,
+															validate_args=True,
 															name = "mvn")
 
 
@@ -183,9 +187,9 @@ class tf_poisson:
 	def get_poisson(self, x, name = None):
 		with tf.name_scope(name or self.name):
 			# log_rate = tf.matmul(x, self.B, transpose_b = True, name = 'log_rate')
-			# poisson = tfd.Poisson(log_rate = log_rate, name = "Poisson")
-			rate = tf.log(tf.exp(tf.matmul(x, self.B, transpose_b = True)) + 1, name = 'rate')
-			poisson = tfd.Poisson(rate = rate, name = "Poisson")
+			# poisson = tfd.Poisson(log_rate = log_rate, validate_args=True, name = "Poisson")
+			rate = tf.log(tf.exp(tf.matmul(x, self.B, transpose_b = True)) + 2, name = 'rate')
+			poisson = tfd.Poisson(rate = rate, validate_args=True, name = "Poisson")
 			return poisson
 
 	def sample(self, x, name = None):

@@ -57,8 +57,7 @@ if __name__ == '__main__':
 
 	# create dir to store results
 	if store_res == True:
-		Experiment_params = (Dh, time, n_particles, batch_size, lr, epoch, seed, n_train)
-		Experiment_params = {"n_particles":n_particles, "time":time, "Dh":Dh,
+		Experiment_params = {"n_particles":n_particles, "time":time, "Dh":Dh, "batch_size":batch_size,
 							 "lr":lr, "epoch":epoch, "seed":seed, "n_train":n_train,
 							 "rslt_dir_name":rslt_dir_name}
 		RLT_DIR = create_RLT_DIR(Experiment_params)

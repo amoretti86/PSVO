@@ -49,7 +49,7 @@ if __name__ == '__main__':
 	
 	A_true = np.asarray([[0.85, -0.25], [-0.05, 0.54]])
 	Q_true = np.asarray([[1., 0], [0, 1.]])
-	B_true = np.diag([1.0, 2.0])
+	B_true = np.diag([4.0, 6.0])
 	Sigma_true = np.asarray([[1., 0], [0, 1.]])
 	x_0_true = np.array([1.0, 1.0])
 
@@ -73,7 +73,7 @@ if __name__ == '__main__':
 
 	# init A, B, Q, Sigma, x_0 randomly
 	A_init = A_true 				# np.diag([0.5, 0.95])
-	B_init = np.diag([1.5, 1.5]) 	# B_true
+	B_init = np.diag([4, 4]) 	# B_true
 	L_Q_init = Q_true 				# np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
 	L_Sigma_init = Sigma_true 		# np.asarray([[1.2, 0], [0, 1.2]]) # Q = L * L^T
 	x_0_init = x_0_true 			# np.array([0.8, 0.8])
@@ -91,7 +91,7 @@ if __name__ == '__main__':
 	Sigma_true_tnsr = tf.Variable(Sigma_true, 	dtype=tf.float32, trainable = False, name='Q_true')
 	x_0_true_tnsr 	= tf.Variable(x_0_true, 	dtype=tf.float32, trainable = False, name='x_0_true')
 
-	q_true = tf_mvn(n_particles, tf.eye(Dx),  (5**2)*tf.eye(Dx), 			name = 'q_true')
+	q_true = tf_mvn(n_particles, tf.eye(Dx),  (10**2)*tf.eye(Dx), 			name = 'q_true')
 	f_true = tf_mvn(n_particles, A_true_tnsr, Q_true_tnsr, x_0_true_tnsr, 	name = 'f_true')
 	# g_true = tf_mvn(n_particles, B_true_tnsr, Sigma_true_tnsr, 			  	name = 'g_true')
 	g_true = tf_poisson(n_particles, B_true_tnsr, name = 'g_true')
@@ -106,7 +106,7 @@ if __name__ == '__main__':
 	Q 		= tf.matmul(L_Q, 	 L_Q, 	  transpose_b = True, name = 'Q')
 	Sigma 	= tf.matmul(L_Sigma, L_Sigma, transpose_b = True, name = 'Sigma')
 
-	q_train = tf_mvn(n_particles, tf.eye(Dx), (5**2)*tf.eye(Dx), name = 'q_train')
+	q_train = tf_mvn(n_particles, tf.eye(Dx), (10**2)*tf.eye(Dx), name = 'q_train')
 	f_train = tf_mvn(n_particles, A, 		  Q, x_0, 	  name = 'f_train')
 	# g_train = tf_mvn(n_particles, B, 		  Sigma, 	  name = 'g_train')
 	g_train = tf_poisson(n_particles, B, name = 'g_true')
@@ -140,6 +140,32 @@ if __name__ == '__main__':
 		for i in range(epoch):
 			# train A, B, Q, x_0 using each training sample
 			obs_train, hidden_train = shuffle(obs_train, hidden_train)
+
+
+			log_Ws, Ws, fs, gs, qs = log_train[1:6]
+			for i, obs_sample in enumerate(obs_train):
+				log_Ws_val, Ws_val, fs_val, gs_val, qs_val = sess.run([log_Ws, Ws, fs, gs, qs], feed_dict={obs: obs_sample})
+				for j, (log_W, W, f, g, q) in enumerate(zip(log_Ws_val, Ws_val, fs_val, gs_val, qs_val)):
+					# pdb.set_trace()
+					print(i, j)
+					idx = np.argsort(log_W)
+					print("log_W")
+					print(log_W[idx])
+					print("W")
+					print(W[idx])
+					print("f")
+					print(f[idx])
+					print("g")
+					print(g[idx])
+					print("q")
+					print(q[idx])
+					print(np.log(np.mean(W)))
+					print()
+					assert math.isfinite(np.log(np.mean(W)))
+				log_ZSMC_train_val = sess.run(log_ZSMC_train, feed_dict={obs: obs_sample})
+				print(log_ZSMC_train_val)
+				assert math.isfinite(log_ZSMC_train_val)
+
 			for j, obs_sample in enumerate(obs_train):
 				sess.run(train_op, feed_dict={obs: obs_sample})
 

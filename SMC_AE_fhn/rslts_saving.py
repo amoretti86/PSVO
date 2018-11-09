@@ -59,23 +59,15 @@ def plot_learning_results(RLT_DIR, Xs_val, hidden_train):
     if not os.path.exists(RLT_DIR+"/Learning Results"): os.makedirs(RLT_DIR+"/Learning Results")
     n_train = len(hidden_train)
     for i in range(n_train):
-        plt.figure()
-        plt.title("hidden state 0")
-        plt.xlabel("Time")
-        plt.plot(np.average(Xs_val[i, :, :, 0], axis = 1), alpha = 0.5, c = 'black')
-        plt.plot(hidden_train[i][:, 0], c='yellow')
-        sns.despine()
-        plt.savefig(RLT_DIR+"/Learning Results/h_0_{}".format(i))
-        plt.close()
-
-        plt.figure()
-        plt.title("hidden state 1")
-        plt.xlabel("Time")
-        plt.plot(np.average(Xs_val[i, :, :, 1], axis = 1), alpha = 0.5, c = 'black')
-        plt.plot(hidden_train[i][:, 1], c='yellow')
-        sns.despine()
-        plt.savefig(RLT_DIR+"/Learning Results/h_1_{}".format(i))
-        plt.close()
+        for j in range(Xs_val.shape[-1]):
+            plt.figure()
+            plt.title("hidden state {}".format(j))
+            plt.xlabel("Time")
+            plt.plot(np.average(Xs_val[i, :, :, j], axis = 1), alpha = 0.5, c = 'black')
+            plt.plot(hidden_train[i][:, j], c='yellow')
+            sns.despine()
+            plt.savefig(RLT_DIR+"/Learning Results/h_{}_{}".format(j, i))
+            plt.close()
 
 def plot_losses(RLT_DIR, true_log_ZSMC_val, log_ZSMC_trains, log_ZSMC_tests):
     # Plot and save losses
