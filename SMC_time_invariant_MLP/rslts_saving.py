@@ -128,3 +128,17 @@ def plot_lorenz_results(RLT_DIR, Xs_val):
             ax.plot(Xs_val[i, :, j, 0], Xs_val[i, :, j, 1], Xs_val[i, :, j, 2])
         plt.savefig(RLT_DIR+"/Lorenz 3D plots/All_x_paths_{}".format(i))
         plt.close()
+
+def plot_y_hat(RLT_DIR, ys_hat_val, obs):
+    if not os.path.exists(RLT_DIR+"/y_hat plots"): os.makedirs(RLT_DIR+"/y_hat plots")
+    for i in range(ys_hat_val.shape[0]):
+        for j in range(ys_hat_val.shape[-1]):
+            plt.figure()
+            plt.title("obs dim {}".format(j))
+            plt.xlabel("Time")
+            plt.plot(obs[i][:, j])
+            for k in range(ys_hat_val.shape[2]):
+                plt.plot(range(k, k + ys_hat_val.shape[1]), ys_hat_val[i, :, k, j], '*-')
+            sns.despine()
+            plt.savefig(RLT_DIR+"/y_hat plots/obs_{}_{}".format(j, i))
+            plt.close()

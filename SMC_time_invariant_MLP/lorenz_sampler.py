@@ -22,7 +22,7 @@ def simLorenz(lorenz_params, g, t, X_init=None):
         X_init = np.random.randint(low=-30, high=30, size=3) / 10
 
     X = odeint(dALLdt, X_init, t, args=lorenz_params)
-    Y = [g.sample(x) for x in X]
+    Y = np.array([g.sample(x) for x in X])
 
     return X, Y
 

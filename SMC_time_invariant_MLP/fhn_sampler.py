@@ -31,7 +31,7 @@ def simFN(fhn_params, g, t, X_init = None):
 		X_init = np.random.randint(low =-25, high=25, size=2)/10
 	
 	X = odeint(dALLdt, X_init, t, args = fhn_params)
-	Y = [g.sample(x) for x in X]
+    Y = np.array([g.sample(x) for x in X])
 
 	return X, Y
 

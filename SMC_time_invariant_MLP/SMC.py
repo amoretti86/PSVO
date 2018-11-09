@@ -132,23 +132,27 @@ class SMC:
 		batch_size, time, Dx = hidden.shape.as_list()
 		batch_size, time, Dy = obs.shape.as_list()
 		with tf.name_scope(self.name):
-			MSEs = []
+
+			x_BxTxDz = hidden[:, 0:time - n_steps + 1]
+			ys_hat_BxNxTxDy = []
+
+			for i in range(n_steps - 1):
+				y_hat_BxTxD = self.g.get_mean(x_BxTxDz)
+				ys_hat_BxNxTxDy.append(y_hat_BxTxD)
+				x_BxTxD = self.f.get_mean(x_BxTxDz)
+
+			y_hat_BxTxD = self.g.get_mean(x_BxTxDz)
+			ys_hat_BxNxTxDy.append(y_hat_BxTxD)
+
+			ys_hat_BxNxTxDy = tf.stack(ys_hat_BxNxTxDy, axis = 1)
+
+			ys_BxNxTxDy = []
 			for t in range(time - n_steps + 1):
-				x = hidden[:, t]
-				ys_hat = []
-				for i in range(n_steps - 1):
-					y_hat = self.g.get_mean(x)
-					ys_hat.append(y_hat)
-					x = self.f.get_mean(x)
-				y_hat = self.g.get_mean(x)
-				ys_hat.append(y_hat)
-				ys_hat = tf.stack(ys_hat, axis = 1)
-				ys = obs[:, t:t+n_steps]
-				MSE = tf.reduce_mean((ys_hat - ys)**2, name = 'MSE_{}'.format(t))
-				MSEs.append(MSE)
-			MSEs = tf.stack(MSEs, name = 'MSEs')
-			MSE_mean = tf.reduce_mean(MSEs, name = 'MSE_mean')
-			return MSE_mean
+				ys_BxNxDy = obs[:, t:t+n_steps]
+				ys_BxNxTxDy.append(ys_BxNxDy)
+			ys_BxNxTxDy = tf.stack(ys_BxNxTxDy, axis = 2)
+			MSE = tf.reduce_mean((ys_hat_BxNxTxDy - ys_BxNxTxDy)**2, name = 'MSE_{}'.format(t))
+			return MSE, ys_hat_BxNxTxDy, ys_BxNxTxDy
 
 	def tf_MSE(self, sess, MSE_mean, hidden, hidden_set, obs, obs_set):
 		MSE_means_val = 0

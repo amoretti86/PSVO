@@ -31,11 +31,11 @@ if __name__ == '__main__':
 	Dx = 3
 	Dy = 3
 	n_particles = 1000
-	time = 10
+	time = 100
 
 	batch_size = 5
 	lr = 1e-3
-	epoch = 200
+	epoch = 150
 	seed = 0
 
 	n_train = 100	* batch_size
@@ -46,7 +46,7 @@ if __name__ == '__main__':
 	print_freq = 10
 	store_res = True
 	save_freq = 10
-	max_fig_num = 20
+	max_fig_num = 10
 	rslt_dir_name = 'MLP_lorenz_{}D'.format(Dy)
 
 	tf.set_random_seed(seed)
@@ -98,16 +98,16 @@ if __name__ == '__main__':
 	f_true = tf_lorenz(n_particles, batch_size, lorenz_params, Q_true_tnsr,     x_0, name = 'f_true')
 	g_true = tf_mvn(n_particles,    batch_size, B_true_tnsr,   Sigma_true_tnsr,      name = 'g_true')
 
-	q_train = MLP_mvn(Dx + Dy, Dx, n_particles, batch_size, sigma_init = 100, sigma_min = 10, name = 'q_train')
-	f_train = MLP_mvn(Dx, Dx, n_particles, batch_size,      sigma_init = 100, sigma_min = 10, name = 'f_train')
-	g_train = MLP_mvn(Dx, Dy, n_particles, batch_size,      sigma_init = 100*Dy, sigma_min = 10*Dy, name = 'g_train')
+	q_train = MLP_mvn(Dx + Dy, Dx, n_particles, batch_size, sigma_init = 400, sigma_min = 100, name = 'q_train')
+	f_train = MLP_mvn(Dx, Dx, n_particles, batch_size,      sigma_init = 400, sigma_min = 100, name = 'f_train')
+	g_train = MLP_mvn(Dx, Dy, n_particles, batch_size,      sigma_init = 400, sigma_min = 100, name = 'g_train')
 
 	# for train_op
 	SMC_true  = SMC(q_true,  f_true,  g_true,  n_particles, batch_size, name = 'log_ZSMC_true')
 	SMC_train = SMC(q_train, f_train, g_train, n_particles, batch_size, name = 'log_ZSMC_train')
 	log_ZSMC_true,  log_true  = SMC_true.get_log_ZSMC(obs, x_0)
 	log_ZSMC_train, log_train = SMC_train.get_log_ZSMC(obs, x_0)
-	MSE_mean_train = SMC_train.n_step_y_MSE(MSE_steps, hidden, obs)
+	MSE_train, ys_hat, _ = SMC_train.n_step_y_MSE(MSE_steps, hidden, obs)
 	
 	with tf.name_scope('train'):
 		train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC_train)
@@ -136,15 +136,13 @@ if __name__ == '__main__':
 			writer.add_graph(sess.graph)
 
 		log_ZSMC_true_val = SMC_true.tf_accuracy(sess, log_ZSMC_true, obs, obs_train+obs_test, x_0, hidden_train+hidden_test)
-		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
-
 		MSE_true = 0
-		print("MSE_true: {:<7.3f}".format(MSE_true))
+		print("log_ZSMC_true_val: {:<7.3f}".format(log_ZSMC_true_val))
 
 		log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
 		log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-		MSE_train_val = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_train, obs, obs_train)
-		MSE_test_val  = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_test,  obs, obs_test)
+		MSE_train_val = SMC_train.tf_MSE(sess, MSE_train, hidden, hidden_train, obs, obs_train)
+		MSE_test_val  = SMC_train.tf_MSE(sess, MSE_train, hidden, hidden_test,  obs, obs_test)
 		print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}, train MSE: {:>7.3f}, test MSE: {:>7.3f}"\
 			.format(0, log_ZSMC_train_val, log_ZSMC_test_val, MSE_train_val, MSE_test_val))
 
@@ -165,8 +163,8 @@ if __name__ == '__main__':
 			if (i+1)%print_freq == 0:
 				log_ZSMC_train_val = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
 				log_ZSMC_test_val  = SMC_train.tf_accuracy(sess, log_ZSMC_train, obs, obs_train, x_0, hidden_train)
-				MSE_train_val = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_train, obs, obs_train)
-				MSE_test_val  = SMC_train.tf_MSE(sess, MSE_mean_train, hidden, hidden_test,  obs, obs_test)
+				MSE_train_val = SMC_train.tf_MSE(sess, MSE_train, hidden, hidden_train, obs, obs_train)
+				MSE_test_val  = SMC_train.tf_MSE(sess, MSE_train, hidden, hidden_test,  obs, obs_test)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}, train MSE: {:>7.3f}, test MSE: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val, MSE_train_val, MSE_test_val))
 
@@ -179,12 +177,17 @@ if __name__ == '__main__':
 				saver.save(sess, os.path.join(RLT_DIR, 'model/model_epoch'), global_step=i+1)
 
 		Xs = log_train[0]
-		Xs_val = np.zeros((n_train, time, n_particles, Dx))
-		for i in range(0, min(len(hidden_train), max_fig_num), batch_size):
+		n_res = min(len(hidden_train), max_fig_num)
+		Xs_val = np.zeros((n_res, time, n_particles, Dx))
+		ys_hat_val = np.zeros((n_res, MSE_steps, time - MSE_steps + 1, Dy))
+		for i in range(0, n_res, batch_size):
 			X_val = sess.run(Xs, feed_dict = {obs:obs_train[i:i+batch_size],
 											  x_0:[hidden[0] for hidden in hidden_train[i:i+batch_size]]})
+			y_hat_val = sess.run(ys_hat, feed_dict = {obs:obs_train[i:i+batch_size],
+											  		  hidden:hidden_train[i:i+batch_size]})
 			for j in range(batch_size):
 				Xs_val[i+j] = X_val[:, :, j, :]
+				ys_hat_val[i+j] = y_hat_val[j]
 
 	sess.close()
 
@@ -194,6 +197,7 @@ if __name__ == '__main__':
 		plot_training_data(RLT_DIR, hidden_train, obs_train, max_fig_num = max_fig_num)
 		plot_learning_results(RLT_DIR, Xs_val, hidden_train, max_fig_num = max_fig_num)
 		plot_lorenz_results(RLT_DIR, Xs_val)
+		plot_y_hat(RLT_DIR, ys_hat_val, obs_train)
 		plot_losses(RLT_DIR, log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests)
 		plot_MSEs(RLT_DIR, MSE_true, MSE_trains, MSE_tests)
 
@@ -202,7 +206,8 @@ if __name__ == '__main__':
 		true_model_dict = { "Q_true":Q_true, 
 							"B_true":B_true,
 							"Sigma_true":Sigma_true}
-		learned_model_dict = {"Xs_val":Xs_val}
+		learned_model_dict = {"Xs_val":Xs_val,
+							  "ys_hat_val":ys_hat_val}
 		log_ZSMC_dict = {"log_ZSMC_true":log_ZSMC_true_val, 
 						 "log_ZSMC_trains": log_ZSMC_trains, 
 						 "log_ZSMC_tests":log_ZSMC_tests}
