@@ -1,11 +1,12 @@
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
+import tensorflow.contrib.distributions as tfd
+import numpy as np
 
 class SMC:
 	def __init__(self, q, f, g,
 				 n_particles, batch_size, 
 				 use_stop_gradient = False,
-				 name = "log_ZSMC"):
+				 name = "get_log_ZSMC"):
 		self.q = q
 		self.f = f
 		self.g = g
@@ -121,14 +122,52 @@ class SMC:
 			accuracy += log_ZSMC_val
 		return accuracy/(len(obs_set)/self.batch_size)
 
+	def plot_flow(self, sess, Xdata, obs, obs_set, x_0, hidden_set, epoch, figsize=(13,13), newfig=True):
+
+		Dx = Xdata.shape[-1]
+
+		import matplotlib.pyplot as plt
+		if newfig:
+			plt.ion()
+			plt.figure(figsize=figsize)
+		lattice = self.define2Dlattice()
+		Tbins = lattice.shape[0]
+		lattice = np.reshape(lattice, [1, Tbins, Dx])
+
+		#nextX = self.f.get_mean(Xdata)
+		nextX = self.f.get_mean(tf.constant(lattice))
+		X = lattice[:,:-1,:].reshape(Tbins-1, Dx)
+		nextX = sess.run(nextX)
+		plt.quiver(X.T[0], X.T[1], nextX.T[0]-X.T[0], nextX.T[1]-X.T[1])
+		#for i in range(0, len(obs_set), self.batch_size):
+		Xdata = sess.run(Xdata, feed_dict={obs:obs_set[0:self.batch_size],
+							x_0:[hidden[0] for hidden in hidden_set[0:self.batch_size]]})
+		for p in Xdata:
+			plt.plot(p[:,0], p[:,1])
+			plt.scatter([p[0,0], p[0,1]])
+		plt.savefig("Flow {}".format(epoch))
+		plt.show()
+
+
+		#X_BxTxD = sess.run([Xdata, nextX], feed_dict = {})
+
+
+	@staticmethod
+	def define2Dlattice(x1range=(-30.0, 30.0), x2range=(-30.0, 30.)):
+
+		x1coords = np.linspace(x2range[0], x1range[1])
+		x2coords = np.linspace(x2range[0], x2range[1])
+		Xlattice = np.array(np.meshgrid(x1coords,x2coords))
+		Xlattice = Xlattice.reshape(2,-1).T
+		return Xlattice
 
 	def n_step_y_MSE(self, n_steps, hidden, obs):
 		"""
-		compute MSE = (y_hat-y)^2 for n_steps
-		for each x_t, calculate y_t_hat, y_t+1_hat, ..., y_t+n-1_hat
-		then calculate the MSE between y_t:t+n-1_hat and y_t:t+n-1 as MSE_t
-		finally, calculate the average of MSE_t for t in 0, 1, ..., T-n
-		"""
+        compute MSE = (y_hat-y)^2 for n_steps
+        for each x_t, calculate y_t_hat, y_t+1_hat, ..., y_t+n-1_hat
+        then calculate the MSE between y_t:t+n-1_hat and y_t:t+n-1 as MSE_t
+        finally, calculate the average of MSE_t for t in 0, 1, ..., T-n
+        """
 		batch_size, time, Dx = hidden.shape.as_list()
 		batch_size, time, Dy = obs.shape.as_list()
 		with tf.name_scope(self.name):
@@ -144,20 +183,23 @@ class SMC:
 			y_hat_BxTxD = self.g.get_mean(x_BxTxDz)
 			ys_hat_BxNxTxDy.append(y_hat_BxTxD)
 
-			ys_hat_BxNxTxDy = tf.stack(ys_hat_BxNxTxDy, axis = 1)
+			ys_hat_BxNxTxDy = tf.stack(ys_hat_BxNxTxDy, axis=1)
 
 			ys_BxNxTxDy = []
 			for t in range(time - n_steps + 1):
-				ys_BxNxDy = obs[:, t:t+n_steps]
+				ys_BxNxDy = obs[:, t:t + n_steps]
 				ys_BxNxTxDy.append(ys_BxNxDy)
-			ys_BxNxTxDy = tf.stack(ys_BxNxTxDy, axis = 2)
-			MSE = tf.reduce_mean((ys_hat_BxNxTxDy - ys_BxNxTxDy)**2, name = 'MSE_{}'.format(t))
+			ys_BxNxTxDy = tf.stack(ys_BxNxTxDy, axis=2)
+			MSE = tf.reduce_mean((ys_hat_BxNxTxDy - ys_BxNxTxDy) ** 2, name='MSE_{}'.format(t))
 			return MSE, ys_hat_BxNxTxDy, ys_BxNxTxDy
 
 	def tf_MSE(self, sess, MSE_mean, hidden, hidden_set, obs, obs_set):
 		MSE_means_val = 0
 		for i in range(0, len(hidden_set), self.batch_size):
-			MSE_mean_val = sess.run(MSE_mean, feed_dict = {obs:obs_set[i:i+self.batch_size], 
-														   hidden:hidden_set[i:i+self.batch_size]})
+			MSE_mean_val = sess.run(MSE_mean, feed_dict={obs: obs_set[i:i + self.batch_size],
+														 hidden: hidden_set[i:i + self.batch_size]})
 			MSE_means_val += MSE_mean_val
-		return MSE_means_val/(len(obs_set)/self.batch_size)
+		return MSE_means_val / (len(obs_set) / self.batch_size)
+
+
+
