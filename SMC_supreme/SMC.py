@@ -187,16 +187,17 @@ class SMC:
 		Tbins = lattice.shape[0]
 		lattice = np.reshape(lattice, [1, Tbins, Dx])
 
-		nextX = self.f.mean(tf.constant(lattice))
+		nextX = self.f.mean(tf.constant(lattice), dtype=tf.float32)
 		X = lattice[:,:-1,:].reshape(Tbins-1, Dx)
 		nextX = sess.run(nextX)
 		plt.quiver(X.T[0], X.T[1], nextX.T[0]-X.T[0], nextX.T[1]-X.T[1])
 		
 		Xdata = sess.run(Xdata, feed_dict={obs:obs_set[0:self.batch_size],
 										   x_0:hidden_set[0:self.batch_size, 0]})
+		Xdata = np.average(Xdata, axis=1)
 		for p in Xdata:
 			plt.plot(p[:,0], p[:,1])
-			plt.scatter([p[0,0], p[0,1]])
+			#plt.scatter([p[0,0], p[0,1]])
 		plt.savefig("Flow {}".format(epoch))
 		plt.show()
 
