@@ -118,16 +118,6 @@ class SMC:
 
 		return mean_log_ZSMC, [Xs, log_Ws, Ws, fs, gs, qs]
 
-	def tf_accuracy(self, sess, log_ZSMC, obs, obs_set, x_0, hidden_set):
-		"""
-		used for evaluating true_log_ZSMC, train_log_ZSMC, test_log_ZSMC
-		"""
-		accuracy = 0
-		for i in range(0, len(obs_set), self.batch_size):
-			accuracy += sess.run(log_ZSMC, feed_dict = {obs:obs_set[i:i+self.batch_size], 
-														x_0:hidden_set[i:i+self.batch_size, 0]})
-		return accuracy/(len(obs_set)/self.batch_size)
-
 
 	def n_step_MSE(self, n_steps, hidden, obs):
 		"""
@@ -166,47 +156,3 @@ class SMC:
 			# get MSE between y_hat and y_true
 			MSE = tf.reduce_mean((ys_hat_BxNxTxDy - ys_BxNxTxDy)**2, name = "MSE")
 			return MSE, ys_hat_BxNxTxDy, ys_BxNxTxDy
-
-	def tf_MSE(self, sess, MSE, hidden, hidden_set, obs, obs_set):
-		MSE_val = 0
-		for i in range(0, len(hidden_set), self.batch_size):
-			MSE_val += sess.run(MSE, feed_dict = {obs:obs_set[i:i+self.batch_size], 
-												  hidden:hidden_set[i:i+self.batch_size]})
-		return MSE_val/(len(obs_set)/self.batch_size)
-
-
-	def plot_flow(self, sess, Xdata, obs, obs_set, x_0, hidden_set, epoch, figsize=(13,13), newfig=True):
-
-		Dx = Xdata.shape.as_list()[-1]
-
-		import matplotlib.pyplot as plt
-		if newfig:
-			plt.ion()
-			plt.figure(figsize=figsize)
-		lattice = self.define2Dlattice()
-		Tbins = lattice.shape[0]
-		lattice = np.reshape(lattice, [1, Tbins, Dx])
-
-		nextX = self.f.mean(tf.constant(lattice), dtype=tf.float32)
-		X = lattice[:,:-1,:].reshape(Tbins-1, Dx)
-		nextX = sess.run(nextX)
-		plt.quiver(X.T[0], X.T[1], nextX.T[0]-X.T[0], nextX.T[1]-X.T[1])
-		
-		Xdata = sess.run(Xdata, feed_dict={obs:obs_set[0:self.batch_size],
-										   x_0:hidden_set[0:self.batch_size, 0]})
-		Xdata = np.average(Xdata, axis=1)
-		for p in Xdata:
-			plt.plot(p[:,0], p[:,1])
-			#plt.scatter([p[0,0], p[0,1]])
-		plt.savefig("Flow {}".format(epoch))
-		plt.show()
-
-
-	@staticmethod
-	def define2Dlattice(x1range=(-30.0, 30.0), x2range=(-30.0, 30.)):
-
-		x1coords = np.linspace(x2range[0], x1range[1])
-		x2coords = np.linspace(x2range[0], x2range[1])
-		Xlattice = np.array(np.meshgrid(x1coords,x2coords))
-		Xlattice = Xlattice.reshape(2,-1).T
-		return Xlattice

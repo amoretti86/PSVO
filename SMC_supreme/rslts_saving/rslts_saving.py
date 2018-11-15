@@ -67,7 +67,7 @@ def plot_learning_results(RLT_DIR, Xs_val, hidden_train, saving_num = 20):
 			plt.figure()
 			plt.title("hidden state {}".format(j))
 			plt.xlabel("Time")
-			plt.plot(np.average(Xs_val[i, :, :, j], axis = 1), alpha = 0.5, c = "black")
+			plt.plot(np.mean(Xs_val[i, :, :, j], axis = 1), alpha = 0.5, c = "black")
 			plt.plot(hidden_train[i, :, j], c="yellow")
 			sns.despine()
 			plt.savefig(RLT_DIR+"/Learning Results/h_{}_{}".format(j, i))
