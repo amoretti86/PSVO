@@ -25,10 +25,12 @@ class trainer:
 		self.MSE_steps = MSE_steps
 
 		self.store_res = store_res
+		self.draw_quiver_during_training = False
 
 	def set_rslt_saving(self, RLT_DIR, save_freq, saving_num):
 		self.RLT_DIR = RLT_DIR
 		self.save_freq = save_freq
+		self.saving_num = saving_num
 		self.writer = tf.summary.FileWriter(RLT_DIR)
 
 	def set_SMC(self, SMC_true, SMC_train):
@@ -39,6 +41,11 @@ class trainer:
 		self.x_0 = x_0
 		self.obs = obs
 		self.hidden = hidden
+
+	def set_quiver_arg(self, nextX, lattice):
+		self.nextX = nextX
+		self.lattice = lattice
+		self.draw_quiver_during_training = True
 
 	def evaluate(self, fetches, feed_dict_w_batches={}, average = False):
 		"""
@@ -171,6 +178,12 @@ class trainer:
 					MSE_trains.append(MSE_train_val)
 					MSE_tests.append(MSE_test_val)
 
+				if self.draw_quiver_during_training == True:
+					Xs = log_train[0]
+					Xs_val = self.evaluate(Xs, {self.obs:obs_train[0:self.saving_num], self.x_0:hidden_train[0:self.saving_num, 0]})
+					Xs_val = np.transpose(Xs_val, (2, 1, 0, 3))
+					self.get_quiver_plot(Xs_val, self.nextX, self.lattice, i+1)
+
 			if self.store_res == True and (i+1)%self.save_freq == 0:
 				if not os.path.exists(self.RLT_DIR+"model/"): os.makedirs(self.RLT_DIR+"model/")
 				saver.save(self.sess, self.RLT_DIR+"model/model_epoch", global_step=i+1)
@@ -187,7 +200,7 @@ class trainer:
 		self.sess.close()
 
 
-	def get_quiver_plot(self, Xs_val, nextX, lattice):
+	def get_quiver_plot(self, Xs_val, nextX, lattice, epoch):
 		X_trajs = np.mean(Xs_val, axis = 1)
 
 		import matplotlib.pyplot as plt
@@ -211,7 +224,8 @@ class trainer:
 		plt.quiver(X[:,:,0], X[:,:,1], nextX[:,:,0]-X[:,:,0], nextX[:,:,1]-X[:,:,1], scale=scale)
 
 		sns.despine()
-		plt.savefig(self.RLT_DIR+"quiver")
+		if not os.path.exists(self.RLT_DIR+"quiver/"): os.makedirs(self.RLT_DIR+"quiver/")
+		plt.savefig(self.RLT_DIR+"quiver/{}".format(epoch))
 		plt.close()
 
 	@staticmethod

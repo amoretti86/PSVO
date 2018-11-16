@@ -45,18 +45,18 @@ if __name__ == "__main__":
 	# ============================================ parameter part ============================================ #
 	# training hyperparameters
 	Dx = 2
-	Dy = 3
+	Dy = 2
 	n_particles = 100
-	time = 10
+	time = 150
 
 	batch_size = 16
-	lr = 1e-3
-	epoch = 1
+	lr = 1e-4
+	epoch = 150
 	seed = 0
 	tf.set_random_seed(seed)
 	np.random.seed(seed)
 
-	n_train = 5	* batch_size
+	n_train = 50	* batch_size
 	n_test  = 1 	* batch_size
 	MSE_steps = 1
 
@@ -66,8 +66,8 @@ if __name__ == "__main__":
 
 	store_res = True
 	save_freq = 10
-	saving_num = min(n_train, 1*batch_size)
-	rslt_dir_name = "some_name"
+	saving_num = min(n_train, 2*batch_size)
+	rslt_dir_name = "fhn_2D_obs"
 	
 	# ============================================== model part ============================================== #
 	# for data generation
@@ -77,10 +77,10 @@ if __name__ == "__main__":
 	a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
 	f_params = (a, b, c, I, dt)
 
-	f_cov = 0.15*np.eye(Dx)
+	f_sample_cov = 0.15*np.eye(Dx)
 
-	g_params = np.random.randn(Dy, Dx)
-	g_cov = np.eye(Dy)
+	g_params = np.diag([2.0, 3.0]) # np.random.randn(Dy, Dx)
+	g_sample_cov = np.eye(Dy)
 
 	# transformation can be: fhn_transformation, linear_transformation, lorenz_transformation
 	# distribution can be: dirac_delta, mvn, poisson
@@ -88,8 +88,12 @@ if __name__ == "__main__":
 	f_sample_dist = dirac_delta(f_sample_tran)
 
 	g_sample_tran = linear_transformation(g_params)
-	g_sample_dist = poisson(g_sample_tran)
+	g_sample_dist = mvn(g_sample_tran, g_sample_cov)
 
+	true_model_dict = {"f_params":f_params,
+					   "f_cov":f_sample_cov,
+					   "g_params":g_params,
+					   "g_cov":g_sample_cov}
 	# for training
 	x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name = "x_0")
 
@@ -101,9 +105,20 @@ if __name__ == "__main__":
 	# q_train_tran = my_encoder_cell.q_transformation
 	# f_train_tran = my_encoder_cell.f_transformation
 
-	q_train_dist = tf_mvn(q_train_tran, x_0, sigma_init=100, sigma_min=10, name="q_train_dist")
-	f_train_dist = tf_mvn(f_train_tran, x_0, sigma_init=100, sigma_min=10, name="f_train_dist")
-	g_train_dist = tf_poisson(g_train_tran, name="g_train_dist")
+	q_sigma_init, q_sigma_min = 100, 10
+	f_sigma_init, f_sigma_min = 100, 10
+	g_sigma_init, g_sigma_min = 100, 10
+
+	q_train_dist = tf_mvn(q_train_tran, x_0, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
+	f_train_dist = tf_mvn(f_train_tran, x_0, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_train_dist")
+	g_train_dist = tf_mvn(g_train_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_train_dist")
+
+	init_dict = {"q_sigma_init":q_sigma_init,
+				 "q_sigma_min": q_sigma_min,
+				 "f_sigma_init":f_sigma_init,
+				 "f_sigma_min": f_sigma_min,
+				 "g_sigma_init":g_sigma_init,
+				 "g_sigma_min": g_sigma_min}
 
 	# for evaluating log_ZSMC_true
 	q_A = tf.eye(Dx)
@@ -112,7 +127,7 @@ if __name__ == "__main__":
 	f_cov = 100*tf.eye(Dx)
 
 	g_A = tf.constant(g_params, dtype = tf.float32)
-	g_cov = tf.constant(g_cov, dtype = tf.float32)
+	g_cov = tf.constant(g_sample_cov, dtype = tf.float32)
 
 	q_true_tran = tf_linear_transformation(q_A)
 	q_true_dist = tf_mvn(q_true_tran, x_0, sigma=q_cov, name="q_true_dist")
@@ -148,10 +163,6 @@ if __name__ == "__main__":
 	SMC_true  = SMC(q_true_dist,  f_true_dist,  g_true_dist,  n_particles, batch_size, name = "log_ZSMC_true")
 	SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist, n_particles, batch_size, name = "log_ZSMC_train")
 
-
-	if store_res == True and isinstance(f_sample_tran, fhn_transformation):
-		lattice = tf.placeholder(tf.float32, shape=(50, 50, Dx), name = "lattice")
-		nextX = SMC_train.f.mean(lattice)
 	# ============================================= training part ============================================ #
 	mytrainer = trainer(Dx, Dy,
 						n_particles, time,
@@ -162,6 +173,10 @@ if __name__ == "__main__":
 	mytrainer.set_placeholders(x_0, obs, hidden)
 	if store_res:
 		mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num)
+		if isinstance(f_sample_tran, fhn_transformation):
+			lattice = tf.placeholder(tf.float32, shape=(50, 50, Dx), name = "lattice")
+			nextX = SMC_train.f.mean(lattice)
+			mytrainer.set_quiver_arg(nextX, lattice)
 
 	losses, tensors = mytrainer.train(hidden_train, obs_train, hidden_test, obs_test, print_freq)
 
@@ -184,7 +199,6 @@ if __name__ == "__main__":
 
 		if isinstance(f_sample_tran, fhn_transformation):
 			plot_fhn_results(RLT_DIR, Xs_val)
-			mytrainer.get_quiver_plot(Xs_val, nextX, lattice)
 
 		if isinstance(f_sample_tran, lorenz_transformation):
 			plot_lorenz_results(RLT_DIR, Xs_val)
@@ -196,10 +210,6 @@ if __name__ == "__main__":
 					   "epoch":epoch,
 					   "n_train":n_train,
 					   "seed":seed}
-		true_model_dict = {"f_params":f_params,
-						   "f_cov":f_cov,
-						   "g_params":g_params,
-						   "g_cov":g_cov}
 		loss_dict = {"log_ZSMC_true":log_ZSMC_true_val,
 					 "log_ZSMC_trains":log_ZSMC_trains,
 					 "log_ZSMC_tests":log_ZSMC_tests,
@@ -207,6 +217,8 @@ if __name__ == "__main__":
 					 "MSE_trains":MSE_trains,
 					 "MSE_tests":MSE_tests}
 		data_dict = {"params":params_dict,
+					 "true_model_dict":true_model_dict,
+					 "init_dict":init_dict,
 					 "loss":loss_dict}
 
 		with open(RLT_DIR + "data.json", "w") as f:
