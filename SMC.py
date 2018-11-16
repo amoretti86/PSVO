@@ -142,26 +142,19 @@ class SMC:
 			plt.scatter(Xdata[0,p,0], Xdata[0,p,1])
 		axes = plt.gca()
 
-		#plt.show()
-		print("axes.get_xlim", axes.get_xlim)
+
 		x1range, x2range = axes.get_xlim(), axes.get_ylim()
-		print("x1range, x2range", x1range, x2range)
 
 
 		s = int(5 * max(abs(x1range[0]) + abs(x1range[1]), abs(x2range[0]) + abs(x2range[1])) / 3)
 		lattice = self.define2Dlattice(x1range,x2range)
-		Tbins = lattice.shape[0]
-		lattice = np.reshape(lattice, [1, Tbins, Dx])
 
-		#nextX = self.f.get_mean(Xdata)
 		nextX = self.f.get_mean(tf.constant(lattice, dtype=tf.float32))
-		X = lattice[:,:-1,:].reshape(Tbins-1, Dx)
+		X = lattice
 		nextX = sess.run(nextX)
-		#print("NextX.shape, X.shape:", nextX.shape, X.shape)
-		#nextX = np.average(nextX, axis=1)
-		#X = np.average(X, axis=1)
 
-		plt.quiver(X.T[0], X.T[1], nextX.T[0]-X.T[0], nextX.T[1]-X.T[1],scale=s) #scale=s
+
+		plt.quiver(X[:,:,0], X[:,:,1], nextX[:,:,0]-X[:,:,0], nextX[:,:,1]-X[:,:,1],scale=s)
 		plt.savefig(RLT_DIR + "Flow {}".format(epoch))
 		plt.show()
 		#for i in range(0, len(obs_set), self.batch_size):
@@ -175,8 +168,7 @@ class SMC:
 
 		x1coords = np.linspace(x1range[0], x1range[1])
 		x2coords = np.linspace(x2range[0], x2range[1])
-		Xlattice = np.array(np.meshgrid(x1coords,x2coords))
-		Xlattice = Xlattice.reshape(2,-1).T
+		Xlattice = np.stack(np.meshgrid(x1coords,x2coords),axis=2)
 		return Xlattice
 
 	def n_step_y_MSE(self, n_steps, hidden, obs):
