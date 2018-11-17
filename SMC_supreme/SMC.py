@@ -59,12 +59,6 @@ class SMC:
 				W = tf.exp(log_W, name = "W_{}".format(t))
 				log_ZSMC += tf.log(tf.reduce_mean(W, axis = 0, name = "W_{}_mean".format(t)), name = "log_ZSMC_{}".format(t))
 
-				# print(X)
-				# print(q_t_log_prob)
-				# print(f_t_log_prob)
-				# print(g_t_log_prob)
-				# print(log_W)
-
 				qs.append(q_t_log_prob)
 				fs.append(f_t_log_prob)
 				gs.append(g_t_log_prob)
@@ -90,14 +84,6 @@ class SMC:
 				idx_NxBx1 = tf.expand_dims(idx, axis = 2)						# (n_particles, batch_size, 1)
 				batch_NxBx1 = tf.expand_dims(batch_NxB, axis = 2)				# (n_particles, batch_size, 1)
 
-				# print("emmm")
-				# print(log_W)
-				# print(idx)
-				# print(batch_1xB)
-				# print(batch_NxB)
-				# print(idx_NxBx1)
-				# print(batch_NxBx1)
-
 				final_idx_NxBx2 = tf.concat((idx_NxBx1, batch_NxBx1), axis = 2)	# (n_particles, batch_size, 2)
 				X_prev = tf.gather_nd(X, final_idx_NxBx2)						# (n_particles, batch_size, Dx)
 				
@@ -107,12 +93,19 @@ class SMC:
 			# to make sure len(Xs) = time
 			Xs.append(X)
 
-			qs = tf.stack(qs, name = "qs")
-			fs = tf.stack(fs, name = "fs")
-			gs = tf.stack(gs, name = "gs")
-			log_Ws = tf.stack(log_Ws, name = "log_Ws")
-			Ws = tf.stack(Ws, name = "Ws")
-			Xs = tf.stack(Xs, name = "Xs")
+			qs = tf.stack(qs)
+			fs = tf.stack(fs)
+			gs = tf.stack(gs)
+			log_Ws = tf.stack(log_Ws)
+			Ws = tf.stack(Ws)
+			Xs = tf.stack(Xs)
+
+			qs = tf.transpose(qs, perm = [2, 0, 1], name = "qs")				# (batch_size, time, n_particles)
+			fs = tf.transpose(fs, perm = [2, 0, 1], name = "fs")				# (batch_size, time, n_particles)
+			gs = tf.transpose(gs, perm = [2, 0, 1], name = "gs")				# (batch_size, time, n_particles)
+			log_Ws = tf.transpose(log_Ws, perm = [2, 0, 1], name = "log_Ws")	# (batch_size, time, n_particles)
+			Ws = tf.transpose(Ws, perm = [2, 0, 1], name = "Ws")				# (batch_size, time, n_particles)
+			Xs = tf.transpose(Xs, perm = [2, 0, 1, 3], name = "Xs")				# (batch_size, time, n_particles, Dx)
 
 			mean_log_ZSMC = tf.reduce_mean(log_ZSMC, name = "mean_log_ZSMC")
 

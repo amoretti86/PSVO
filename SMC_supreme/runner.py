@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
 	# printing and data saving params
 
-	print_freq = 10
+	print_freq = 1
 
 	store_res = True
 	save_freq = 10
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
 		Xs = log_train[0]
 		Xs_val = mytrainer.evaluate(Xs, {obs:obs_train[0:saving_num], x_0:hidden_train[0:saving_num, 0]})
-		Xs_val = np.transpose(Xs_val, (2, 1, 0, 3))
+		print(Xs_val.shape)
 		ys_hat_val = mytrainer.evaluate(ys_hat, {obs:obs_train[0:saving_num], hidden:hidden_train[0:saving_num]})
 
 		print("finish evaluating training results")
