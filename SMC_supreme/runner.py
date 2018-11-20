@@ -60,6 +60,8 @@ if __name__ == "__main__":
 	n_test  = 1 	* batch_size
 	MSE_steps = 1
 
+	q_use_true_X = True # if q will use true_X to sample
+
 	# printing and data saving params
 
 	print_freq = 10
@@ -141,6 +143,7 @@ if __name__ == "__main__":
 	if store_res == True:
 		Experiment_params = {"n_particles":n_particles, "time":time, "batch_size":batch_size,
 							 "lr":lr, "epoch":epoch, "seed":seed, "n_train":n_train,
+							 "q_use_true_X":q_use_true_X,
 							 "rslt_dir_name":rslt_dir_name}
 		print("Experiment_params")
 		for key, val in Experiment_params.items():
@@ -161,9 +164,10 @@ if __name__ == "__main__":
 	obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name = "obs")
 	hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name = "hidden")
 
-	SMC_true  = SMC(q_true_dist,  f_true_dist,  g_true_dist,  n_particles, batch_size, name = "log_ZSMC_true")
+	SMC_true  = SMC(q_true_dist,  f_true_dist,  g_true_dist,  n_particles, batch_size, 
+					q_use_true_X = q_use_true_X, name = "log_ZSMC_true")
 	SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist, n_particles, batch_size, 
-					encoder_cell = my_encoder_cell, name = "log_ZSMC_train")
+					encoder_cell = my_encoder_cell, q_use_true_X = q_use_true_X, name = "log_ZSMC_train")
 
 	# ============================================= training part ============================================ #
 	mytrainer = trainer(Dx, Dy,
@@ -189,7 +193,9 @@ if __name__ == "__main__":
 		log_true, log_train, ys_hat = tensors
 
 		Xs = log_train[0]
-		Xs_val = mytrainer.evaluate(Xs, {obs:obs_train[0:saving_num], x_0:hidden_train[0:saving_num, 0]})
+		Xs_val = mytrainer.evaluate(Xs, {obs:obs_train[0:saving_num], 
+										 x_0:hidden_train[0:saving_num, 0],
+										 hidden:hidden_train[0:saving_num]})
 		ys_hat_val = mytrainer.evaluate(ys_hat, {obs:obs_train[0:saving_num], hidden:hidden_train[0:saving_num]})
 
 		print("finish evaluating training results")

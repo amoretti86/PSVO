@@ -5,6 +5,7 @@ class SMC:
 	def __init__(self, q, f, g,
 				 n_particles, batch_size,
 				 encoder_cell = None,
+				 q_use_true_X = False,
 				 use_stop_gradient = False,
 				 name = "log_ZSMC"):
 		self.q = q
@@ -15,10 +16,11 @@ class SMC:
 
 		self.encoder_cell = encoder_cell
 
+		self.q_use_true_X = q_use_true_X
 		self.use_stop_gradient = use_stop_gradient
 		self.name = name
 
-	def get_log_ZSMC(self, obs, x_0):
+	def get_log_ZSMC(self, obs, x_0, hidden, q_cov = 1):
 		"""
 		Input:
 			obs.shape = (batch_size, time, Dy)
@@ -51,7 +53,14 @@ class SMC:
 				else:
 					sample_size = ()
 
-				X, q_t_log_prob = self.q.sample_and_log_prob(X_prev, sample_shape=sample_size, name="q_{}_log_prob".format(t))
+				if self.q_use_true_X:
+					mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov*tf.eye(Dx), 
+															   name = "q_{}_mvn".format(t))
+					X = mvn.sample((self.n_particles))
+					q_t_log_prob = mvn.log_prob(X)
+				else:
+					X, q_t_log_prob = self.q.sample_and_log_prob(X_prev, sample_shape=sample_size, 
+																 name="q_{}_log_prob".format(t))
 				f_t_log_prob = self.f.log_prob(X_prev, X, name="f_{}_log_prob".format(t))
 				g_t_log_prob = self.g.log_prob(X, obs[:,t], name="g_{}_log_prob".format(t))
 				

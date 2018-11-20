@@ -89,8 +89,8 @@ class trainer:
 		return res
 
 	def train(self, hidden_train, obs_train, hidden_test, obs_test, print_freq):
-		log_ZSMC_true,  log_true  = self.SMC_true.get_log_ZSMC(self.obs, self.x_0)
-		log_ZSMC_train, log_train = self.SMC_train.get_log_ZSMC(self.obs, self.x_0)
+		log_ZSMC_true,  log_true  = self.SMC_true.get_log_ZSMC(self.obs, self.x_0, self.hidden)
+		log_ZSMC_train, log_train = self.SMC_train.get_log_ZSMC(self.obs, self.x_0, self.hidden)
 
 		MSE_true, _, _       = self.SMC_true.n_step_MSE(self.MSE_steps, self.hidden, self.obs)
 		MSE_train, ys_hat, _ = self.SMC_train.n_step_MSE(self.MSE_steps, self.hidden, self.obs)
@@ -124,7 +124,7 @@ class trainer:
 		log_ZSMC_true_val = 0
 		"""
 		log_ZSMC_true_val = self.evaluate(log_ZSMC_true,
-										  {self.obs:obs_all, self.x_0:hidden_all[:, 0]},
+										  {self.obs:obs_all, self.x_0:hidden_all[:, 0], self.hidden:hidden_all},
 										  average = True)
 		"""
 		MSE_true_val = self.evaluate(MSE_true,
@@ -134,10 +134,10 @@ class trainer:
 		print("true log_ZSMC: {:<7.3f}, true MSE: {:>7.3f}".format(log_ZSMC_true_val, MSE_true_val))
 
 		log_ZSMC_train_val = self.evaluate(log_ZSMC_train,
-										   {self.obs:obs_train, self.x_0:hidden_train[:, 0]},
+										   {self.obs:obs_train, self.x_0:hidden_train[:, 0], self.hidden:hidden_train},
 										   average = True)
 		log_ZSMC_test_val = self.evaluate(log_ZSMC_train,
-										  {self.obs:obs_test,  self.x_0:hidden_test[:, 0]},
+										  {self.obs:obs_test,  self.x_0:hidden_test[:, 0], self.hidden:hidden_test},
 										  average = True)
 		MSE_train_val = self.evaluate(MSE_train,
 									  {self.obs:obs_train, self.hidden:hidden_train},
@@ -159,22 +159,28 @@ class trainer:
 			# train A, B, Q, x_0 using each training sample
 			obs_train, hidden_train = shuffle(obs_train, hidden_train)
 			for j in range(0, len(obs_train), self.batch_size):
+				print(i, j)
 				self.sess.run(train_op, feed_dict={self.obs:obs_train[j:j+self.batch_size], 
-											  self.x_0:hidden_train[j:j+self.batch_size, 0]})
+											  	   self.x_0:hidden_train[j:j+self.batch_size, 0],
+											  	   self.hidden:hidden_train[j:j+self.batch_size]})
 
 			# print training and testing loss
 			if (i+1)%print_freq == 0:
 				log_ZSMC_train_val = self.evaluate(log_ZSMC_train,
-												   {self.obs:obs_train, self.x_0:hidden_train[:, 0]},
+												   {self.obs:obs_train,
+												    self.x_0:hidden_train[:, 0],
+												    self.hidden:hidden_train},
 												   average = True)
 				log_ZSMC_test_val = self.evaluate(log_ZSMC_train,
-												  {self.obs:obs_test,  self.x_0:hidden_test[:, 0]},
+												  {self.obs:obs_test,
+												   self.x_0:hidden_test[:, 0],
+												   self.hidden:hidden_test},
 												  average = True)
 				MSE_train_val = self.evaluate(MSE_train,
 											  {self.obs:obs_train, self.hidden:hidden_train},
 											  average = True)
 				MSE_test_val  = self.evaluate(MSE_train,
-											  {self.obs:obs_test,  self.hidden:hidden_test},
+											  {self.obs:obs_test, self.hidden:hidden_test},
 											  average = True)
 				print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}, train MSE: {:>7.3f}, test MSE: {:>7.3f}"\
 					.format(i+1, log_ZSMC_train_val, log_ZSMC_test_val, MSE_train_val, MSE_test_val))
@@ -187,7 +193,9 @@ class trainer:
 
 				if self.draw_quiver_during_training == True:
 					Xs = log_train[0]
-					Xs_val = self.evaluate(Xs, {self.obs:obs_train[0:self.saving_num], self.x_0:hidden_train[0:self.saving_num, 0]})
+					Xs_val = self.evaluate(Xs, {self.obs:obs_train[0:self.saving_num], 
+												self.x_0:hidden_train[0:self.saving_num, 0],
+												self.hidden:hidden_train[0:self.saving_num]})
 					Xs_val = np.transpose(Xs_val, (2, 1, 0, 3))
 					self.get_quiver_plot(Xs_val, self.nextX, self.lattice, i+1)
 
