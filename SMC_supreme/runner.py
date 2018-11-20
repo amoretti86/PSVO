@@ -46,12 +46,12 @@ if __name__ == "__main__":
 	# training hyperparameters
 	Dx = 2
 	Dy = 2
-	n_particles = 100
+	n_particles = 1000
 	time = 150
 
 	batch_size = 16
 	lr = 1e-4
-	epoch = 150
+	epoch = 50
 	seed = 0
 	tf.set_random_seed(seed)
 	np.random.seed(seed)
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
 	# printing and data saving params
 
-	print_freq = 1
+	print_freq = 10
 
 	store_res = True
 	save_freq = 10
@@ -80,7 +80,7 @@ if __name__ == "__main__":
 	f_sample_cov = 0.15*np.eye(Dx)
 
 	g_params = np.diag([2.0, 3.0]) # np.random.randn(Dy, Dx)
-	g_sample_cov = np.eye(Dy)
+	g_sample_cov = 0.15 * np.eye(Dy)
 
 	# transformation can be: fhn_transformation, linear_transformation, lorenz_transformation
 	# distribution can be: dirac_delta, mvn, poisson
@@ -97,6 +97,7 @@ if __name__ == "__main__":
 	# for training
 	x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name = "x_0")
 
+	my_encoder_cell = None
 	q_train_tran = MLP_transformation([50], Dx, name="q_train_tran")
 	f_train_tran = MLP_transformation([50], Dx, name="f_train_tran")
 	g_train_tran = MLP_transformation([50], Dy, name="g_train_tran")
@@ -105,20 +106,20 @@ if __name__ == "__main__":
 	# q_train_tran = my_encoder_cell.q_transformation
 	# f_train_tran = my_encoder_cell.f_transformation
 
-	q_sigma_init, q_sigma_min = 100, 10
-	f_sigma_init, f_sigma_min = 100, 10
-	g_sigma_init, g_sigma_min = 100, 10
+	q_sigma_init, q_sigma_min = 25, 4
+	f_sigma_init, f_sigma_min = 25, 4
+	g_sigma_init, g_sigma_min = 25, 4
 
 	q_train_dist = tf_mvn(q_train_tran, x_0, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
 	f_train_dist = tf_mvn(f_train_tran, x_0, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_train_dist")
 	g_train_dist = tf_mvn(g_train_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_train_dist")
 
-	init_dict = {"q_sigma_init":q_sigma_init,
-				 "q_sigma_min": q_sigma_min,
-				 "f_sigma_init":f_sigma_init,
-				 "f_sigma_min": f_sigma_min,
-				 "g_sigma_init":g_sigma_init,
-				 "g_sigma_min": g_sigma_min}
+	init_dict = {"q_sigma_init": q_sigma_init,
+				 "q_sigma_min":  q_sigma_min,
+				 "f_sigma_init": f_sigma_init,
+				 "f_sigma_min":  f_sigma_min,
+				 "g_sigma_init": g_sigma_init,
+				 "g_sigma_min":  g_sigma_min}
 
 	# for evaluating log_ZSMC_true
 	q_A = tf.eye(Dx)
@@ -134,7 +135,7 @@ if __name__ == "__main__":
 	f_true_tran = tf_fhn_transformation(f_params)
 	f_true_dist = tf_mvn(f_true_tran, x_0, sigma=f_cov, name="f_true_dist")
 	g_true_tran = tf_linear_transformation(g_A)
-	g_true_dist = tf_poisson(g_true_tran, name="g_true_dist")
+	g_true_dist = tf_mvn(g_true_tran, name="g_true_dist")
 
 	# =========================================== data saving part =========================================== #
 	if store_res == True:
@@ -161,7 +162,8 @@ if __name__ == "__main__":
 	hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name = "hidden")
 
 	SMC_true  = SMC(q_true_dist,  f_true_dist,  g_true_dist,  n_particles, batch_size, name = "log_ZSMC_true")
-	SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist, n_particles, batch_size, name = "log_ZSMC_train")
+	SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist, n_particles, batch_size, 
+					encoder_cell = my_encoder_cell, name = "log_ZSMC_train")
 
 	# ============================================= training part ============================================ #
 	mytrainer = trainer(Dx, Dy,
@@ -173,9 +175,9 @@ if __name__ == "__main__":
 	mytrainer.set_placeholders(x_0, obs, hidden)
 	if store_res:
 		mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num)
-		if isinstance(f_sample_tran, fhn_transformation):
+		if isinstance(f_sample_tran, fhn_transformation) and my_encoder_cell is None:
 			lattice = tf.placeholder(tf.float32, shape=(50, 50, Dx), name = "lattice")
-			nextX = SMC_train.f.mean(lattice)
+			nextX = SMC_train.get_nextX(lattice)
 			mytrainer.set_quiver_arg(nextX, lattice)
 
 	losses, tensors = mytrainer.train(hidden_train, obs_train, hidden_test, obs_test, print_freq)
@@ -188,7 +190,6 @@ if __name__ == "__main__":
 
 		Xs = log_train[0]
 		Xs_val = mytrainer.evaluate(Xs, {obs:obs_train[0:saving_num], x_0:hidden_train[0:saving_num, 0]})
-		print(Xs_val.shape)
 		ys_hat_val = mytrainer.evaluate(ys_hat, {obs:obs_train[0:saving_num], hidden:hidden_train[0:saving_num]})
 
 		print("finish evaluating training results")

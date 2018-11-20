@@ -101,7 +101,7 @@ class trainer:
 		init = tf.global_variables_initializer()
 
 		if self.store_res == True:
-			saver = tf.train.Saver()
+			saver = tf.train.Saver(max_to_keep=1)
 
 			log_ZSMC_trains = []
 			log_ZSMC_tests = []
@@ -118,9 +118,15 @@ class trainer:
 		obs_all = np.concatenate((obs_train, obs_test))
 		hidden_all = np.concatenate((hidden_train, hidden_test))
 
+		# for tnsr in tf.trainable_variables():
+		# 	print(tnsr)
+
+		log_ZSMC_true_val = 0
+		"""
 		log_ZSMC_true_val = self.evaluate(log_ZSMC_true,
 										  {self.obs:obs_all, self.x_0:hidden_all[:, 0]},
 										  average = True)
+		"""
 		MSE_true_val = self.evaluate(MSE_true,
 									 {self.obs:obs_all, self.hidden:hidden_all},
 									 average = True)
@@ -141,7 +147,8 @@ class trainer:
 									  average = True)
 		print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}, train MSE: {:>7.3f}, test MSE: {:>7.3f}"\
 			.format(0, log_ZSMC_train_val, log_ZSMC_test_val, MSE_train_val, MSE_test_val))
-		
+
+
 		if self.store_res == True:
 			log_ZSMC_trains.append(log_ZSMC_train_val)
 			log_ZSMC_tests.append(log_ZSMC_test_val)

@@ -149,3 +149,8 @@ class SMC:
 			# get MSE between y_hat and y_true
 			MSE = tf.reduce_mean((ys_hat_BxNxTxDy - ys_BxNxTxDy)**2, name = "MSE")
 			return MSE, ys_hat_BxNxTxDy, ys_BxNxTxDy
+
+
+	def get_nextX(self, X):
+		with tf.variable_scope(self.name):
+			return self.f.mean(X)
