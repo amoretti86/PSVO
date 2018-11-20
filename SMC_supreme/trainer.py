@@ -196,7 +196,6 @@ class trainer:
 					Xs_val = self.evaluate(Xs, {self.obs:obs_train[0:self.saving_num], 
 												self.x_0:hidden_train[0:self.saving_num, 0],
 												self.hidden:hidden_train[0:self.saving_num]})
-					Xs_val = np.transpose(Xs_val, (2, 1, 0, 3))
 					self.get_quiver_plot(Xs_val, self.nextX, self.lattice, i+1)
 
 			if self.store_res == True and (i+1)%self.save_freq == 0:
@@ -216,7 +215,8 @@ class trainer:
 
 
 	def get_quiver_plot(self, Xs_val, nextX, lattice, epoch):
-		X_trajs = np.mean(Xs_val, axis = 1)
+		# Xs_val.shape = (batch_size, time, n_particles, Dx)
+		X_trajs = np.mean(Xs_val, axis = 2)
 
 		import matplotlib.pyplot as plt
 		import seaborn as sns
