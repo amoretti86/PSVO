@@ -50,8 +50,11 @@ class SMC:
 				# otherwise, sample with X_prev
 				if X_prev is None:
 					sample_size = (self.n_particles)
+					X_prev_y_t = tf.concat([x_0, obs[:, 0]], axis = -1)
 				else:
 					sample_size = ()
+					y_t_expanded = tf.tile(tf.expand_dims(obs[:, t], axis = 0), (self.n_particles, 1, 1))
+					X_prev_y_t = tf.concat([X_prev, y_t_expanded], axis = -1)
 
 				if self.q_use_true_X:
 					mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov*tf.eye(Dx), 
@@ -59,8 +62,8 @@ class SMC:
 					X = mvn.sample((self.n_particles))
 					q_t_log_prob = mvn.log_prob(X)
 				else:
-					X, q_t_log_prob = self.q.sample_and_log_prob(X_prev, sample_shape=sample_size, 
-																 name="q_{}_log_prob".format(t))
+					X, q_t_log_prob = self.q.sample_and_log_prob(X_prev_y_t, sample_shape=sample_size, 
+																 name="q_{}_sample_and_log_prob".format(t))
 				f_t_log_prob = self.f.log_prob(X_prev, X, name="f_{}_log_prob".format(t))
 				g_t_log_prob = self.g.log_prob(X, obs[:,t], name="g_{}_log_prob".format(t))
 				

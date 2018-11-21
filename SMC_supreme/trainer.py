@@ -4,6 +4,7 @@ from sklearn.utils import shuffle
 
 import tensorflow as tf
 import os
+import time
 
 class trainer:
 	def __init__(self,
@@ -156,10 +157,10 @@ class trainer:
 			MSE_tests.append(MSE_test_val)
 
 		for i in range(self.epoch):
-			# train A, B, Q, x_0 using each training sample
+			start = time.time()
+
 			obs_train, hidden_train = shuffle(obs_train, hidden_train)
 			for j in range(0, len(obs_train), self.batch_size):
-				print(i, j)
 				self.sess.run(train_op, feed_dict={self.obs:obs_train[j:j+self.batch_size], 
 											  	   self.x_0:hidden_train[j:j+self.batch_size, 0],
 											  	   self.hidden:hidden_train[j:j+self.batch_size]})
@@ -202,6 +203,9 @@ class trainer:
 				if not os.path.exists(self.RLT_DIR+"model/"): os.makedirs(self.RLT_DIR+"model/")
 				saver.save(self.sess, self.RLT_DIR+"model/model_epoch", global_step=i+1)
 
+			end = time.time()
+			print("epoch {:<4} takes {:.3f} second".format(i+1, end-start))
+
 		print("finish training")
 
 		losses = [log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests, MSE_true_val, MSE_trains, MSE_tests]
@@ -235,12 +239,12 @@ class trainer:
 		X = lattice_val
 		nextX = self.sess.run(nextX, feed_dict={lattice:lattice_val})
 
-		scale = int(5*max(abs(x1range[0]) + abs(x1range[1]), abs(x2range[0]) + abs(x2range[1]))/3)
+		scale = int(5/3*max(abs(x1range[0]) + abs(x1range[1]), abs(x2range[0]) + abs(x2range[1])))
 		plt.quiver(X[:,:,0], X[:,:,1], nextX[:,:,0]-X[:,:,0], nextX[:,:,1]-X[:,:,1], scale=scale)
 
 		sns.despine()
 		if not os.path.exists(self.RLT_DIR+"quiver/"): os.makedirs(self.RLT_DIR+"quiver/")
-		plt.savefig(self.RLT_DIR+"quiver/{}".format(epoch))
+		plt.savefig(self.RLT_DIR+"quiver/epoch_{}".format(epoch))
 		plt.close()
 
 	@staticmethod

@@ -45,18 +45,18 @@ if __name__ == "__main__":
 	# ============================================ parameter part ============================================ #
 	# training hyperparameters
 	Dx = 2
-	Dy = 2
+	Dy = 1
 	n_particles = 1000
-	time = 150
+	time = 200
 
-	batch_size = 16
-	lr = 1e-4
-	epoch = 50
+	batch_size = 5
+	lr = 3e-4
+	epoch = 200
 	seed = 0
 	tf.set_random_seed(seed)
 	np.random.seed(seed)
 
-	n_train = 50	* batch_size
+	n_train = 150	* batch_size
 	n_test  = 1 	* batch_size
 	MSE_steps = 1
 
@@ -64,12 +64,12 @@ if __name__ == "__main__":
 
 	# printing and data saving params
 
-	print_freq = 10
+	print_freq = 1
 
 	store_res = True
 	save_freq = 10
 	saving_num = min(n_train, 2*batch_size)
-	rslt_dir_name = "fhn_2D_obs"
+	rslt_dir_name = "fhn_1D_obs"
 	
 	# ============================================== model part ============================================== #
 	# for data generation
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
 	f_sample_cov = 0.15*np.eye(Dx)
 
-	g_params = np.diag([2.0, 3.0]) # np.random.randn(Dy, Dx)
+	g_params = np.array([[1.0, 1.0]]) # np.random.randn(Dy, Dx)
 	g_sample_cov = 0.15 * np.eye(Dy)
 
 	# transformation can be: fhn_transformation, linear_transformation, lorenz_transformation
@@ -108,9 +108,9 @@ if __name__ == "__main__":
 	# q_train_tran = my_encoder_cell.q_transformation
 	# f_train_tran = my_encoder_cell.f_transformation
 
-	q_sigma_init, q_sigma_min = 25, 4
-	f_sigma_init, f_sigma_min = 25, 4
-	g_sigma_init, g_sigma_min = 25, 4
+	q_sigma_init, q_sigma_min = 5, 1
+	f_sigma_init, f_sigma_min = 5, 1
+	g_sigma_init, g_sigma_min = 5, 1
 
 	q_train_dist = tf_mvn(q_train_tran, x_0, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
 	f_train_dist = tf_mvn(f_train_tran, x_0, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_train_dist")
@@ -124,10 +124,10 @@ if __name__ == "__main__":
 				 "g_sigma_min":  g_sigma_min}
 
 	# for evaluating log_ZSMC_true
-	q_A = tf.eye(Dx)
-	q_cov = 100*tf.eye(Dx)
+	q_A = tf.constant(np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]), dtype = tf.float32)
+	q_cov = 1*tf.eye(Dx)
 
-	f_cov = 100*tf.eye(Dx)
+	f_cov = 1*tf.eye(Dx)
 
 	g_A = tf.constant(g_params, dtype = tf.float32)
 	g_cov = tf.constant(g_sample_cov, dtype = tf.float32)
@@ -141,8 +141,13 @@ if __name__ == "__main__":
 
 	# =========================================== data saving part =========================================== #
 	if store_res == True:
-		Experiment_params = {"n_particles":n_particles, "time":time, "batch_size":batch_size,
-							 "lr":lr, "epoch":epoch, "seed":seed, "n_train":n_train,
+		Experiment_params = {"n_particles":n_particles,
+							 "time":time,
+							 "batch_size":batch_size,
+							 "lr":lr,
+							 "epoch":epoch,
+							 "seed":seed,
+							 "n_train":n_train,
 							 "q_use_true_X":q_use_true_X,
 							 "rslt_dir_name":rslt_dir_name}
 		print("Experiment_params")
