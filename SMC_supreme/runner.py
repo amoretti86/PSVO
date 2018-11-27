@@ -60,7 +60,7 @@ if __name__ == "__main__":
 	n_test  = 1 	* batch_size
 	MSE_steps = 1
 
-	q_use_true_X = True # if q will use true_X to sample
+	q_use_true_X = False # if q will use true_X to sample
 
 	# printing and data saving params
 
