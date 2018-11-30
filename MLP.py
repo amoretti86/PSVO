@@ -4,7 +4,7 @@ from tensorflow.contrib.layers import fully_connected, xavier_initializer
 
 class MLP_mvn:
 	def __init__(self, Dx, Dy, 
-				 n_particles, batch_size, sigma_init=5, sigma_min=1,
+				 n_particles, batch_size, sigma_init = 5, sigma_min = 1,
 				 name = 'MLP_mvn'):
 		self.Dx = Dx
 		self.Dy = Dy
@@ -42,8 +42,7 @@ class MLP_mvn:
 			# 						reuse = tf.AUTO_REUSE, scope = "sigma")
 			sigma = tf.maximum(tf.nn.softplus(sigma_cons), self.sigma_min)
 			mvn = tfd.MultivariateNormalFullCovariance(loc = mu, 
-													   #covariance_matrix = tf.matrix_diag(sigma),
-													   covariance_matrix = self.sigma_init*tf.eye(self.Dy),
+													   covariance_matrix = tf.matrix_diag(sigma), 
 													   validate_args=True, 
 													   allow_nan_stats=False, 
 													   name = "mvn")
@@ -70,9 +69,6 @@ class MLP_mvn:
 			return mvn.mean(name='mean')
 
 
-
-
-
 class MLP_poisson:
 	def __init__(self, Dx, Dy, lambda_cons = 1e-2, name = 'MLP_poisson'):
 		self.Dx = Dx
@@ -95,7 +91,7 @@ class MLP_poisson:
 									  biases_initializer=tf.constant_initializer(0.6),
 									  activation_fn = tf.nn.softplus,
 									  reuse = tf.AUTO_REUSE, scope = "lambdas") + self.lambda_cons
-			poisson = tfd.Poisson(rate = lambdas,
+			poisson = tfd.Poisson(rate = rate, 
 								  validate_args=True, 
 								  allow_nan_stats=False, 
 								  name = "Poisson")
