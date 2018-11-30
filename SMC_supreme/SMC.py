@@ -6,6 +6,7 @@ class SMC:
     def __init__(self, q, f, g,
                  n_particles, batch_size,
                  encoder_cell=None,
+                 q_takes_y=True,
                  q_use_true_X=False,
                  use_stop_gradient=False,
                  name="log_ZSMC"):
@@ -17,8 +18,10 @@ class SMC:
 
         self.encoder_cell = encoder_cell
 
+        self.q_takes_y = q_takes_y
         self.q_use_true_X = q_use_true_X
         self.use_stop_gradient = use_stop_gradient
+
         self.name = name
 
     def get_log_ZSMC(self, obs, x_0, hidden, q_cov=1):
@@ -49,13 +52,19 @@ class SMC:
             for t in range(0, time):
                 # when t = 1, sample with x_0
                 # otherwise, sample with X_prev
-                if X_prev is None:
+                if t == 0:
                     sample_size = (self.n_particles)
-                    X_prev_y_t = tf.concat([x_0, obs[:, 0]], axis=-1)
                 else:
                     sample_size = ()
-                    y_t_expanded = tf.tile(tf.expand_dims(obs[:, t], axis=0), (self.n_particles, 1, 1))
-                    X_prev_y_t = tf.concat([X_prev, y_t_expanded], axis=-1)
+
+                if self.q_takes_y:
+                    if t == 0:
+                        q_t_Input = tf.concat([x_0, obs[:, 0]], axis=-1)
+                    else:
+                        y_t_expanded = tf.tile(tf.expand_dims(obs[:, t], axis=0), (self.n_particles, 1, 1))
+                        q_t_Input = tf.concat([X_prev, y_t_expanded], axis=-1)
+                else:
+                    q_t_Input = X_prev
 
                 if self.q_use_true_X:
                     mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov * tf.eye(Dx),
@@ -63,8 +72,9 @@ class SMC:
                     X = mvn.sample((self.n_particles))
                     q_t_log_prob = mvn.log_prob(X)
                 else:
-                    X, q_t_log_prob = self.q.sample_and_log_prob(X_prev_y_t, sample_shape=sample_size,
+                    X, q_t_log_prob = self.q.sample_and_log_prob(q_t_Input, sample_shape=sample_size,
                                                                  name="q_{}_sample_and_log_prob".format(t))
+
                 f_t_log_prob = self.f.log_prob(X_prev, X, name="f_{}_log_prob".format(t))
                 g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_{}_log_prob".format(t))
 
@@ -123,17 +133,10 @@ class SMC:
 
             mean_log_ZSMC = tf.reduce_mean(log_ZSMC, name="mean_log_ZSMC")
 
-            print(Xs.shape)
-            print(log_Ws.shape)
-            print(Ws.shape)
-            print(fs.shape)
-
         return mean_log_ZSMC, [Xs, log_Ws, Ws, fs, gs, qs]
 
     def n_step_MSE(self, n_steps, hidden, obs):
-        """
-        Compute MSE_k for k = 0, ..., n_steps
-        """
+        # Compute MSE_k for k = 0, ..., n_steps
         batch_size, time, Dx = hidden.shape.as_list()
         batch_size, time, Dy = obs.shape.as_list()
         assert n_steps < time, "n_steps = {} >= time".format(n_steps)
@@ -175,11 +178,11 @@ class SMC:
                 y_var = tf.reduce_sum((y_BxTmkxDy - y_mean)**2, axis=[0, 1], name="y_var_{}".format(k))
                 y_vars.append(y_var)
 
-            MSE_ks = tf.stack(MSE_ks, name="MSE_ks")             # (n_steps + 1)
-            y_means = tf.stack(y_means, axis=1, name="y_means")  # (n_steps + 1, Dy)
-            y_vars = tf.stack(y_vars, axis=1, name="y_vars")     # (n_steps + 1, Dy)
+            MSE_ks = tf.stack(MSE_ks, name="MSE_ks")     # (n_steps + 1)
+            y_means = tf.stack(y_means, name="y_means")  # (n_steps + 1, Dy)
+            y_vars = tf.stack(y_vars, name="y_vars")     # (n_steps + 1, Dy)
 
-            return MSE_ks, y_means, y_vars
+            return MSE_ks, y_means, y_vars, y_hat_N_BxTxDy
 
     def get_nextX(self, X):
         with tf.variable_scope(self.name):
