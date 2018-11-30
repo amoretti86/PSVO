@@ -1,5 +1,5 @@
 # VISMC
-Bare bones variational inference on top of sequential monte carlo objective functions.
+Bare bones variational inference on sequential monte carlo objective functions.
 
 | Original | Inferred |
 |-----------|----------|
