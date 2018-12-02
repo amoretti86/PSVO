@@ -48,14 +48,17 @@ if __name__ == "__main__":
 
     batch_size = 5
     lr = 1e-3
-    epoch = 100
+    epoch = 200
     seed = 0
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
     n_train = 40 * batch_size
     n_test = 1 * batch_size
-    MSE_steps = 5
+
+    q_train_layers = [50, 50]
+    f_train_layers = [50, 50]
+    g_train_layers = [50, 50]
 
     use_bootstrap = False    # if q and f use the same network
 
@@ -66,29 +69,31 @@ if __name__ == "__main__":
     q_use_true_X = False    # if q will use true_X to sample
 
     # printing and data saving params
-    print_freq = 5
+    print_freq = 1
 
     store_res = True
+    MSE_steps = 5
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
-    rslt_dir_name = "fhn_[1,1]_obs"
+    rslt_dir_name = "lorenz_obs"
 
     # ============================================== model part ============================================== #
     # for data generation
     sigma, rho, beta, dt = 10.0, 28.0, 8.0 / 3.0, 0.01
     f_params = (sigma, rho, beta, dt)
 
-    a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
-    f_params = (a, b, c, I, dt)
+    # a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
+    # f_params = (a, b, c, I, dt)
 
     f_sample_cov = 0.0 * np.eye(Dx)
 
-    g_params = np.array([[1.0, 1.0]])  # np.random.randn(Dy, Dx)
+    g_params = np.random.randn(Dy, Dx)  # np.array([[1.0, 1.0]]) or np.random.randn(Dy, Dx)
     g_sample_cov = 0.1 * np.eye(Dy)
 
     # transformation can be: fhn_transformation, linear_transformation, lorenz_transformation
     # distribution can be: dirac_delta, mvn, poisson
-    f_sample_tran = fhn_transformation(f_params)
+    # f_sample_tran = fhn_transformation(f_params)
+    f_sample_tran = lorenz_transformation(f_params)
     f_sample_dist = dirac_delta(f_sample_tran)
 
     g_sample_tran = linear_transformation(g_params)
@@ -102,13 +107,13 @@ if __name__ == "__main__":
     x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name="x_0")
 
     my_encoder_cell = None
-    f_train_tran = MLP_transformation([50], Dx, name="f_train_tran")
-    g_train_tran = MLP_transformation([50], Dy, name="g_train_tran")
+    f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
+    g_train_tran = MLP_transformation(g_train_layers, Dy, name="g_train_tran")
     if use_bootstrap:
         q_train_tran = f_train_tran
         q_takes_y = False
     else:
-        q_train_tran = MLP_transformation([50], Dx, name="q_train_tran")
+        q_train_tran = MLP_transformation(q_train_layers, Dx, name="q_train_tran")
 
     # my_encoder_cell = encoder_cell(Dx, Dy, batch_size, time, name = "encoder_cell")
     # q_train_tran = my_encoder_cell.q_transformation
@@ -130,7 +135,7 @@ if __name__ == "__main__":
                  "g_sigma_min": g_sigma_min}
 
     # for evaluating log_ZSMC_true
-    q_A = tf.constant(np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]), dtype=tf.float32)
+    q_A = tf.constant(np.eye(Dx), dtype=tf.float32)
     q_cov = 1 * tf.eye(Dx)
 
     f_cov = 1 * tf.eye(Dx)
@@ -140,7 +145,8 @@ if __name__ == "__main__":
 
     q_true_tran = tf_linear_transformation(q_A)
     q_true_dist = tf_mvn(q_true_tran, x_0, sigma=q_cov, name="q_true_dist")
-    f_true_tran = tf_fhn_transformation(f_params)
+    # f_true_tran = tf_fhn_transformation(f_params)
+    f_true_tran = tf_lorenz_transformation(f_params)
     f_true_dist = tf_mvn(f_true_tran, x_0, sigma=f_cov, name="f_true_dist")
     g_true_tran = tf_linear_transformation(g_A)
     g_true_dist = tf_mvn(g_true_tran, name="g_true_dist")
@@ -176,7 +182,10 @@ if __name__ == "__main__":
     obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
     hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
 
-    SMC_true = SMC(q_true_dist, f_true_dist, g_true_dist, n_particles, batch_size, name="log_ZSMC_true")
+    SMC_true = SMC(q_true_dist, f_true_dist, g_true_dist,
+                   n_particles, batch_size,
+                   q_takes_y=False,
+                   name="log_ZSMC_true")
     SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
                     n_particles, batch_size,
                     encoder_cell=my_encoder_cell,
@@ -195,7 +204,12 @@ if __name__ == "__main__":
     if store_res:
         mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num)
         if isinstance(f_sample_tran, fhn_transformation) and my_encoder_cell is None:
-            lattice = tf.placeholder(tf.float32, shape=(50, 50, Dx), name="lattice")
+            lattice = tf.placeholder(tf.float32, shape=(50, 50, 2), name="lattice")
+            nextX = SMC_train.get_nextX(lattice)
+            mytrainer.set_quiver_arg(nextX, lattice)
+
+        if isinstance(f_sample_tran, lorenz_transformation) and my_encoder_cell is None:
+            lattice = tf.placeholder(tf.float32, shape=(10, 10, 3, 3), name="lattice")
             nextX = SMC_train.get_nextX(lattice)
             mytrainer.set_quiver_arg(nextX, lattice)
 

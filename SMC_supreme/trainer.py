@@ -248,7 +248,10 @@ class trainer:
                     Xs_val = self.evaluate(Xs, {self.obs: obs_train[0:self.batch_size],
                                                 self.x_0: hidden_train[0:self.batch_size, 0],
                                                 self.hidden: hidden_train[0:self.batch_size]})
-                    self.get_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
+                    if self.Dx == 2:
+                        self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
+                    elif self.Dx == 3:
+                        self.draw_3D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
 
             if self.store_res and (i + 1) % self.save_freq == 0:
                 if not os.path.exists(self.RLT_DIR + "model/"):
@@ -273,7 +276,7 @@ class trainer:
     def close_session(self):
         self.sess.close()
 
-    def get_quiver_plot(self, Xs_val, nextX, lattice, epoch):
+    def draw_2D_quiver_plot(self, Xs_val, nextX, lattice, epoch):
         # Xs_val.shape = (saving_num, time, n_particles, Dx)
         X_trajs = np.mean(Xs_val, axis=2)
 
@@ -308,5 +311,54 @@ class trainer:
 
         x1coords = np.linspace(x1range[0], x1range[1])
         x2coords = np.linspace(x2range[0], x2range[1])
-        Xlattice = np.stack(np.meshgrid(x1coords, x2coords), axis=2)
+        Xlattice = np.stack(np.meshgrid(x1coords, x2coords), axis=-1)
+        return Xlattice
+
+    def draw_3D_quiver_plot(self, Xs_val, nextX, lattice, epoch):
+        # Xs_val.shape = (saving_num, time, n_particles, Dx)
+        X_trajs = np.mean(Xs_val, axis=2)
+
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.gca(projection="3d")
+        plt.title("hidden state for all particles")
+        ax.set_xlabel("x_dim 1")
+        ax.set_ylabel("x_dim 2")
+        ax.set_zlabel("x_dim 3")
+        for X_traj in X_trajs:
+            ax.plot(X_traj[:, 0], X_traj[:, 1], X_traj[:, 2])
+            ax.scatter(X_traj[0, 0], X_traj[0, 1], X_traj[0, 2])
+
+        x1range, x2range, x3range = ax.get_xlim(), ax.get_ylim(), ax.get_zlim()
+
+        lattice_val = self.define3Dlattice(x1range, x2range, x3range)
+
+        X = lattice_val
+        nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
+
+        scale = int(3 / 3 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0]))
+        plt.quiver(X[:, :, :, 0],
+                   X[:, :, :, 1],
+                   X[:, :, :, 2],
+                   nextX[:, :, :, 0] - X[:, :, :, 1],
+                   nextX[:, :, :, 1] - X[:, :, :, 2],
+                   nextX[:, :, :, 2] - X[:, :, :, 2],
+                   length=scale)
+
+        if not os.path.exists(self.RLT_DIR + "quiver/"):
+            os.makedirs(self.RLT_DIR + "quiver/")
+        for angle in range(45, 360, 90):
+            ax.view_init(30, angle)
+            plt.savefig(self.RLT_DIR + "quiver/epoch_{}_angle_{}".format(epoch, angle))
+        plt.close()
+
+    @staticmethod
+    def define3Dlattice(x1range=(-30.0, 30.0), x2range=(-30.0, 30.), x3range=(-30.0, 30.)):
+
+        x1coords = np.linspace(x1range[0], x1range[1], num=10)
+        x2coords = np.linspace(x2range[0], x2range[1], num=10)
+        x3coords = np.linspace(x3range[0], x3range[1], num=3)
+        Xlattice = np.stack(np.meshgrid(x1coords, x2coords, x3coords), axis=-1)
         return Xlattice

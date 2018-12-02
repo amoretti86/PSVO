@@ -5,3 +5,5 @@ rslts
 rslts/*
 *.sh
 *.o*
+test.py
+**/test.py
