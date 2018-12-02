@@ -71,7 +71,7 @@ if __name__ == "__main__":
     store_res = True
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
-    rslt_dir_name = "fhn_1D_obs"
+    rslt_dir_name = "fhn_[1,1]_obs"
 
     # ============================================== model part ============================================== #
     # for data generation
@@ -154,6 +154,8 @@ if __name__ == "__main__":
                              "epoch": epoch,
                              "seed": seed,
                              "n_train": n_train,
+                             "use_bootstrap": use_bootstrap,
+                             "q_takes_y": q_takes_y,
                              "q_use_true_X": q_use_true_X,
                              "rslt_dir_name": rslt_dir_name}
         print("Experiment_params")
@@ -217,7 +219,7 @@ if __name__ == "__main__":
 
         plot_training_data(RLT_DIR, hidden_train, obs_train, saving_num=saving_num)
         plot_learning_results(RLT_DIR, Xs_val, hidden_train, saving_num=saving_num)
-        plot_y_hat(RLT_DIR, ys_hat_val, obs_train)
+        plot_y_hat(RLT_DIR, ys_hat_val, obs_train, saving_num=saving_num)
 
         if isinstance(f_sample_tran, fhn_transformation):
             plot_fhn_results(RLT_DIR, Xs_val)
@@ -231,7 +233,10 @@ if __name__ == "__main__":
                        "lr": lr,
                        "epoch": epoch,
                        "n_train": n_train,
-                       "seed": seed}
+                       "seed": seed,
+                       "use_bootstrap": use_bootstrap,
+                       "q_takes_y": q_takes_y,
+                       "q_use_true_X": q_use_true_X}
         loss_dict = {"log_ZSMC_true": log_ZSMC_true_val,
                      "log_ZSMC_trains": log_ZSMC_trains,
                      "log_ZSMC_tests": log_ZSMC_tests,

@@ -155,10 +155,13 @@ def plot_lorenz_results(RLT_DIR, Xs_val):
         plt.close()
 
 
-def plot_y_hat(RLT_DIR, ys_hat_val, obs):
+def plot_y_hat(RLT_DIR, ys_hat_val, obs, saving_num=20):
     if not os.path.exists(RLT_DIR + "y_hat plots"):
         os.makedirs(RLT_DIR + "y_hat plots")
-    saving_num, time, Dy = obs.shape
+
+    _, time, Dy = obs.shape
+    saving_num = min(len(ys_hat_val), saving_num)
+
     for i in range(saving_num):
         for j in range(Dy):
             plt.figure()
