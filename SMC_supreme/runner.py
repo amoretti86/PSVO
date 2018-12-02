@@ -41,8 +41,8 @@ if __name__ == "__main__":
 
     # ============================================ parameter part ============================================ #
     # training hyperparameters
-    Dx = 2
-    Dy = 1
+    Dx = 3
+    Dy = 10
     n_particles = 500
     time = 200
 
@@ -60,13 +60,15 @@ if __name__ == "__main__":
     f_train_layers = [50, 50]
     g_train_layers = [50, 50]
 
-    use_bootstrap = False    # if q and f use the same network
-
+    # if q and f use the same network
+    use_bootstrap = False
     # if q takes y_t as input
     # if is_bootstrap, q_takes_y will be overwritten as False
     q_takes_y = True
-
-    q_use_true_X = False    # if q will use true_X to sample
+    # if q will use true_X to sample
+    q_use_true_X = False
+    # if scale observation by the mean abs value of obs
+    scale_obs = True
 
     # printing and data saving params
     print_freq = 1
@@ -75,7 +77,7 @@ if __name__ == "__main__":
     MSE_steps = 5
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
-    rslt_dir_name = "lorenz_obs"
+    rslt_dir_name = "lorenz_10D_obs"
 
     # ============================================== model part ============================================== #
     # for data generation
@@ -103,6 +105,7 @@ if __name__ == "__main__":
                        "f_cov": f_sample_cov,
                        "g_params": g_params,
                        "g_cov": g_sample_cov}
+
     # for training
     x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name="x_0")
 
@@ -175,6 +178,10 @@ if __name__ == "__main__":
     # Create train and test dataset
     hidden_train, obs_train, hidden_test, obs_test = \
         create_dataset(n_train, n_test, time, Dx, Dy, f_sample_dist, g_sample_dist, lb=-2.5, ub=2.5)
+    if scale_obs:
+        obs_all = abs(np.concatenate([obs_train, obs_test]))
+        obs_train /= np.mean(obs_all, axis=(0, 1))
+        obs_test /= np.mean(obs_all, axis=(0, 1))
     print("finish creating dataset")
 
     # ========================================== another model part ========================================== #

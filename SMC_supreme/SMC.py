@@ -79,9 +79,10 @@ class SMC:
                 g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_{}_log_prob".format(t))
 
                 log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_{}".format(t))
-                W = tf.exp(log_W, name="W_{}".format(t))
+                log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0), name="log_W_max")
+                W = tf.exp(log_W - log_W_max, name="W_{}".format(t))
                 log_ZSMC += tf.log(tf.reduce_mean(W, axis=0, name="W_{}_mean".format(t)),
-                                   name="log_ZSMC_{}".format(t))
+                                   name="log_ZSMC_{}".format(t)) + log_W_max
 
                 qs.append(q_t_log_prob)
                 fs.append(f_t_log_prob)
@@ -93,7 +94,7 @@ class SMC:
                 if t == time - 1:
                     break
 
-                log_W = tf.transpose(log_W)
+                log_W = tf.transpose(log_W - log_W_max)
                 categorical = tfd.Categorical(logits=log_W, validate_args=True,
                                               name="Categorical_{}".format(t))
                 if self.use_stop_gradient:
