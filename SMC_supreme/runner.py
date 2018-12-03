@@ -41,37 +41,38 @@ if __name__ == "__main__":
 
     # ============================================ parameter part ============================================ #
     # training hyperparameters
-    Dx = 3
-    Dy = 10
+    Dx = 2
+    Dy = 1
     n_particles = 500
     time = 200
 
     batch_size = 5
     lr = 1e-3
-    epoch = 200
+    epoch = 300
     seed = 0
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    n_train = 40 * batch_size
-    n_test = 1 * batch_size
+    n_train = 20 * batch_size
+    n_test = 4 * batch_size
 
-    q_train_layers = [50, 50]
-    f_train_layers = [50, 50]
-    g_train_layers = [50, 50]
+    q_train_layers = [50]
+    f_train_layers = [50]
+    g_train_layers = [50]
 
     # if q and f use the same network
-    use_bootstrap = False
+    use_bootstrap = True
     # if q takes y_t as input
     # if is_bootstrap, q_takes_y will be overwritten as False
-    q_takes_y = True
+    q_takes_y = False
     # if q will use true_X to sample
     q_use_true_X = False
     # if scale observation by the mean abs value of obs
-    scale_obs = True
+    scale_obs = False
+
 
     # printing and data saving params
-    print_freq = 1
+    print_freq = 10
 
     store_res = True
     MSE_steps = 5
@@ -81,11 +82,11 @@ if __name__ == "__main__":
 
     # ============================================== model part ============================================== #
     # for data generation
-    sigma, rho, beta, dt = 10.0, 28.0, 8.0 / 3.0, 0.01
-    f_params = (sigma, rho, beta, dt)
+    # sigma, rho, beta, dt = 10.0, 28.0, 8.0 / 3.0, 0.01
+    # f_params = (sigma, rho, beta, dt)
 
-    # a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
-    # f_params = (a, b, c, I, dt)
+    a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
+    f_params = (a, b, c, I, dt)
 
     f_sample_cov = 0.0 * np.eye(Dx)
 
@@ -94,8 +95,8 @@ if __name__ == "__main__":
 
     # transformation can be: fhn_transformation, linear_transformation, lorenz_transformation
     # distribution can be: dirac_delta, mvn, poisson
-    # f_sample_tran = fhn_transformation(f_params)
-    f_sample_tran = lorenz_transformation(f_params)
+    f_sample_tran = fhn_transformation(f_params)
+    # f_sample_tran = lorenz_transformation(f_params)
     f_sample_dist = dirac_delta(f_sample_tran)
 
     g_sample_tran = linear_transformation(g_params)
@@ -148,8 +149,8 @@ if __name__ == "__main__":
 
     q_true_tran = tf_linear_transformation(q_A)
     q_true_dist = tf_mvn(q_true_tran, x_0, sigma=q_cov, name="q_true_dist")
-    # f_true_tran = tf_fhn_transformation(f_params)
-    f_true_tran = tf_lorenz_transformation(f_params)
+    f_true_tran = tf_fhn_transformation(f_params)
+    # f_true_tran = tf_lorenz_transformation(f_params)
     f_true_dist = tf_mvn(f_true_tran, x_0, sigma=f_cov, name="f_true_dist")
     g_true_tran = tf_linear_transformation(g_A)
     g_true_dist = tf_mvn(g_true_tran, name="g_true_dist")
@@ -233,8 +234,10 @@ if __name__ == "__main__":
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_train[0:saving_num],
                                          x_0: hidden_train[0:saving_num, 0],
                                          hidden: hidden_train[0:saving_num]})
+
+        inferredX = np.average(Xs_val, axis=2)
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_train[0:saving_num],
-                                                 hidden: hidden_train[0:saving_num]})
+                                                 hidden: inferredX[0:saving_num]})
 
         print("finish evaluating training results")
 

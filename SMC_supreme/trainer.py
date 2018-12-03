@@ -27,6 +27,10 @@ class trainer:
 
         self.store_res = store_res
         self.draw_quiver_during_training = False
+        self.bestCost = -np.inf
+        self.costUpdate = 0
+        self.maxNumberNoImprovement = 5
+        self.beta = 0
 
     def set_rslt_saving(self, RLT_DIR, save_freq, saving_num):
         self.RLT_DIR = RLT_DIR
@@ -137,13 +141,16 @@ class trainer:
         log_ZSMC_true, log_true = self.SMC_true.get_log_ZSMC(self.obs, self.x_0, self.hidden)
         log_ZSMC_train, log_train = self.SMC_train.get_log_ZSMC(self.obs, self.x_0, self.hidden)
 
+
+
         MSE_ks_true, y_means_true, y_vars_true, _ = \
             self.SMC_true.n_step_MSE(self.MSE_steps, self.hidden, self.obs)
         MSE_ks_train, y_means_train, y_vars_train, y_hat_train = \
             self.SMC_train.n_step_MSE(self.MSE_steps, self.hidden, self.obs)
 
+        cost_w_MSE = -log_ZSMC_train + self.beta*MSE_ks_train[0]
         with tf.variable_scope("train"):
-            train_op = tf.train.AdamOptimizer(self.lr).minimize(-log_ZSMC_train)
+            train_op = tf.train.AdamOptimizer(self.lr).minimize(cost_w_MSE)
 
         init = tf.global_variables_initializer()
 
@@ -192,6 +199,8 @@ class trainer:
                                            self.x_0: hidden_test[:, 0],
                                            self.hidden: hidden_test},
                                           average=True)
+
+
         MSE_train, R_square_train = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
                                                            hidden_train, obs_train)
         MSE_test, R_square_test = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
@@ -209,6 +218,8 @@ class trainer:
 
         for i in range(self.epoch):
             start = time.time()
+
+            #self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
             for j in range(0, len(obs_train), self.batch_size):
@@ -235,6 +246,9 @@ class trainer:
                 print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"
                       .format(i + 1, log_ZSMC_train_val, log_ZSMC_test_val))
 
+                print("Train, Valid k-step Rsq:\n", R_square_train, "\n", R_square_test)
+
+
                 if self.store_res:
                     log_ZSMC_trains.append(log_ZSMC_train_val)
                     log_ZSMC_tests.append(log_ZSMC_test_val)
@@ -242,12 +256,31 @@ class trainer:
                     MSE_tests.append(MSE_test)
                     R_square_trains.append(R_square_train)
                     R_square_tests.append(R_square_test)
+                    self.bestCost = np.argmax(log_ZSMC_tests)
+                    print("best valid cost on iter:", self.bestCost*print_freq)
+                    if self.bestCost < np.int((i + 1) / print_freq):
+                        self.costUpdate += 1
+                        #print("bestCost")
+                        if self.costUpdate > self.maxNumberNoImprovement:
+                            print("stopping training...")
+                            break
+
 
                 if self.draw_quiver_during_training:
-                    Xs = log_train[0]
-                    Xs_val = self.evaluate(Xs, {self.obs: obs_train[0:self.batch_size],
-                                                self.x_0: hidden_train[0:self.batch_size, 0],
-                                                self.hidden: hidden_train[0:self.batch_size]})
+
+                    cost_terms = log_train
+                    cost_term_values = self.evaluate(cost_terms, {self.obs: obs_train,
+                                                self.x_0: hidden_train[:, 0],
+                                                self.hidden: hidden_train})
+
+                    Xs_val = cost_term_values[0][0:self.batch_size]
+                    f_terms, g_terms, q_terms = cost_term_values[3:]
+                    f_terms = np.average(f_terms, axis=(0,1,2))
+                    g_terms = np.average(g_terms, axis=(0,1,2))
+                    q_terms = np.average(q_terms, axis=(0,1,2))
+                    total = f_terms + g_terms - q_terms
+                    print("f_contrib, g_contrib, q_contrib:", f_terms/total, g_terms/total, q_terms/total)
+
                     if self.Dx == 2:
                         self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
                     elif self.Dx == 3:
@@ -259,7 +292,7 @@ class trainer:
                 saver.save(self.sess, self.RLT_DIR + "model/model_epoch", global_step=i + 1)
 
             end = time.time()
-            print("epoch {:<4} takes {:.3f} second".format(i + 1, end - start))
+            print("epoch {:<4} took {:.3f} seconds".format(i + 1, end - start))
 
         print("finish training")
 
@@ -331,15 +364,16 @@ class trainer:
             ax.plot(X_traj[:, 0], X_traj[:, 1], X_traj[:, 2])
             ax.scatter(X_traj[0, 0], X_traj[0, 1], X_traj[0, 2])
 
-        x1range, x2range, x3range = ax.get_xlim(), ax.get_ylim(), ax.get_zlim()
+        if False:
+            x1range, x2range, x3range = ax.get_xlim(), ax.get_ylim(), ax.get_zlim()
 
-        lattice_val = self.define3Dlattice(x1range, x2range, x3range)
+            lattice_val = self.define3Dlattice(x1range, x2range, x3range)
 
-        X = lattice_val
-        nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
+            X = lattice_val
+            nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
 
-        scale = int(3 / 3 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0]))
-        plt.quiver(X[:, :, :, 0],
+            scale = int(3 / 3 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0]))
+            plt.quiver(X[:, :, :, 0],
                    X[:, :, :, 1],
                    X[:, :, :, 2],
                    nextX[:, :, :, 0] - X[:, :, :, 1],
