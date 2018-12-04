@@ -6,8 +6,8 @@ class SMC:
     def __init__(self, q, f, g,
                  n_particles, batch_size,
                  encoder_cell=None,
-                 q_takes_y=True,
-                 q_use_true_X=False,
+                 q_use_y=True,
+                 use_true_X=False,
                  use_stop_gradient=False,
                  name="log_ZSMC"):
         self.q = q
@@ -18,8 +18,8 @@ class SMC:
 
         self.encoder_cell = encoder_cell
 
-        self.q_takes_y = q_takes_y
-        self.q_use_true_X = q_use_true_X
+        self.q_use_y = q_use_y
+        self.use_true_X = use_true_X
         self.use_stop_gradient = use_stop_gradient
 
         self.name = name
@@ -57,7 +57,7 @@ class SMC:
                 else:
                     sample_size = ()
 
-                if self.q_takes_y:
+                if self.q_use_y:
                     if t == 0:
                         q_t_Input = tf.concat([x_0, obs[:, 0]], axis=-1)
                     else:
@@ -66,7 +66,7 @@ class SMC:
                 else:
                     q_t_Input = X_prev
 
-                if self.q_use_true_X:
+                if self.use_true_X:
                     mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov * tf.eye(Dx),
                                                                name="q_{}_mvn".format(t))
                     X = mvn.sample((self.n_particles))
@@ -97,16 +97,21 @@ class SMC:
                 log_W = tf.transpose(log_W - log_W_max)
                 categorical = tfd.Categorical(logits=log_W, validate_args=True,
                                               name="Categorical_{}".format(t))
-                if self.use_stop_gradient:
-                    idx = tf.stop_gradient(categorical.sample(self.n_particles))  # (n_particles, batch_size)
-                else:
-                    idx = categorical.sample(self.n_particles)
+
+                # sample multiple times to remove idx out of range
+                prev_idx = tf.ones((self.n_particles, self.batch_size), dtype=tf.int32) * 500
+                for _ in range(2):
+                    if self.use_stop_gradient:
+                        idx = tf.stop_gradient(categorical.sample(self.n_particles))  # (n_particles, batch_size)
+                    else:
+                        idx = categorical.sample(self.n_particles)
+                    prev_idx = tf.where(prev_idx >= 500, idx, prev_idx)
 
                 # ugly stuff used to resample X
                 batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)       # (1, batch_size)
                 batch_NxB = tf.tile(batch_1xB, (self.n_particles, 1))          # (n_particles, batch_size)
 
-                idx_NxBx1 = tf.expand_dims(idx, axis=2)                        # (n_particles, batch_size, 1)
+                idx_NxBx1 = tf.expand_dims(prev_idx, axis=2)                        # (n_particles, batch_size, 1)
                 batch_NxBx1 = tf.expand_dims(batch_NxB, axis=2)                # (n_particles, batch_size, 1)
 
                 final_idx_NxBx2 = tf.concat((idx_NxBx1, batch_NxBx1), axis=2)  # (n_particles, batch_size, 2)

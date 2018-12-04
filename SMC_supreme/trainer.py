@@ -297,7 +297,7 @@ class trainer:
         X = lattice_val
         nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
 
-        scale = int(5 / 3 * max(abs(x1range[0]) + abs(x1range[1]), abs(x2range[0]) + abs(x2range[1])))
+        scale = int(3 / 3 * max(abs(x1range[0]) + abs(x1range[1]), abs(x2range[0]) + abs(x2range[1])))
         plt.quiver(X[:, :, 0], X[:, :, 1], nextX[:, :, 0] - X[:, :, 0], nextX[:, :, 1] - X[:, :, 1], scale=scale)
 
         sns.despine()
@@ -335,17 +335,29 @@ class trainer:
 
         lattice_val = self.define3Dlattice(x1range, x2range, x3range)
 
+        # build a 3D mask
+        mask = np.zeros(lattice_val.shape)
+        x1_start, x2_start, x3_start = lattice_val[0, 0, 0]
+        x1_space, x2_space, x3_space = lattice_val[1, 1, 1] - lattice_val[0, 0, 0]
+        for X_traj in X_trajs:
+            for X in X_traj:
+                x1_idx = int((X[0] - x1_start) / x1_space)
+                x2_idx = int((X[1] - x2_start) / x2_space)
+                x3_idx = int((X[2] - x3_start) / x3_space)
+                mask[x1_idx: x1_idx + 2, x2_idx: x2_idx + 2, x3_idx: x3_idx + 2] = np.ones((2, 2, 2, 3))
+
         X = lattice_val
         nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
+        nextX = nextX * mask + X * (1 - mask)
 
-        scale = int(3 / 3 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0]))
+        length = 0.03 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0])
         plt.quiver(X[:, :, :, 0],
                    X[:, :, :, 1],
                    X[:, :, :, 2],
                    nextX[:, :, :, 0] - X[:, :, :, 1],
                    nextX[:, :, :, 1] - X[:, :, :, 2],
                    nextX[:, :, :, 2] - X[:, :, :, 2],
-                   length=scale)
+                   length=length)
 
         if not os.path.exists(self.RLT_DIR + "quiver/"):
             os.makedirs(self.RLT_DIR + "quiver/")
@@ -359,6 +371,6 @@ class trainer:
 
         x1coords = np.linspace(x1range[0], x1range[1], num=10)
         x2coords = np.linspace(x2range[0], x2range[1], num=10)
-        x3coords = np.linspace(x3range[0], x3range[1], num=3)
+        x3coords = np.linspace(x3range[0], x3range[1], num=10)
         Xlattice = np.stack(np.meshgrid(x1coords, x2coords, x3coords), axis=-1)
         return Xlattice

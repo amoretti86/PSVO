@@ -60,21 +60,36 @@ if __name__ == "__main__":
     f_train_layers = [50, 50]
     g_train_layers = [50, 50]
 
+    n_particles = 10
+    time = 5
+
+    batch_size = 5
+    lr = 1e-3
+    epoch = 3
+    seed = 0
+    tf.set_random_seed(seed)
+    np.random.seed(seed)
+
+    n_train = 1 * batch_size
+    n_test = 1 * batch_size
+
+    q_train_layers = [50]
+    f_train_layers = [50]
+    g_train_layers = [50]
+
     # if q and f use the same network
     use_bootstrap = False
     # if q takes y_t as input
-    # if is_bootstrap, q_takes_y will be overwritten as False
-    q_takes_y = True
+    # if is_bootstrap, q_use_y will be overwritten as False
+    q_use_y = True
     # if q will use true_X to sample
-    q_use_true_X = False
-    # if scale observation by the mean abs value of obs
-    scale_obs = True
+    use_true_X = False
 
     # printing and data saving params
     print_freq = 1
 
     store_res = True
-    MSE_steps = 5
+    MSE_steps = min(10, time - 1)
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
     rslt_dir_name = "lorenz_10D_obs"
@@ -114,7 +129,7 @@ if __name__ == "__main__":
     g_train_tran = MLP_transformation(g_train_layers, Dy, name="g_train_tran")
     if use_bootstrap:
         q_train_tran = f_train_tran
-        q_takes_y = False
+        q_use_y = False
     else:
         q_train_tran = MLP_transformation(q_train_layers, Dx, name="q_train_tran")
 
@@ -158,14 +173,14 @@ if __name__ == "__main__":
     if store_res:
         Experiment_params = {"n_particles": n_particles,
                              "time": time,
-                             "batch_size": batch_size,
+                             "bs": batch_size,
                              "lr": lr,
                              "epoch": epoch,
                              "seed": seed,
                              "n_train": n_train,
-                             "use_bootstrap": use_bootstrap,
-                             "q_takes_y": q_takes_y,
-                             "q_use_true_X": q_use_true_X,
+                             "bootstrap": "Y" if use_bootstrap else "N",
+                             "q_use_y": "Y" if q_use_y else "N",
+                             "use_true_X": "Y" if use_true_X else "N",
                              "rslt_dir_name": rslt_dir_name}
         print("Experiment_params")
         for key, val in Experiment_params.items():
@@ -178,10 +193,6 @@ if __name__ == "__main__":
     # Create train and test dataset
     hidden_train, obs_train, hidden_test, obs_test = \
         create_dataset(n_train, n_test, time, Dx, Dy, f_sample_dist, g_sample_dist, lb=-2.5, ub=2.5)
-    if scale_obs:
-        obs_all = abs(np.concatenate([obs_train, obs_test]))
-        obs_train /= np.mean(obs_all, axis=(0, 1))
-        obs_test /= np.mean(obs_all, axis=(0, 1))
     print("finish creating dataset")
 
     # ========================================== another model part ========================================== #
@@ -191,13 +202,13 @@ if __name__ == "__main__":
 
     SMC_true = SMC(q_true_dist, f_true_dist, g_true_dist,
                    n_particles, batch_size,
-                   q_takes_y=False,
+                   q_use_y=False,
                    name="log_ZSMC_true")
     SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
                     n_particles, batch_size,
                     encoder_cell=my_encoder_cell,
-                    q_takes_y=q_takes_y,
-                    q_use_true_X=q_use_true_X,
+                    q_use_y=q_use_y,
+                    use_true_X=use_true_X,
                     name="log_ZSMC_train")
 
     # ============================================= training part ============================================ #
@@ -216,7 +227,7 @@ if __name__ == "__main__":
             mytrainer.set_quiver_arg(nextX, lattice)
 
         if isinstance(f_sample_tran, lorenz_transformation) and my_encoder_cell is None:
-            lattice = tf.placeholder(tf.float32, shape=(10, 10, 3, 3), name="lattice")
+            lattice = tf.placeholder(tf.float32, shape=(10, 10, 10, 3), name="lattice")
             nextX = SMC_train.get_nextX(lattice)
             mytrainer.set_quiver_arg(nextX, lattice)
 
@@ -233,8 +244,9 @@ if __name__ == "__main__":
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_train[0:saving_num],
                                          x_0: hidden_train[0:saving_num, 0],
                                          hidden: hidden_train[0:saving_num]})
+        inferredX = np.average(Xs_val, axis=2)
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_train[0:saving_num],
-                                                 hidden: hidden_train[0:saving_num]})
+                                                 hidden: inferredX})
 
         print("finish evaluating training results")
 
@@ -256,8 +268,12 @@ if __name__ == "__main__":
                        "n_train": n_train,
                        "seed": seed,
                        "use_bootstrap": use_bootstrap,
-                       "q_takes_y": q_takes_y,
-                       "q_use_true_X": q_use_true_X}
+                       "q_use_y": q_use_y,
+                       "use_true_X": use_true_X,
+                       "scale_obs": scale_obs,
+                       "q_train_layers": q_train_layers,
+                       "f_train_layers": f_train_layers,
+                       "g_train_layers": g_train_layers}
         loss_dict = {"log_ZSMC_true": log_ZSMC_true_val,
                      "log_ZSMC_trains": log_ZSMC_trains,
                      "log_ZSMC_tests": log_ZSMC_tests,
