@@ -29,7 +29,7 @@ from SMC import SMC
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # to avoid lots of log about the device
 
-print("the code is written at:")
+print("the code is written in:")
 print("\ttensorflow version: 1.12.0")
 print("\ttensorflow_probability version: 0.5.0")
 
@@ -53,8 +53,8 @@ if __name__ == "__main__":
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    n_train = 20 * batch_size
-    n_test = 4 * batch_size
+    n_train = 40 * batch_size
+    n_test = 10  * batch_size
 
     q_train_layers = [50]
     f_train_layers = [50]
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     MSE_steps = 5
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
-    rslt_dir_name = "lorenz_10D_obs"
+    rslt_dir_name = "FN_1D_obs"
 
     # ============================================== model part ============================================== #
     # for data generation
@@ -111,10 +111,11 @@ if __name__ == "__main__":
     x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name="x_0")
 
     my_encoder_cell = None
-    f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
+    #f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
+    q_train_tran = MLP_transformation(q_train_layers, Dx, name='q_train_tran')
     g_train_tran = MLP_transformation(g_train_layers, Dy, name="g_train_tran")
     if use_bootstrap:
-        q_train_tran = f_train_tran
+        f_train_tran = q_train_tran
         q_takes_y = False
     else:
         q_train_tran = MLP_transformation(q_train_layers, Dx, name="q_train_tran")
@@ -128,8 +129,9 @@ if __name__ == "__main__":
     g_sigma_init, g_sigma_min = 5, 1
 
     q_train_dist = tf_mvn(q_train_tran, x_0, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
-    f_train_dist = tf_mvn(f_train_tran, x_0, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_train_dist")
+    #f_train_dist = tf_mvn(f_train_tran, x_0, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_train_dist")
     g_train_dist = tf_mvn(g_train_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_train_dist")
+    f_train_dist = q_train_dist
 
     init_dict = {"q_sigma_init": q_sigma_init,
                  "q_sigma_min": q_sigma_min,
@@ -183,7 +185,7 @@ if __name__ == "__main__":
         obs_all = abs(np.concatenate([obs_train, obs_test]))
         obs_train /= np.mean(obs_all, axis=(0, 1))
         obs_test /= np.mean(obs_all, axis=(0, 1))
-    print("finish creating dataset")
+    print("finished creating dataset")
 
     # ========================================== another model part ========================================== #
     # placeholders
