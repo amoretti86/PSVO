@@ -12,7 +12,8 @@ class trainer:
                  n_particles, time,
                  batch_size, lr, epoch,
                  MSE_steps,
-                 store_res):
+                 store_res, beta,
+                 maxNumberNoImprovement):
         self.Dx = Dx
         self.Dy = Dy
 
@@ -29,8 +30,8 @@ class trainer:
         self.draw_quiver_during_training = False
         self.bestCost = -np.inf
         self.costUpdate = 0
-        self.maxNumberNoImprovement = 5
-        self.beta = 0
+        self.maxNumberNoImprovement = maxNumberNoImprovement
+        self.beta = beta
 
     def set_rslt_saving(self, RLT_DIR, save_freq, saving_num):
         self.RLT_DIR = RLT_DIR
@@ -239,7 +240,7 @@ class trainer:
                                                                    hidden_train, obs_train)
                 MSE_test, R_square_test = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
                                                                  hidden_test, obs_test)
-                print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"
+                print("iter {:>3}, train log_ZSMC: {:>7.3f}, valid log_ZSMC: {:>7.3f}"
                       .format(i + 1, log_ZSMC_train_val, log_ZSMC_test_val))
 
                 print("Train k-step Rsq:\n",
@@ -264,7 +265,7 @@ class trainer:
                     if self.bestCost < np.int((i + 1) / print_freq):
                         self.costUpdate += 1
                         if self.costUpdate > self.maxNumberNoImprovement:
-                            print("stopping training...")
+                            print("valid cost not improving. stopping training...")
                             break
 
                 if self.draw_quiver_during_training:
@@ -295,7 +296,7 @@ class trainer:
             end = time.time()
             print("epoch {:<4} took {:.3f} seconds".format(i + 1, end - start))
 
-        print("finish training")
+        print("finished training...")
 
         losses = None
         if self.store_res:
@@ -334,7 +335,7 @@ class trainer:
         scale = int(3 / 3 * max(abs(x1range[0]) + abs(x1range[1]), abs(x2range[0]) + abs(x2range[1])))
         plt.quiver(X[:, :, 0], X[:, :, 1], nextX[:, :, 0] - X[:, :, 0], nextX[:, :, 1] - X[:, :, 1], scale=scale)
 
-        sns.despine()
+        # sns.despine()
         if not os.path.exists(self.RLT_DIR + "quiver/"):
             os.makedirs(self.RLT_DIR + "quiver/")
         plt.savefig(self.RLT_DIR + "quiver/epoch_{}".format(epoch))
@@ -361,7 +362,7 @@ class trainer:
         ax.set_xlabel("x_dim 1")
         ax.set_ylabel("x_dim 2")
         ax.set_zlabel("x_dim 3")
-        for X_traj in X_trajs[0:1]:
+        for X_traj in X_trajs:
             ax.plot(X_traj[:, 0], X_traj[:, 1], X_traj[:, 2])
             ax.scatter(X_traj[0, 0], X_traj[0, 1], X_traj[0, 2])
 
@@ -372,8 +373,8 @@ class trainer:
         mask = np.zeros(lattice_val.shape)
         x1_start, x2_start, x3_start = lattice_val[0, 0, 0]
         x1_space, x2_space, x3_space = lattice_val[1, 1, 1] - lattice_val[0, 0, 0]
-        for X_traj in X_trajs[0:1]:
-            for X in X_traj[0:1]:
+        for X_traj in X_trajs:
+            for X in X_traj:
                 x1_idx = int((X[0] - x1_start) / x1_space)
                 x2_idx = int((X[1] - x2_start) / x2_space)
                 x3_idx = int((X[2] - x3_start) / x3_space)

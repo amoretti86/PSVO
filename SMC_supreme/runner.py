@@ -29,7 +29,7 @@ from SMC import SMC
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # to avoid lots of log about the device
 
-print("the code is written at:")
+print("the code is written in:")
 print("\ttensorflow version: 1.12.0")
 print("\ttensorflow_probability version: 0.5.0")
 
@@ -53,8 +53,8 @@ if __name__ == "__main__":
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    n_train = 20 * batch_size
-    n_test = 4 * batch_size
+    n_train = 40 * batch_size
+    n_test = 10 * batch_size
 
     q_train_layers = [50]
     f_train_layers = [50]
@@ -66,6 +66,13 @@ if __name__ == "__main__":
     q_use_y = True
     # if q will use true_X to sample
     use_true_X = False
+    # if scale observation by the mean abs value of obs
+    scale_obs = False
+
+    # term to weight the contribution of the MSE to the cost
+    beta = 1.0
+    # stop training early if validation set does not improve
+    maxNumberNoImprovement = 5
 
     # printing and data saving params
     print_freq = 1
@@ -74,7 +81,7 @@ if __name__ == "__main__":
     MSE_steps = min(10, time - 1)
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
-    rslt_dir_name = "lorenz_10D_obs"
+    rslt_dir_name = "FN_1D_obs"
 
     # ============================================== model part ============================================== #
     # for data generation
@@ -202,7 +209,7 @@ if __name__ == "__main__":
                         n_particles, time,
                         batch_size, lr, epoch,
                         MSE_steps,
-                        store_res)
+                        store_res, beta, maxNumberNoImprovement)
     mytrainer.set_SMC(SMC_true, SMC_train)
     mytrainer.set_placeholders(x_0, obs, hidden)
     if store_res:
