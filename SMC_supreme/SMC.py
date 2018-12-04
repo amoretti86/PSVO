@@ -100,7 +100,7 @@ class SMC:
 
                 # sample multiple times to remove idx out of range
                 prev_idx = tf.ones((self.n_particles, self.batch_size), dtype=tf.int32) * 500
-                for _ in range(2):
+                for _ in range(3):
                     if self.use_stop_gradient:
                         idx = tf.stop_gradient(categorical.sample(self.n_particles))  # (n_particles, batch_size)
                     else:
@@ -143,11 +143,12 @@ class SMC:
 
     def n_step_MSE(self, n_steps, hidden, obs):
         # Compute MSE_k for k = 0, ..., n_steps
-        batch_size, time, Dx = hidden.shape.as_list()
+        batch_size, time, _, Dx = hidden.shape.as_list()
         batch_size, time, Dy = obs.shape.as_list()
         assert n_steps < time, "n_steps = {} >= time".format(n_steps)
         with tf.variable_scope(self.name):
 
+            hidden = tf.reduce_mean(hidden, axis=2)
             x_BxTmkxDz = hidden
 
             # get y_hat

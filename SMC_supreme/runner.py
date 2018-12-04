@@ -48,39 +48,21 @@ if __name__ == "__main__":
 
     batch_size = 5
     lr = 1e-3
-    epoch = 200
+    epoch = 300
     seed = 0
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    n_train = 40 * batch_size
-    n_test = 1 * batch_size
-
-    q_train_layers = [50, 50]
-    f_train_layers = [50, 50]
-    g_train_layers = [50, 50]
-
-    n_particles = 10
-    time = 5
-
-    batch_size = 5
-    lr = 1e-3
-    epoch = 3
-    seed = 0
-    tf.set_random_seed(seed)
-    np.random.seed(seed)
-
-    n_train = 1 * batch_size
-    n_test = 1 * batch_size
+    n_train = 20 * batch_size
+    n_test = 4 * batch_size
 
     q_train_layers = [50]
     f_train_layers = [50]
     g_train_layers = [50]
 
     # if q and f use the same network
-    use_bootstrap = False
-    # if q takes y_t as input
-    # if is_bootstrap, q_use_y will be overwritten as False
+    use_bootstrap = True
+    # if use_bootstrap, q_use_y will be overwritten as False
     q_use_y = True
     # if q will use true_X to sample
     use_true_X = False
@@ -141,9 +123,13 @@ if __name__ == "__main__":
     f_sigma_init, f_sigma_min = 5, 1
     g_sigma_init, g_sigma_min = 5, 1
 
-    q_train_dist = tf_mvn(q_train_tran, x_0, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
     f_train_dist = tf_mvn(f_train_tran, x_0, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_train_dist")
     g_train_dist = tf_mvn(g_train_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_train_dist")
+    if use_bootstrap:
+        q_train_dist = f_train_dist
+        q_use_y = False
+    else:
+        q_train_dist = tf_mvn(q_train_tran, x_0, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
 
     init_dict = {"q_sigma_init": q_sigma_init,
                  "q_sigma_min": q_sigma_min,
@@ -244,9 +230,9 @@ if __name__ == "__main__":
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_train[0:saving_num],
                                          x_0: hidden_train[0:saving_num, 0],
                                          hidden: hidden_train[0:saving_num]})
-        inferredX = np.average(Xs_val, axis=2)
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_train[0:saving_num],
-                                                 hidden: inferredX})
+                                                 x_0: hidden_train[0:saving_num, 0],
+                                                 hidden: hidden_train})
 
         print("finish evaluating training results")
 
@@ -270,7 +256,6 @@ if __name__ == "__main__":
                        "use_bootstrap": use_bootstrap,
                        "q_use_y": q_use_y,
                        "use_true_X": use_true_X,
-                       "scale_obs": scale_obs,
                        "q_train_layers": q_train_layers,
                        "f_train_layers": f_train_layers,
                        "g_train_layers": g_train_layers}
