@@ -70,6 +70,10 @@ if __name__ == "__main__":
     # if scale observation by the mean abs value of obs
     scale_obs = False
 
+    # term to weight the contribution of the MSE to the cost
+    beta = 1.0
+    # stop training early if validation set does not improve
+    maxNumberNoImprovement = 5
 
     # printing and data saving params
     print_freq = 10
@@ -208,7 +212,7 @@ if __name__ == "__main__":
                         n_particles, time,
                         batch_size, lr, epoch,
                         MSE_steps,
-                        store_res)
+                        store_res, beta, maxNumberNoImprovement)
     mytrainer.set_SMC(SMC_true, SMC_train)
     mytrainer.set_placeholders(x_0, obs, hidden)
     if store_res:
