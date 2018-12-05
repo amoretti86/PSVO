@@ -92,33 +92,33 @@ def plot_log_ZSMC(RLT_DIR, log_ZSMC_true, log_ZSMC_trains, log_ZSMC_tests, print
     plt.show()
 
 
-def plot_MSEs(RLT_DIR, MSE_true, MSE_trains, MSE_tests, print_freq):
+def plot_MSEs(RLT_DIR, MSE_trains, MSE_tests, print_freq):
     if not os.path.exists(RLT_DIR + "MSE"):
         os.makedirs(RLT_DIR + "MSE")
     # Plot and save losses
     plt.figure()
     for i in range(len(MSE_trains)):
-        plt.plot(MSE_true)
+        #plt.plot(MSE_true)
         plt.plot(MSE_trains[i])
         plt.plot(MSE_tests[i])
         plt.xlabel("k")
-        plt.legend(["MSE_true", "MSE_train", "MSE_test"])
+        plt.legend(["MSE_train", "MSE_test"])
         sns.despine()
         plt.savefig(RLT_DIR + "MSE/epoch_{}".format(i * print_freq))
         plt.close()
 
 
-def plot_R_square(RLT_DIR, R_square_true, R_square_trains, R_square_tests, print_freq):
+def plot_R_square(RLT_DIR, R_square_trains, R_square_tests, print_freq):
     if not os.path.exists(RLT_DIR + "R_square"):
         os.makedirs(RLT_DIR + "R_square")
     # Plot and save losses
     plt.figure()
     for i in range(len(R_square_trains)):
-        plt.plot(R_square_true)
+        #plt.plot(R_square_true)
         plt.plot(R_square_trains[i])
         plt.plot(R_square_tests[i])
         plt.xlabel("k")
-        plt.legend(["R_square_true", "R_square_true_train", "R_square_true_test"])
+        plt.legend(["R_square_true_train", "R_square_true_test"], loc='best')
         sns.despine()
         plt.savefig(RLT_DIR + "R_square/epoch_{}".format(i * print_freq))
         plt.close()
@@ -169,7 +169,8 @@ def plot_y_hat(RLT_DIR, ys_hat_val, obs, saving_num=20):
             plt.xlabel("Time")
             plt.plot(obs[i, :, j])
             for k, ys_k_hat_val in enumerate(ys_hat_val):
-                plt.plot(range(k, time), ys_k_hat_val[i, :, j], "*")
+                plt.plot(range(k, time), ys_k_hat_val[i, :, j], "--")
+            plt.legend()
             sns.despine()
             plt.savefig(RLT_DIR + "/y_hat plots/obs_dim_{}_idx_{}".format(j, i))
             plt.close()
