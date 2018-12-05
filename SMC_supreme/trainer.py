@@ -327,7 +327,9 @@ class trainer:
                       MSE_trains, MSE_tests,
                     R_square_trains, R_square_tests]
         # sorry for the terrible name
-        tensors = [log_true, log_train, y_hat_train]
+        if False:
+            tensors = [log_true, log_train, y_hat_train]
+        tensors = [log_train, y_hat_train]
 
         return losses, tensors
 

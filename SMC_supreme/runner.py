@@ -49,18 +49,18 @@ if __name__ == "__main__":
 
     batch_size = 5
     lr = 1e-3
-    epoch = 300
+    epoch = 10
     seed = 0
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    n_train = 40 * batch_size
-    n_test = 8  * batch_size
+    n_train = 18 * batch_size
+    n_test = 1  * batch_size
 
     # Define encoder and decoder network architectures
-    q_train_layers = [50]
-    f_train_layers = [50]
-    g_train_layers = [50]
+    q_train_layers = [20]
+    f_train_layers = [20]
+    g_train_layers = [20]
 
     # do q and f use the same network?
     use_bootstrap = True
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     passInitialState = False
 
     # if reading data from file
-    datadir = '/data/fitzhughnagumo/'
+    datadir = '/Users/antoniomoretti/Desktop/dhern-ts_wcommona-b4b1ad88b3aa/data/fitzhughnagumo/'
     datadict = 'datadict'
     isPython2 = True
 
@@ -292,11 +292,13 @@ if __name__ == "__main__":
     if generateTrainingData is False:
         losses, tensors = mytrainer.train(obs_train, obs_test, print_freq, x_0_init_mean, x_0_init_scale)
     # ======================================= another data saving part ======================================= #
+    # _, R_square_trains, R_square_tests = losses
     if store_res:
         log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests, \
-            MSE_true, MSE_trains, MSE_tests, \
-            R_square_true, R_square_trains, R_square_tests = losses
-        log_true, log_train, ys_hat = tensors
+            MSE_trains, MSE_tests, \
+            R_square_trains, R_square_tests = losses
+        #log_true, log_train, ys_hat = tensors
+        log_train, ys_hat = tensors
 
         Xs = log_train[0]
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_train[0:saving_num],
