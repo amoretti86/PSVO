@@ -49,18 +49,18 @@ if __name__ == "__main__":
 
     batch_size = 5
     lr = 1e-3
-    epoch = 10
+    epoch = 300
     seed = 0
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    n_train = 18 * batch_size
-    n_test = 1  * batch_size
+    n_train = 40 * batch_size
+    n_test = 8  * batch_size
 
     # Define encoder and decoder network architectures
-    q_train_layers = [20]
-    f_train_layers = [20]
-    g_train_layers = [20]
+    q_train_layers = [50]
+    f_train_layers = [50]
+    g_train_layers = [50]
 
     # do q and f use the same network?
     use_bootstrap = True
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     passInitialState = False
 
     # if reading data from file
-    datadir = '/Users/antoniomoretti/Desktop/dhern-ts_wcommona-b4b1ad88b3aa/data/fitzhughnagumo/'
+    datadir = '/data/fitzhughnagumo/'
     datadict = 'datadict'
     isPython2 = True
 
