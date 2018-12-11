@@ -44,23 +44,24 @@ if __name__ == "__main__":
     # training hyperparameters
     Dx = 2
     Dy = 1
-    n_particles = 50
-    time = 200
+    n_particles = 500
 
     batch_size = 5
     lr = 1e-3
-    epoch = 10
+    epoch = 300
     seed = 0
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    n_train = 18 * batch_size
-    n_test = 1  * batch_size
+    # time, n_train and n_test will be overwritten if loading data from the file
+    time = 200
+    n_train = 40 * batch_size
+    n_test = 5 * batch_size
 
     # Define encoder and decoder network architectures
-    q_train_layers = [20]
-    f_train_layers = [20]
-    g_train_layers = [20]
+    q_train_layers = [50]
+    f_train_layers = [50]
+    g_train_layers = [50]
 
     # do q and f use the same network?
     use_bootstrap = True
@@ -68,59 +69,49 @@ if __name__ == "__main__":
     # if is_bootstrap, q_takes_y will be overwritten as False
     q_takes_y = False
     # should q use true_X to sample? (useful for debugging)
-    q_use_true_X = False
-    # scale observation by the mean abs value of obs?
-    scale_obs = False
+    q_uses_true_X = False
 
     # term to weight the added contribution of the MSE to the cost
-    beta = 0.5
+    loss_beta = 0.0
+
     # stop training early if validation set does not improve
     maxNumberNoImprovement = 5
 
     # generate synthetic data?
     generateTrainingData = False
-    # pass ground truth initial state
-    passInitialState = False
 
     # if reading data from file
-    datadir = '/Users/antoniomoretti/Desktop/dhern-ts_wcommona-b4b1ad88b3aa/data/fitzhughnagumo/'
-    datadict = 'datadict'
-    isPython2 = True
-
-    # priors on initial state x_0
-    # TODO: This should be revisited, must act on trainable variables in runner and trainer
-    x_0_init_mean = 0.0
-    x_0_init_scale = 1.0
+    datadir = 'C:/Users/admin/Desktop/research/code/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/'
+    datadict = 'data.p'
+    isPython2 = False
 
     # printing and data saving params
-    print_freq = 10
+    print_freq = 5
 
     store_res = True
-    MSE_steps = 5
+    MSE_steps = min(5, time - 1)
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
     rslt_dir_name = "FN_1D_obs"
 
-    # ============================================== model part ============================================== #
+    # ============================================= dataset part ============================================= #
     if generateTrainingData:
 
         # integrate differential equations to simulate the FHN or Lorenz systems
-        # sigma, rho, beta, dt = 10.0, 28.0, 8.0 / 3.0, 0.01
-        # f_params = (sigma, rho, beta, dt)
+        sigma, rho, beta, dt = 10.0, 28.0, 8.0 / 3.0, 0.01
+        f_params = (sigma, rho, beta, dt)
 
-        a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
-        f_params = (a, b, c, I, dt)
+        # a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
+        # f_params = (a, b, c, I, dt)
 
         f_sample_cov = 0.0 * np.eye(Dx)
 
-        #g_params = np.random.randn(Dy, Dx)  # np.array([[1.0, 1.0]]) or np.random.randn(Dy, Dx)
-        g_params = np.array([[1.0, 0.0]])
+        # g_params = np.random.randn(Dy, Dx)  # np.array([[1.0, 1.0]]) or np.random.randn(Dy, Dx)
+        g_params = np.array([[1.0, 0.0, 1.0]])
         g_sample_cov = 0.1 * np.eye(Dy)
 
-        # transformation can be: fhn_transformation, linear_transformation, lorenz_transformation
-        # distribution can be: dirac_delta, mvn, poisson
-        f_sample_tran = fhn_transformation(f_params)
-        # f_sample_tran = lorenz_transformation(f_params)
+        # f_sample_tran = fhn_transformation(f_params)
+        f_sample_tran = lorenz_transformation(f_params)
         f_sample_dist = dirac_delta(f_sample_tran)
 
         g_sample_tran = linear_transformation(g_params)
@@ -131,11 +122,39 @@ if __name__ == "__main__":
                            "g_params": g_params,
                            "g_cov": g_sample_cov}
 
-    # for training
-    x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name="x_0")
+        # Create train and test dataset
+        hidden_train, obs_train, hidden_test, obs_test = \
+            create_dataset(n_train, n_test, time, Dx, Dy, f_sample_dist, g_sample_dist, lb=-2.5, ub=2.5)
+        print("finished creating dataset")
 
-    my_encoder_cell = None
-    #f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
+    else:
+        # load data
+        with open(datadir + datadict, 'rb') as handle:
+            if isPython2:
+                data = pickle.load(handle, encoding='latin1')
+            else:
+                data = pickle.load(handle)
+
+        obs_train = data['Ytrain']
+        obs_test = data['Yvalid']
+
+        n_train = obs_train.shape[0]
+        n_test = obs_test.shape[0]
+        time = obs_train.shape[1]
+
+        hidden_train = data['Xtrue'][:n_train]
+        hidden_test = data['Xtrue'][n_train:]
+
+        print("finished loading dataset")
+
+    # ============================================== model part ============================================== #
+    # placeholders
+    x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name="x_0")
+    obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
+    hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
+
+    # transformations
+    # f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
     q_train_tran = MLP_transformation(q_train_layers, Dx, name='q_train_tran')
     g_train_tran = MLP_transformation(g_train_layers, Dy, name="g_train_tran")
     flow_tran = q_train_tran
@@ -143,11 +162,7 @@ if __name__ == "__main__":
         f_train_tran = q_train_tran
         q_takes_y = False
     else:
-        q_train_tran = MLP_transformation(q_train_layers, Dx, name="q_train_tran")
-
-    # my_encoder_cell = encoder_cell(Dx, Dy, batch_size, time, name = "encoder_cell")
-    # q_train_tran = my_encoder_cell.q_transformation
-    # f_train_tran = my_encoder_cell.f_transformation
+        f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
 
     q_sigma_init, q_sigma_min = 5, 1
     f_sigma_init, f_sigma_min = 5, 1
@@ -167,24 +182,11 @@ if __name__ == "__main__":
                  "g_sigma_init": g_sigma_init,
                  "g_sigma_min": g_sigma_min}
 
-    if generateTrainingData:
-
-        # for evaluating log_ZSMC_true
-        q_A = tf.constant(np.eye(Dx), dtype=tf.float32)
-        q_cov = 1 * tf.eye(Dx)
-
-        f_cov = 1 * tf.eye(Dx)
-
-        g_A = tf.constant(g_params, dtype=tf.float32)
-        g_cov = tf.constant(g_sample_cov, dtype=tf.float32)
-
-        q_true_tran = tf_linear_transformation(q_A)
-        q_true_dist = tf_mvn(q_true_tran, x_0, sigma=q_cov, name="q_true_dist")
-        f_true_tran = tf_fhn_transformation(f_params)
-        # f_true_tran = tf_lorenz_transformation(f_params)
-        f_true_dist = tf_mvn(f_true_tran, x_0, sigma=f_cov, name="f_true_dist")
-        g_true_tran = tf_linear_transformation(g_A)
-        g_true_dist = tf_mvn(g_true_tran, name="g_true_dist")
+    SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
+                    n_particles, batch_size,
+                    q_takes_y=q_takes_y,
+                    q_uses_true_X=q_uses_true_X,
+                    name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
     if store_res:
@@ -195,9 +197,10 @@ if __name__ == "__main__":
                              "epoch": epoch,
                              "seed": seed,
                              "n_train": n_train,
-                             "use_bootstrap": use_bootstrap,
-                             "q_takes_y": q_takes_y,
-                             "q_use_true_X": q_use_true_X,
+                             "bootstrap": use_bootstrap,
+                             "q_take_y": q_takes_y,
+                             "use_true_X": q_uses_true_X,
+                             "beta": loss_beta,
                              "rslt_dir_name": rslt_dir_name}
         print("Experiment_params")
         for key, val in Experiment_params.items():
@@ -206,108 +209,47 @@ if __name__ == "__main__":
         RLT_DIR = create_RLT_DIR(Experiment_params)
         print("RLT_DIR:", RLT_DIR)
 
-    # ============================================= dataset part ============================================= #
-    if generateTrainingData == True:
-
-        # Create train and test dataset
-        hidden_train, obs_train, hidden_test, obs_test = \
-            create_dataset(n_train, n_test, time, Dx, Dy, f_sample_dist, g_sample_dist, lb=-2.5, ub=2.5)
-        print("finished creating dataset")
-
-
-    if generateTrainingData == False:
-        # load data
-        with open(datadir + "datadict", 'rb') as handle:
-            if isPython2:
-                data = pickle.load(handle, encoding='latin1')
-            else:
-                data = pickle.load(handle)
-        hidden_train = data['Xtrue'][0:80]
-        hidden_valid = data['Xtrue'][80:100]
-        obs_train = data['Ytrain']
-        obs_test  = data['Yvalid']
-        n_train = obs_train.shape[0]
-        n_test = obs_test.shape[0]
-        print("finished loading dataset")
-        log_ZSMC_true_val = None
-
-    if scale_obs:
-        obs_all = abs(np.concatenate([obs_train, obs_test]))
-        obs_train /= np.mean(obs_all, axis=(0, 1))
-        obs_test /= np.mean(obs_all, axis=(0, 1))
-
-
-    # ========================================== another model part ========================================== #
-    # placeholders
-    obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
-    hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
-
-    if generateTrainingData:
-        SMC_true = SMC(q_true_dist, f_true_dist, g_true_dist,
-                       n_particles, batch_size,
-                       q_takes_y=False,
-                       name="log_ZSMC_true")
-    SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
-                    n_particles, batch_size,
-                    encoder_cell=my_encoder_cell,
-                    q_takes_y=q_takes_y,
-                    q_use_true_X=q_use_true_X,
-                    name="log_ZSMC_train")
-
     # ============================================= training part ============================================ #
-    if True:
-        mytrainer = trainer(Dx, Dy,
-                            n_particles, time,
-                            batch_size, lr, epoch,
-                            MSE_steps,
-                            store_res, beta, maxNumberNoImprovement,
-                            x_0_init_mean, x_0_init_scale)
+    mytrainer = trainer(Dx, Dy,
+                        n_particles, time,
+                        batch_size, lr, epoch,
+                        MSE_steps,
+                        store_res,
+                        loss_beta, maxNumberNoImprovement)
 
+    mytrainer.set_SMC(SMC_train)
     mytrainer.set_placeholders(x_0, obs, hidden)
-    mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num)
 
-    if generateTrainingData is False:
-        mytrainer.set_SMC(None, SMC_train)
-        mytrainer.set_fitReal(True)
-    else:
-        mytrainer.set_SMC(SMC_true, SMC_train)
-        mytrainer.set_fitReal(False)
+    if store_res:
+        mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num)
+        if Dx == 2:
+            lattice = tf.placeholder(tf.float32, shape=(50, 50, 2), name="lattice")
+            nextX = SMC_train.get_nextX(lattice)
+            mytrainer.set_quiver_arg(nextX, lattice)
 
-        if store_res:
+        if Dx == 3:
+            lattice = tf.placeholder(tf.float32, shape=(10, 10, 3, 3), name="lattice")
+            nextX = SMC_train.get_nextX(lattice)
+            mytrainer.set_quiver_arg(nextX, lattice)
 
-            if isinstance(f_sample_tran, fhn_transformation) and my_encoder_cell is None:
-                lattice = tf.placeholder(tf.float32, shape=(50, 50, 2), name="lattice")
-                nextX = SMC_train.get_nextX(lattice)
-                mytrainer.set_quiver_arg(nextX, lattice)
+    mytrainer.set_fitReal(not generateTrainingData)
+    losses, tensors = mytrainer.train(obs_train, obs_test, print_freq, hidden_train, hidden_test)
 
-            if isinstance(f_sample_tran, lorenz_transformation) and my_encoder_cell is None:
-                lattice = tf.placeholder(tf.float32, shape=(10, 10, 3, 3), name="lattice")
-                nextX = SMC_train.get_nextX(lattice)
-                mytrainer.set_quiver_arg(nextX, lattice)
-
-
-        losses, tensors = mytrainer.train(obs_train, obs_test, print_freq, hidden_train, hidden_test)
-
-    #pdb.set_trace()
-    if generateTrainingData is False:
-        losses, tensors = mytrainer.train(obs_train, obs_test, print_freq, x_0_init_mean, x_0_init_scale)
     # ======================================= another data saving part ======================================= #
     # _, R_square_trains, R_square_tests = losses
     if store_res:
-        log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests, \
+        log_ZSMC_trains, log_ZSMC_tests, \
             MSE_trains, MSE_tests, \
             R_square_trains, R_square_tests = losses
-        #log_true, log_train, ys_hat = tensors
         log_train, ys_hat = tensors
 
         Xs = log_train[0]
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_train[0:saving_num],
                                          x_0: hidden_train[0:saving_num, 0],
                                          hidden: hidden_train[0:saving_num]})
-
-        inferredX = np.average(Xs_val, axis=2)
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_train[0:saving_num],
-                                                 hidden: inferredX[0:saving_num]})
+                                                 x_0: hidden_train[0:saving_num, 0],
+                                                 hidden: hidden_train[0:saving_num]})
 
         print("finish evaluating training results")
 
@@ -315,10 +257,10 @@ if __name__ == "__main__":
         plot_learning_results(RLT_DIR, Xs_val, hidden_train, saving_num=saving_num)
         plot_y_hat(RLT_DIR, ys_hat_val, obs_train, saving_num=saving_num)
 
-        if isinstance(f_sample_tran, fhn_transformation):
+        if Dx == 2:
             plot_fhn_results(RLT_DIR, Xs_val)
 
-        if isinstance(f_sample_tran, lorenz_transformation):
+        if Dx == 3:
             plot_lorenz_results(RLT_DIR, Xs_val)
 
         params_dict = {"time": time,
@@ -330,20 +272,20 @@ if __name__ == "__main__":
                        "seed": seed,
                        "use_bootstrap": use_bootstrap,
                        "q_takes_y": q_takes_y,
-                       "q_use_true_X": q_use_true_X}
-        loss_dict = {"log_ZSMC_true": log_ZSMC_true_val,
-                     "log_ZSMC_trains": log_ZSMC_trains,
+                       "q_uses_true_X": q_uses_true_X,
+                       "beta": loss_beta}
+        loss_dict = {"log_ZSMC_trains": log_ZSMC_trains,
                      "log_ZSMC_tests": log_ZSMC_tests,
-                     #"MSE_true": MSE_true,
                      "MSE_trains": MSE_trains,
                      "MSE_tests": MSE_tests,
-                     #"R_square_true": R_square_true,
                      "R_square_trains": R_square_trains,
                      "R_square_tests": R_square_tests}
         data_dict = {"params": params_dict,
-                     "true_model_dict": true_model_dict,
                      "init_dict": init_dict,
                      "loss": loss_dict}
+
+        if generateTrainingData:
+            data_dict["true_model_dict"] = true_model_dict
 
         with open(RLT_DIR + "data.json", "w") as f:
             json.dump(data_dict, f, indent=4, cls=NumpyEncoder)
@@ -359,5 +301,4 @@ if __name__ == "__main__":
 
         plot_MSEs(RLT_DIR, MSE_trains, MSE_tests, print_freq)
         plot_R_square(RLT_DIR, R_square_trains, R_square_tests, print_freq)
-        if generateTrainingData:
-            plot_log_ZSMC(RLT_DIR, log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests, print_freq)
+        plot_log_ZSMC(RLT_DIR, log_ZSMC_trains, log_ZSMC_tests, print_freq)

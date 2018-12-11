@@ -6,6 +6,7 @@ import os
 import time
 import pdb
 
+
 class trainer:
     def __init__(self,
                  Dx, Dy,
@@ -13,8 +14,7 @@ class trainer:
                  batch_size, lr, epoch,
                  MSE_steps,
                  store_res, beta,
-                 maxNumberNoImprovement,
-                 x_0_init_mean, x_0_init_scale):
+                 maxNumberNoImprovement):
         self.Dx = Dx
         self.Dy = Dy
 
@@ -35,12 +35,7 @@ class trainer:
         self.maxNumberNoImprovement = maxNumberNoImprovement
         self.beta = beta
 
-        # priors on mean and standard deviation for initial states
-        self.x_0_init_scale = x_0_init_scale
-        self.x_0_init_mean = x_0_init_mean
-
-        #self.fitRealData = fitRealData
-
+        # self.fitRealData = fitRealData
 
     def set_rslt_saving(self, RLT_DIR, save_freq, saving_num):
         self.RLT_DIR = RLT_DIR
@@ -51,8 +46,7 @@ class trainer:
     def set_fitReal(self, fitRealData):
         self.fitRealData = fitRealData
 
-    def set_SMC(self, SMC_true, SMC_train):
-        self.SMC_true = SMC_true
+    def set_SMC(self, SMC_train):
         self.SMC_train = SMC_train
 
     def set_placeholders(self, x_0, obs, hidden):
@@ -117,8 +111,9 @@ class trainer:
         combined_y_vars = np.zeros((n_steps + 1, Dy))         # combined y_vars across all batches
         for i in range(0, n_batches, batch_size):
             batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
-                                                                      {self.obs: obs_set[i: i + batch_size],
-                                                                       self.hidden: hidden_set[i: i + batch_size]})
+                                                                      {self.obs: obs_set[i:i + batch_size],
+                                                                       self.x_0: hidden_set[i:i + batch_size, 0],
+                                                                       self.hidden: hidden_set[i:i + batch_size]})
             # batch_MSE_ks.shape = (n_steps + 1)
             # batch_y_means.shape = (n_steps + 1, Dy)
             # batch_y_vars.shape = (n_steps + 1, Dy)
@@ -151,27 +146,25 @@ class trainer:
         return mean_MSE_ks, R_square
 
     def train(self, obs_train, obs_test, print_freq, hidden_train, hidden_test):
-        print("self.fitRealData", self.fitRealData)
-        if self.fitRealData is True:
-            # ugly hack to keep SMC class unchanged
-            hidden_train = self.x_0_init_mean + self.x_0_init_scale*np.random.randn(obs_train.shape[0],obs_train.shape[1], self.Dx)
-            hidden_test = self.x_0_init_mean + self.x_0_init_scale*np.random.randn(obs_test.shape[0], obs_test.shape[1], self.Dx)
+        # print("self.fitRealData:", self.fitRealData)
+        # if self.fitRealData is True:
+        #     # ugly hack to keep SMC class unchanged
+        #     hidden_train = self.x_0_init_mean + \
+        #         self.x_0_init_scale * np.random.randn(obs_train.shape[0], obs_train.shape[1], self.Dx)
+        #     hidden_test = self.x_0_init_mean + \
+        #         self.x_0_init_scale * np.random.randn(obs_test.shape[0], obs_test.shape[1], self.Dx)
 
-
-        if False:
-            log_ZSMC_true, log_true = self.SMC_true.get_log_ZSMC(self.obs, self.x_0, self.hidden)
         log_ZSMC_train, log_train = self.SMC_train.get_log_ZSMC(self.obs, self.x_0, self.hidden)
 
-
-        #MSE_ks_true, y_means_true, y_vars_true, _ = \
-        #    self.SMC_true.n_step_MSE(self.MSE_steps, self.hidden, self.obs)
+        # n_step_MSE now takes Xs as input rather than self.hidden
+        # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
+        Xs = log_train[0]
         MSE_ks_train, y_means_train, y_vars_train, y_hat_train = \
-            self.SMC_train.n_step_MSE(self.MSE_steps, self.hidden, self.obs)
+            self.SMC_train.n_step_MSE(self.MSE_steps, Xs, self.obs)
 
-        cost_w_MSE = -log_ZSMC_train + self.beta*MSE_ks_train[0]
+        cost_w_MSE = -log_ZSMC_train + self.beta * MSE_ks_train[0]
         with tf.variable_scope("train"):
             train_op = tf.train.AdamOptimizer(self.lr).minimize(cost_w_MSE)
-
 
         init = tf.global_variables_initializer()
 
@@ -193,28 +186,13 @@ class trainer:
         if self.store_res:
             self.writer.add_graph(self.sess.graph)
 
-        obs_all = np.concatenate((obs_train, obs_test))
-        hidden_all = np.concatenate((hidden_train, hidden_test))
-
         # print("trainable_variables:")
         # for tnsr in tf.trainable_variables():
         #     print("\t", tnsr)
 
-        log_ZSMC_true_val = 0
-        """
-        log_ZSMC_true_val = self.evaluate(log_ZSMC_true,
-                                          {self.obs: obs_all, self.x_0: hidden_all[:, 0], self.hidden: hidden_all},
-                                          average=True)
-        """
-        # These are 0 and 1 by definition. Not necessary to in
-        # MSE_true, R_square_true = self.evaluate_R_square(MSE_ks_true, y_means_true, y_vars_true,
-        #                                                 hidden_all, obs_all)
-
-        #print("true log_ZSMC: {:<7.3f}".format(log_ZSMC_true_val))
-
         log_ZSMC_train_val = self.evaluate(log_ZSMC_train,
                                            {self.obs: obs_train,
-                                            self.x_0: hidden_train[:, 0], # (trials,time,Dx)
+                                            self.x_0: hidden_train[:, 0],  # (trials, time, Dx)
                                             self.hidden: hidden_train},
                                            average=True)
         log_ZSMC_test_val = self.evaluate(log_ZSMC_train,
@@ -222,7 +200,6 @@ class trainer:
                                            self.x_0: hidden_test[:, 0],
                                            self.hidden: hidden_test},
                                           average=True)
-
 
         MSE_train, R_square_train = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
                                                            hidden_train, obs_train)
@@ -242,7 +219,7 @@ class trainer:
         for i in range(self.epoch):
             start = time.time()
 
-            #self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
+            # self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
             for j in range(0, len(obs_train), self.batch_size):
@@ -271,7 +248,6 @@ class trainer:
 
                 print("Train, Valid k-step Rsq:\n", R_square_train, "\n", R_square_test)
 
-
                 if self.store_res:
                     log_ZSMC_trains.append(log_ZSMC_train_val)
                     log_ZSMC_tests.append(log_ZSMC_test_val)
@@ -279,33 +255,34 @@ class trainer:
                     MSE_tests.append(MSE_test)
                     R_square_trains.append(R_square_train)
                     R_square_tests.append(R_square_test)
-                    self.bestCost = np.argmax(log_ZSMC_tests)
-                    print("best valid cost on iter:", self.bestCost*print_freq)
+
+                    cost = np.array(log_ZSMC_tests) + self.beta * np.array([x[0] for x in MSE_tests])
+                    if self.bestCost != np.argmax(cost):
+                        self.costUpdate = 0
+                        self.bestCost = np.argmax(cost)
+
+                    print("best valid cost on iter:", self.bestCost * print_freq)
+
                     if self.bestCost < np.int((i + 1) / print_freq):
                         self.costUpdate += 1
-                        #print("bestCost")
-                    else:
-                        self.costUpdate -= 1
                         if self.costUpdate > self.maxNumberNoImprovement:
                             print("valid cost not improving. stopping training...")
                             break
 
-
                 if self.draw_quiver_during_training:
-
                     cost_terms = log_train
                     cost_term_values = self.evaluate(cost_terms, {self.obs: obs_train,
-                                                self.x_0: hidden_train[:, 0],
-                                                self.hidden: hidden_train})
+                                                     self.x_0: hidden_train[:, 0],
+                                                     self.hidden: hidden_train})
+
+                    f_terms, g_terms, q_terms = cost_term_values[3:]
+                    f_terms = np.average(f_terms, axis=(0, 1, 2))
+                    g_terms = np.average(g_terms, axis=(0, 1, 2))
+                    q_terms = np.average(q_terms, axis=(0, 1, 2))
+                    total = f_terms + g_terms - q_terms
+                    print("f_contrib, g_contrib, q_contrib:", f_terms / total, g_terms / total, q_terms / total)
 
                     Xs_val = cost_term_values[0][0:self.batch_size]
-                    f_terms, g_terms, q_terms = cost_term_values[3:]
-                    f_terms = np.average(f_terms, axis=(0,1,2))
-                    g_terms = np.average(g_terms, axis=(0,1,2))
-                    q_terms = np.average(q_terms, axis=(0,1,2))
-                    total = f_terms + g_terms - q_terms
-                    print("f_contrib, g_contrib, q_contrib:", f_terms/total, g_terms/total, q_terms/total)
-
                     if self.Dx == 2:
                         self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
                     elif self.Dx == 3:
@@ -323,12 +300,9 @@ class trainer:
 
         losses = None
         if self.store_res:
-            losses = [log_ZSMC_true_val, log_ZSMC_trains, log_ZSMC_tests,
+            losses = [log_ZSMC_trains, log_ZSMC_tests,
                       MSE_trains, MSE_tests,
-                    R_square_trains, R_square_tests]
-        # sorry for the terrible name
-        if False:
-            tensors = [log_true, log_train, y_hat_train]
+                      R_square_trains, R_square_tests]
         tensors = [log_train, y_hat_train]
 
         return losses, tensors
@@ -341,7 +315,6 @@ class trainer:
         X_trajs = np.mean(Xs_val, axis=2)
 
         import matplotlib.pyplot as plt
-        # import seaborn as sns
         plt.figure()
         for X_traj in X_trajs:
             plt.plot(X_traj[:, 0], X_traj[:, 1])
@@ -391,7 +364,7 @@ class trainer:
             ax.plot(X_traj[:, 0], X_traj[:, 1], X_traj[:, 2])
             ax.scatter(X_traj[0, 0], X_traj[0, 1], X_traj[0, 2])
 
-        if False:
+        if True:
             x1range, x2range, x3range = ax.get_xlim(), ax.get_ylim(), ax.get_zlim()
 
             lattice_val = self.define3Dlattice(x1range, x2range, x3range)
@@ -399,14 +372,15 @@ class trainer:
             X = lattice_val
             nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
 
-            scale = int(3 / 3 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0]))
+            length = 0.01 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0])
             plt.quiver(X[:, :, :, 0],
-                   X[:, :, :, 1],
-                   X[:, :, :, 2],
-                   nextX[:, :, :, 0] - X[:, :, :, 1],
-                   nextX[:, :, :, 1] - X[:, :, :, 2],
-                   nextX[:, :, :, 2] - X[:, :, :, 2],
-                   length=scale)
+                       X[:, :, :, 1],
+                       X[:, :, :, 2],
+                       nextX[:, :, :, 0] - X[:, :, :, 1],
+                       nextX[:, :, :, 1] - X[:, :, :, 2],
+                       nextX[:, :, :, 2] - X[:, :, :, 2],
+                       length=length,
+                       alpha=0.3)
 
         if not os.path.exists(self.RLT_DIR + "quiver/"):
             os.makedirs(self.RLT_DIR + "quiver/")

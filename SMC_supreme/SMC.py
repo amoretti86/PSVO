@@ -6,8 +6,8 @@ class SMC:
     def __init__(self, q, f, g,
                  n_particles, batch_size,
                  encoder_cell=None,
-                 q_use_y=True,
-                 use_true_X=False,
+                 q_takes_y=True,
+                 q_uses_true_X=False,
                  use_stop_gradient=False,
                  name="log_ZSMC"):
         self.q = q
@@ -18,8 +18,8 @@ class SMC:
 
         self.encoder_cell = encoder_cell
 
-        self.q_use_y = q_use_y
-        self.use_true_X = use_true_X
+        self.q_takes_y = q_takes_y
+        self.q_uses_true_X = q_uses_true_X
         self.use_stop_gradient = use_stop_gradient
 
         self.name = name
@@ -57,7 +57,7 @@ class SMC:
                 else:
                     sample_size = ()
 
-                if self.q_use_y:
+                if self.q_takes_y:
                     if t == 0:
                         q_t_Input = tf.concat([x_0, obs[:, 0]], axis=-1)
                     else:
@@ -66,7 +66,7 @@ class SMC:
                 else:
                     q_t_Input = X_prev
 
-                if self.use_true_X:
+                if self.q_uses_true_X:
                     mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov * tf.eye(Dx),
                                                                name="q_{}_mvn".format(t))
                     X = mvn.sample((self.n_particles))
