@@ -269,6 +269,9 @@ class trainer:
                             print("valid cost not improving. stopping training...")
                             break
 
+                from rslts_saving.rslts_saving import plot_R_square_epoch
+                plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
+
                 if self.draw_quiver_during_training:
                     cost_terms = log_train
                     cost_term_values = self.evaluate(cost_terms, {self.obs: obs_train,
