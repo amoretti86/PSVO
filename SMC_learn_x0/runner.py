@@ -24,7 +24,6 @@ from rslts_saving.fhn_rslts_saving import *
 from rslts_saving.lorenz_rslts_saving import *
 from trainer import trainer
 
-from encoder import encoder_cell
 from sampler import create_dataset
 from SMC import SMC
 
@@ -77,7 +76,7 @@ if __name__ == "__main__":
     maxNumberNoImprovement = 5
 
     # generate synthetic data?
-    generateTrainingData = False
+    generateTrainingData = True
 
     # if reading data from file
     datadir = 'C:/Users/admin/Desktop/research/code/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/'
@@ -85,7 +84,7 @@ if __name__ == "__main__":
     isPython2 = False
 
     # printing and data saving params
-    print_freq = 5
+    print_freq = 1
 
     store_res = True
     MSE_steps = min(10, time - 1)

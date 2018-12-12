@@ -24,7 +24,6 @@ from rslts_saving.fhn_rslts_saving import *
 from rslts_saving.lorenz_rslts_saving import *
 from trainer import trainer
 
-from encoder import encoder_cell
 from sampler import create_dataset
 from SMC import SMC
 

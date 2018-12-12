@@ -24,7 +24,6 @@ from rslts_saving.fhn_rslts_saving import *
 from rslts_saving.lorenz_rslts_saving import *
 from trainer import trainer
 
-from encoder import encoder_cell
 from sampler import create_dataset
 from SMC import SMC
 
@@ -79,72 +78,74 @@ flags.DEFINE_boolean("isPython2", False, "Was the data pickled in python 2?")
 flags.DEFINE_integer("print_freq", 5, "frequency to print log during training")
 flags.DEFINE_integer("MSE_steps", 10, "number of steps to predict MSE and R_square")
 
-flags.DEFINE_integer("store_res", True, "whether store results")
+flags.DEFINE_boolean("store_res", True, "whether store results")
 flags.DEFINE_string("rslt_dir_name", "rslts", "name of the dir storing the results")
 
+FLAGS = flags.FLAGS
 
-def main():
+
+def main(_):
     # ============================================ parameter part ============================================ #
     # training hyperparameters
-    Dx = flags.Dx
-    Dy = flags.Dy
-    n_particles = flags.n_particles
+    Dx = FLAGS.Dx
+    Dy = FLAGS.Dy
+    n_particles = FLAGS.n_particles
 
-    batch_size = flags.batch_size
-    lr = flags.lr
-    epoch = flags.epoch
-    seed = flags.seed
+    batch_size = FLAGS.batch_size
+    lr = FLAGS.lr
+    epoch = FLAGS.epoch
+    seed = FLAGS.seed
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
     # time, n_train and n_test will be overwritten if loading data from the file
-    time = flags.time
-    n_train = flags.n_train
-    n_test = flags.n_test
+    time = FLAGS.time
+    n_train = FLAGS.n_train
+    n_test = FLAGS.n_test
     assert n_train % batch_size == 0
     assert n_test % batch_size == 0
 
     # Define encoder and decoder network architectures
-    q_train_layers = [int(x) for x in flags.q_train_layers.split(",")]
-    f_train_layers = [int(x) for x in flags.f_train_layers.split(",")]
-    g_train_layers = [int(x) for x in flags.g_train_layers.split(",")]
+    q_train_layers = [int(x) for x in FLAGS.q_train_layers.split(",")]
+    f_train_layers = [int(x) for x in FLAGS.f_train_layers.split(",")]
+    g_train_layers = [int(x) for x in FLAGS.g_train_layers.split(",")]
 
-    q_sigma_init, q_sigma_min = flags.q_sigma_init, flags.q_sigma_min
-    f_sigma_init, f_sigma_min = flags.f_sigma_init, flags.f_sigma_min
-    g_sigma_init, g_sigma_min = flags.g_sigma_init, flags.g_sigma_min
+    q_sigma_init, q_sigma_min = FLAGS.q_sigma_init, FLAGS.q_sigma_min
+    f_sigma_init, f_sigma_min = FLAGS.f_sigma_init, FLAGS.f_sigma_min
+    g_sigma_init, g_sigma_min = FLAGS.g_sigma_init, FLAGS.g_sigma_min
 
     # do q and f use the same network?
-    use_bootstrap = flags.use_bootstrap
+    use_bootstrap = FLAGS.use_bootstrap
 
     # if q takes y_t as input
     # if is_bootstrap, q_takes_y will be overwritten as False
-    q_takes_y = flags.q_takes_y
+    q_takes_y = FLAGS.q_takes_y
 
     # should q use true_X to sample? (useful for debugging)
-    q_uses_true_X = flags.q_uses_true_X
+    q_uses_true_X = FLAGS.q_uses_true_X
 
     # term to weight the added contribution of the MSE to the cost
-    loss_beta = flags.loss_beta
+    loss_beta = FLAGS.loss_beta
 
     # stop training early if validation set does not improve
-    maxNumberNoImprovement = flags.maxNumberNoImprovement
+    maxNumberNoImprovement = FLAGS.maxNumberNoImprovement
 
     # generate synthetic data?
-    generateTrainingData = flags.generateTrainingData
+    generateTrainingData = FLAGS.generateTrainingData
 
     # if reading data from file
-    datadir = flags.datadir
-    datadict = flags.datadict
-    isPython2 = flags.isPython2
+    datadir = FLAGS.datadir
+    datadict = FLAGS.datadict
+    isPython2 = FLAGS.isPython2
 
     # printing and data saving params
-    print_freq = flags.print_freq
+    print_freq = FLAGS.print_freq
 
-    store_res = flags.store_res
-    MSE_steps = min(flags.MSE_steps, time - 1)
+    store_res = FLAGS.store_res
+    MSE_steps = min(FLAGS.MSE_steps, time - 1)
     save_freq = 10
     saving_num = min(n_train, 2 * batch_size)
-    rslt_dir_name = flags.rslt_dir_name
+    rslt_dir_name = FLAGS.rslt_dir_name
 
     # ============================================= dataset part ============================================= #
     if generateTrainingData:
