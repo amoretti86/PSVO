@@ -3,15 +3,16 @@ import itertools
 import os
 import time
 
+# This is design for python 2.6
 if __name__ == "__main__":
 
     mem = 32                        # memory in Gb
     sh_time = 72                    # time in hour
-    task_name = "FHN"               # name of the task
+    task_name = "lorenz"               # name of the task
     conda_path = "/ifs/scratch/c2b2/ip_lab/zw2504/miniconda3/bin/"
     env_name = "vismc"
     execution_path = "/ifs/scratch/c2b2/ip_lab/zw2504/"
-    py_script_path = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/SMC_supreme/runner.py"
+    py_script_path = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/SMC_supreme/runner_flag.py"
 
     sh_name = "run.sh"
 
@@ -36,17 +37,17 @@ if __name__ == "__main__":
     params_dict["g_train_layers"] = [[50]]
 
     # do q and f use the same network?
-    params_dict["use_bootstrap"] = [True]
+    params_dict["use_bootstrap"] = [True, False]
 
     # if q takes y_t as input
     # if is_bootstrap, q_takes_y will be overwritten as False
-    params_dict["q_takes_y"] = [False]
+    params_dict["q_takes_y"] = [True, False]
 
     # should q use true_X to sample? (useful for debugging)
     params_dict["q_uses_true_X"] = [False]
 
     # term to weight the added contribution of the MSE to the cost
-    params_dict["loss_beta"] = [0.0, 0.2, 0.25]
+    params_dict["loss_beta"] = [0.0, 0.25, 0.5]
 
     # stop training early if validation set does not improve
     params_dict["maxNumberNoImprovement"] = [100]
@@ -55,19 +56,28 @@ if __name__ == "__main__":
     params_dict["generateTrainingData"] = [False]
 
     # if reading data from file
-    params_dict["datadir"] = ["C:/Users/admin/Desktop/research/code/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"]
-    params_dict["datadict"] = ["data.p"]
+    params_dict["datadir"] = ["/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4"]
+    params_dict["datadict"] = ["datadict"]
     params_dict["isPython2"] = [False]
-    params_dict["rslt_dir_name"] = ["FN_1D_obs"]
 
     param_keys = list(params_dict.keys())
     param_values = list(params_dict.values())
     param_vals_permutation = list(itertools.product(*param_values))
+
     for param_vals in param_vals_permutation:
         # create args
+        arg_dict = {}
         args = ""
+
         for param_name, param_val in zip(param_keys, param_vals):
+            if isinstance(param_val, list):
+                param_val = ",".join([str(x) for x in param_val])
+            arg_dict[param_name] = param_val
             args += "--{0} {1} ".format(param_name, param_val)
+
+        # some ad hoc way to define rslt_dir_name, feel free to delete/comment out it
+        args += "--rslt_dir_name {0}".format("/".joint(arg_dict["datadir"].split("/")[-3:]) +
+                                             "loss_beta_".format(arg_dict["loss_beta"]))
 
         # create shell script
         with open(sh_name, "w") as f:
