@@ -99,13 +99,18 @@ class SMC:
                                               name="Categorical_{}".format(t))
 
                 # sample multiple times to remove idx out of range
-                prev_idx = tf.ones((self.n_particles, self.batch_size), dtype=tf.int32) * 500
-                for _ in range(3):
+                prev_idx = tf.ones((self.n_particles, self.batch_size), dtype=tf.int32) * self.n_particles
+                for _ in range(5):
                     if self.use_stop_gradient:
                         idx = tf.stop_gradient(categorical.sample(self.n_particles))  # (n_particles, batch_size)
                     else:
                         idx = categorical.sample(self.n_particles)
-                    prev_idx = tf.where(prev_idx >= 500, idx, prev_idx)
+                    prev_idx = tf.where(prev_idx >= self.n_particles, idx, prev_idx)
+
+                # if still got idx out of range, replace them with idx from uniform distribution
+                final_fixup = tf.random.uniform((self.n_particles, self.batch_size),
+                                                maxval=self.n_particles, dtype=tf.int32)
+                prev_idx = tf.where(prev_idx >= self.n_particles, final_fixup, prev_idx)
 
                 # ugly stuff used to resample X
                 batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)       # (1, batch_size)
