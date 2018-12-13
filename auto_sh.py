@@ -24,7 +24,7 @@ if __name__ == "__main__":
     params_dict["n_particles"] = [500]
 
     params_dict["batch_size"] = [1]
-    params_dict["lr"] = [1e-3]
+    params_dict["lr"] = [1e-3, 3e-4]
     params_dict["epoch"] = [300]
     params_dict["seed"] = [0]
 
@@ -71,26 +71,26 @@ if __name__ == "__main__":
     # stop training early if validation set does not improve
     params_dict["maxNumberNoImprovement"] = [5]
 
-    params_dict["x_0_learnable"] = [False]
-    params_dict["use_residual"] = [False]
-    params_dict["output_cov"] = [False]
+    params_dict["x_0_learnable"] = [True, False]
+    params_dict["use_residual"] = [True, False]
+    params_dict["output_cov"] = [True, False]
 
     # --------------------- printing and data saving params --------------------- #
-    params_dict["print_freq"] = 5
+    params_dict["print_freq"] = [5]
 
-    params_dict["store_res"] = True
+    params_dict["store_res"] = [True]
     # params_dict["rslt_dir_name"] = "lorenz_1D"
-    params_dict["MSE_steps"] = 10
+    params_dict["MSE_steps"] = [10]
 
     # how many trajectories to draw in quiver plot
-    params_dict["quiver_traj_num"] = 5
-    params_dict["lattice_shape"] = [10, 10, 3]  # [25, 25] or [10, 10, 3]
+    params_dict["quiver_traj_num"] = [5]
+    params_dict["lattice_shape"] = [[10, 10, 3]]  # [25, 25] or [10, 10, 3]
 
-    params_dict["saving_num"] = 10
+    params_dict["saving_num"] = [10]
 
-    params_dict["save_tensorboard"] = False
-    params_dict["save_model"] = False
-    params_dict["save_freq"] = 10
+    params_dict["save_tensorboard"] = [False]
+    params_dict["save_model"] = [False]
+    params_dict["save_freq"] = [10]
 
     # --------------------- parameters part ends --------------------- #
     param_keys = list(params_dict.keys())
@@ -99,15 +99,15 @@ if __name__ == "__main__":
 
     for param_vals in param_vals_permutation:
         args = ""
-
+        arg_dict = {}
         for param_name, param_val in zip(param_keys, param_vals):
             if isinstance(param_val, list):
                 param_val = ",".join([str(x) for x in param_val])
-
+            arg_dict[param_name] = param_val
             args += "--{0}={1} ".format(param_name, param_val)
 
         # some ad hoc way to define rslt_dir_name, feel free to delete/comment out it
-        args += "--rslt_dir_name {0}".format("/".joint(params_dict["datadir"].split("/")[-3:]))
+        args += "--rslt_dir_name {0}".format("/".join(arg_dict["datadir"].split("/")[-3:]))
 
         # create shell script
         with open(sh_name, "w") as f:
