@@ -282,7 +282,7 @@ class trainer:
                     R_square_trains.append(R_square_train)
                     R_square_tests.append(R_square_test)
 
-                    cost = np.array(log_ZSMC_tests) + self.beta * np.array([x[0] for x in MSE_tests])
+                    cost = np.array(log_ZSMC_tests) - self.beta * np.array([x[0] for x in MSE_tests])
                     if self.bestCost != np.argmax(cost):
                         self.costUpdate = 0
                         self.bestCost = np.argmax(cost)
@@ -305,7 +305,7 @@ class trainer:
                                                       self.hidden: hidden_test},
                                                      average=False)
 
-                    f_terms, g_terms, q_terms = cost_term_values[3:]
+                    f_terms, g_terms, q_terms = cost_term_values[-3:]
                     f_terms = np.average(f_terms, axis=(0, 1, 2))
                     g_terms = np.average(g_terms, axis=(0, 1, 2))
                     q_terms = np.average(q_terms, axis=(0, 1, 2))

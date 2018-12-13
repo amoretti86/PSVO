@@ -33,7 +33,7 @@ if __name__ == "__main__":
     params_dict["generateTrainingData"] = [False]
 
     # if reading data from file
-    params_dict["datadir"] = ["/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4"]
+    params_dict["datadir"] = ["/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"]
     params_dict["datadict"] = ["datadict"]
     params_dict["isPython2"] = [False]
 
@@ -72,8 +72,9 @@ if __name__ == "__main__":
     params_dict["maxNumberNoImprovement"] = [5]
 
     params_dict["x_0_learnable"] = [True, False]
-    params_dict["use_residual"] = [True, False]
-    params_dict["output_cov"] = [True, False]
+    params_dict["smoothing"] = [False]
+    params_dict["use_residual"] = [False]
+    params_dict["output_cov"] = [False]
 
     # --------------------- printing and data saving params --------------------- #
     params_dict["print_freq"] = [5]

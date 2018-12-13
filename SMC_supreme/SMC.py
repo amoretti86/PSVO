@@ -4,7 +4,7 @@ from tensorflow_probability import distributions as tfd
 
 class SMC:
     def __init__(self, q, f, g,
-                 n_particles, batch_size,
+                 n_particles,
                  smoothing=False,
                  q_takes_y=True,
                  q_uses_true_X=False,
@@ -15,7 +15,6 @@ class SMC:
         self.f = f
         self.g = g
         self.n_particles = n_particles
-        self.batch_size = batch_size
 
         self.smoothing = smoothing
         self.q_takes_y = q_takes_y
@@ -39,17 +38,15 @@ class SMC:
 
             Xs = []
             log_Ws = []
-            Ws = []
+            qs = []
             fs = []
             gs = []
-            qs = []
+
             all_fs = []
 
-            log_ZSMC = 0
             X_ancestor = None
             X_prev = None
-            idx_NxBx1 = None
-            batch_NxBx1 = None
+            resample_idx = None
 
             for t in range(0, time):
                 # when t = 1, sample with x_0
@@ -81,59 +78,29 @@ class SMC:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
                     f_t_all_log_prob = self.f.log_prob(X_prev, X_tile, name="f_{}_all_log_prob".format(t))
 
-                    f_t_idx = tf.concat((idx_NxBx1, idx_NxBx1, batch_NxBx1), axis=2)
+                    idx_NxBx1, batch_NxBx1 = tf.unstack(resample_idx, axis=2)
+                    f_t_idx = tf.stack((idx_NxBx1, idx_NxBx1, batch_NxBx1), axis=2)
                     f_t_log_prob = tf.gather_nd(f_t_all_log_prob, f_t_idx, name="f_{}_log_prob".format(t))
 
                     all_fs.append(f_t_all_log_prob)
-
                 else:
                     f_t_log_prob = self.f.log_prob(X_ancestor, X, name="f_{}_log_prob".format(t))
 
                 g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_{}_log_prob".format(t))
 
                 log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_{}".format(t))
-                log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0), name="log_W_max")
-                W = tf.exp(log_W - log_W_max, name="W_{}".format(t))
-                log_ZSMC += tf.log(tf.reduce_mean(W, axis=0, name="W_{}_mean".format(t)),
-                                   name="log_ZSMC_{}".format(t)) + log_W_max
 
+                log_Ws.append(log_W)
                 qs.append(q_t_log_prob)
                 fs.append(f_t_log_prob)
                 gs.append(g_t_log_prob)
-                log_Ws.append(log_W)
-                Ws.append(W)
 
                 # no need to resample for t = time - 1
                 if t == time - 1:
                     break
 
-                log_W = tf.transpose(log_W - log_W_max)
-                categorical = tfd.Categorical(logits=log_W, validate_args=True,
-                                              name="Categorical_{}".format(t))
-
-                # sample multiple times to remove idx out of range
-                idx = tf.ones((n_particles, self.batch_size), dtype=tf.int32) * n_particles
-                for _ in range(5):
-                    if self.use_stop_gradient:
-                        fixup_idx = tf.stop_gradient(categorical.sample(n_particles))  # (n_particles, batch_size)
-                    else:
-                        fixup_idx = categorical.sample(n_particles)
-                    idx = tf.where(idx >= n_particles, fixup_idx, idx)
-
-                # if still got idx out of range, replace them with idx from uniform distribution
-                final_fixup = tf.random.uniform((n_particles, self.batch_size),
-                                                maxval=n_particles, dtype=tf.int32)
-                idx = tf.where(idx >= n_particles, final_fixup, idx)
-
-                # ugly stuff used to resample X
-                batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)            # (1, batch_size)
-                batch_NxB = tf.tile(batch_1xB, (n_particles, 1))                    # (n_particles, batch_size)
-                batch_NxBx1 = tf.expand_dims(batch_NxB, axis=2)                     # (n_particles, batch_size, 1)
-
-                idx_NxBx1 = tf.expand_dims(idx, axis=2)                             # (n_particles, batch_size, 1)
-
-                resample_idx_NxBx2 = tf.concat((idx_NxBx1, batch_NxBx1), axis=2)    # (n_particles, batch_size, 2)
-                X_ancestor = tf.gather_nd(X, resample_idx_NxBx2)                    # (n_particles, batch_size, Dx)
+                resample_idx = self.get_resample_idx(log_W, t)
+                X_ancestor = tf.gather_nd(X, resample_idx)                    # (n_particles, batch_size, Dx)
                 X_prev = X
 
                 # collect X after rather than before resampling
@@ -142,23 +109,88 @@ class SMC:
             # to make sure len(Xs) = time
             Xs.append(X)
 
+            if self.smoothing:
+                reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
+                log_ZSMC = self.compute_log_ZSMC(reweighted_log_Ws)
+            else:
+                log_ZSMC = self.compute_log_ZSMC(log_Ws)
+
+            Xs = tf.stack(Xs)
+            log_Ws = tf.stack(log_Ws)
             qs = tf.stack(qs)
             fs = tf.stack(fs)
             gs = tf.stack(gs)
-            log_Ws = tf.stack(log_Ws)
-            Ws = tf.stack(Ws)
-            Xs = tf.stack(Xs)
 
+            Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")             # (batch_size, time, n_particles, Dx)
+            log_Ws = tf.transpose(log_Ws, perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
             qs = tf.transpose(qs, perm=[2, 0, 1], name="qs")                # (batch_size, time, n_particles)
             fs = tf.transpose(fs, perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
             gs = tf.transpose(gs, perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
-            log_Ws = tf.transpose(log_Ws, perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
-            Ws = tf.transpose(Ws, perm=[2, 0, 1], name="Ws")                # (batch_size, time, n_particles)
-            Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")             # (batch_size, time, n_particles, Dx)
 
-            mean_log_ZSMC = tf.reduce_mean(log_ZSMC, name="mean_log_ZSMC")
+        return log_ZSMC, [Xs, log_Ws, fs, gs, qs]
 
-        return mean_log_ZSMC, [Xs, log_Ws, Ws, fs, gs, qs]
+    def get_resample_idx(self, log_W, t):
+        n_particles, batch_size = log_W.get_shape().as_list()
+
+        log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0), name="log_W_max")
+        log_W = tf.transpose(log_W - log_W_max)
+        categorical = tfd.Categorical(logits=log_W, validate_args=True,
+                                      name="Categorical_{}".format(t))
+
+        # sample multiple times to remove idx out of range
+        idx = tf.ones((n_particles, batch_size), dtype=tf.int32) * n_particles
+        for _ in range(5):
+            if self.use_stop_gradient:
+                fixup_idx = tf.stop_gradient(categorical.sample(n_particles))  # (n_particles, batch_size)
+            else:
+                fixup_idx = categorical.sample(n_particles)
+            idx = tf.where(idx >= n_particles, fixup_idx, idx)
+
+        # if still got idx out of range, replace them with idx from uniform distribution
+        final_fixup = tf.random.uniform((n_particles, batch_size),
+                                        maxval=n_particles, dtype=tf.int32)
+        idx = tf.where(idx >= n_particles, final_fixup, idx)
+
+        # ugly stuff used to resample X
+        batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)            # (1, batch_size)
+        batch_NxB = tf.tile(batch_1xB, (n_particles, 1))                    # (n_particles, batch_size)
+
+        resample_idx_NxBx2 = tf.stack((idx, batch_NxB), axis=2)             # (n_particles, batch_size, 2)
+
+        return resample_idx_NxBx2
+
+    @staticmethod
+    def reweight_log_Ws(log_Ws, all_fs):
+        time = len(log_Ws)
+        reweighted_log_Ws = ["placeholder"] * time
+
+        for t in reversed(range(time)):
+            if t == time - 1:
+                reweighted_log_Ws[t] = log_Ws[t]
+                print(log_Ws[t].shape)
+            else:
+                denominator = \
+                    tf.reduce_logsumexp(tf.expand_dims(log_Ws[t], axis=1) + all_fs[t], axis=0)
+                reweight_factor = tf.reduce_logsumexp(reweighted_log_Ws[t + 1] +
+                                                      all_fs[t] -
+                                                      denominator,
+                                                      axis=1)
+                reweighted_log_Ws[t] = log_Ws[t] + reweight_factor
+
+        return reweighted_log_Ws
+
+    @staticmethod
+    def compute_log_ZSMC(log_Ws):
+        # log_Ws (list)
+        # compute loss
+        log_Ws = tf.stack(log_Ws)
+        time, n_particles, batch_size = log_Ws.get_shape().as_list()
+
+        log_ZSMC = tf.reduce_logsumexp(log_Ws, axis=1)
+        log_ZSMC = tf.reduce_sum(log_ZSMC, name="log_ZSMC")
+        log_ZSMC -= tf.log(tf.constant(n_particles, dtype=tf.float32)) * time * batch_size
+
+        return log_ZSMC
 
     def n_step_MSE(self, n_steps, hidden, obs):
         # Compute MSE_k for k = 0, ..., n_steps

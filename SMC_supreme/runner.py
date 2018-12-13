@@ -86,6 +86,9 @@ def main(_):
     # if x0 is learnable
     x_0_learnable = FLAGS.x_0_learnable
 
+    # filtering or smoothing
+    smoothing = FLAGS.smoothing
+
     # if f and q use residual
     use_residual = FLAGS.use_residual
 
@@ -223,7 +226,8 @@ def main(_):
                  "g_sigma_min": g_sigma_min}
 
     SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
-                    n_particles, batch_size,
+                    n_particles,
+                    smoothing=smoothing,
                     q_takes_y=q_takes_y,
                     q_uses_true_X=q_uses_true_X,
                     name="log_ZSMC_train")
@@ -284,6 +288,7 @@ def main(_):
             x_0_feed = n_train + np.arange(saving_num)
         else:
             x_0_feed = hidden_test[0:saving_num, 0]
+
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_test[0:saving_num],
                                          x_0: x_0_feed,
                                          hidden: hidden_test[0:saving_num]})

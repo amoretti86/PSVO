@@ -27,7 +27,7 @@ seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = False
+generateTrainingData = True
 
 # if reading data from file
 datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
@@ -69,6 +69,9 @@ maxNumberNoImprovement = 5
 
 # if x0 is learnable or takes ground truth
 x_0_learnable = False
+
+# filtering or smoothing
+smoothing = False
 
 # if f and q use residual
 use_residual = False
@@ -156,6 +159,7 @@ flags.DEFINE_integer("maxNumberNoImprovement", maxNumberNoImprovement,
                      "stop training early if validation set does not improve for certain epochs")
 
 flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "if x0 is learnable or takes ground truth")
+flags.DEFINE_boolean("smoothing", smoothing, "is filtering or smoothing?")
 flags.DEFINE_boolean("use_residual", use_residual, "if f and q use residual network")
 flags.DEFINE_boolean("output_cov", output_cov, "if q, f and g networks also output covariance (sigma)")
 
