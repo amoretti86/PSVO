@@ -5,19 +5,19 @@ from tensorflow_probability import distributions as tfd
 class SMC:
     def __init__(self, q, f, g,
                  n_particles, batch_size,
-                 encoder_cell=None,
+                 smoothing=False,
                  q_takes_y=True,
                  q_uses_true_X=False,
                  use_stop_gradient=False,
                  name="log_ZSMC"):
+
         self.q = q
         self.f = f
         self.g = g
         self.n_particles = n_particles
         self.batch_size = batch_size
 
-        self.encoder_cell = encoder_cell
-
+        self.smoothing = smoothing
         self.q_takes_y = q_takes_y
         self.q_uses_true_X = q_uses_true_X
         self.use_stop_gradient = use_stop_gradient
@@ -35,6 +35,7 @@ class SMC:
         with tf.variable_scope(self.name):
             batch_size, time, Dy = obs.get_shape().as_list()
             batch_size, Dx = self.q.output_0.get_shape().as_list()
+            n_particles = self.n_particles
 
             Xs = []
             log_Ws = []
@@ -42,15 +43,19 @@ class SMC:
             fs = []
             gs = []
             qs = []
+            all_fs = []
 
             log_ZSMC = 0
+            X_ancestor = None
             X_prev = None
+            idx_NxBx1 = None
+            batch_NxBx1 = None
 
             for t in range(0, time):
                 # when t = 1, sample with x_0
-                # otherwise, sample with X_prev
+                # otherwise, sample with X_ancestor
                 if t == 0:
-                    sample_size = (self.n_particles)
+                    sample_size = (n_particles)
                 else:
                     sample_size = ()
 
@@ -58,21 +63,32 @@ class SMC:
                     if t == 0:
                         q_t_Input = tf.concat([self.q.output_0, obs[:, 0]], axis=-1)
                     else:
-                        y_t_expanded = tf.tile(tf.expand_dims(obs[:, t], axis=0), (self.n_particles, 1, 1))
-                        q_t_Input = tf.concat([X_prev, y_t_expanded], axis=-1)
+                        y_t_expanded = tf.tile(tf.expand_dims(obs[:, t], axis=0), (n_particles, 1, 1))
+                        q_t_Input = tf.concat([X_ancestor, y_t_expanded], axis=-1)
                 else:
-                    q_t_Input = X_prev
+                    q_t_Input = X_ancestor
 
                 if self.q_uses_true_X:
                     mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov * tf.eye(Dx),
                                                                name="q_{}_mvn".format(t))
-                    X = mvn.sample((self.n_particles))
+                    X = mvn.sample((n_particles))
                     q_t_log_prob = mvn.log_prob(X)
                 else:
                     X, q_t_log_prob = self.q.sample_and_log_prob(q_t_Input, sample_shape=sample_size,
                                                                  name="q_{}_sample_and_log_prob".format(t))
 
-                f_t_log_prob = self.f.log_prob(X_prev, X, name="f_{}_log_prob".format(t))
+                if self.smoothing and t != 0:
+                    X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
+                    f_t_all_log_prob = self.f.log_prob(X_prev, X_tile, name="f_{}_all_log_prob".format(t))
+
+                    f_t_idx = tf.concat((idx_NxBx1, idx_NxBx1, batch_NxBx1), axis=2)
+                    f_t_log_prob = tf.gather_nd(f_t_all_log_prob, f_t_idx, name="f_{}_log_prob".format(t))
+
+                    all_fs.append(f_t_all_log_prob)
+
+                else:
+                    f_t_log_prob = self.f.log_prob(X_ancestor, X, name="f_{}_log_prob".format(t))
+
                 g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_{}_log_prob".format(t))
 
                 log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_{}".format(t))
@@ -96,31 +112,32 @@ class SMC:
                                               name="Categorical_{}".format(t))
 
                 # sample multiple times to remove idx out of range
-                prev_idx = tf.ones((self.n_particles, self.batch_size), dtype=tf.int32) * self.n_particles
+                idx = tf.ones((n_particles, self.batch_size), dtype=tf.int32) * n_particles
                 for _ in range(5):
                     if self.use_stop_gradient:
-                        idx = tf.stop_gradient(categorical.sample(self.n_particles))  # (n_particles, batch_size)
+                        fixup_idx = tf.stop_gradient(categorical.sample(n_particles))  # (n_particles, batch_size)
                     else:
-                        idx = categorical.sample(self.n_particles)
-                    prev_idx = tf.where(prev_idx >= self.n_particles, idx, prev_idx)
+                        fixup_idx = categorical.sample(n_particles)
+                    idx = tf.where(idx >= n_particles, fixup_idx, idx)
 
                 # if still got idx out of range, replace them with idx from uniform distribution
-                final_fixup = tf.random.uniform((self.n_particles, self.batch_size),
-                                                maxval=self.n_particles, dtype=tf.int32)
-                prev_idx = tf.where(prev_idx >= self.n_particles, final_fixup, prev_idx)
+                final_fixup = tf.random.uniform((n_particles, self.batch_size),
+                                                maxval=n_particles, dtype=tf.int32)
+                idx = tf.where(idx >= n_particles, final_fixup, idx)
 
                 # ugly stuff used to resample X
-                batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)       # (1, batch_size)
-                batch_NxB = tf.tile(batch_1xB, (self.n_particles, 1))          # (n_particles, batch_size)
+                batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)            # (1, batch_size)
+                batch_NxB = tf.tile(batch_1xB, (n_particles, 1))                    # (n_particles, batch_size)
+                batch_NxBx1 = tf.expand_dims(batch_NxB, axis=2)                     # (n_particles, batch_size, 1)
 
-                idx_NxBx1 = tf.expand_dims(prev_idx, axis=2)                        # (n_particles, batch_size, 1)
-                batch_NxBx1 = tf.expand_dims(batch_NxB, axis=2)                # (n_particles, batch_size, 1)
+                idx_NxBx1 = tf.expand_dims(idx, axis=2)                             # (n_particles, batch_size, 1)
 
-                final_idx_NxBx2 = tf.concat((idx_NxBx1, batch_NxBx1), axis=2)  # (n_particles, batch_size, 2)
-                X_prev = tf.gather_nd(X, final_idx_NxBx2)                      # (n_particles, batch_size, Dx)
+                resample_idx_NxBx2 = tf.concat((idx_NxBx1, batch_NxBx1), axis=2)    # (n_particles, batch_size, 2)
+                X_ancestor = tf.gather_nd(X, resample_idx_NxBx2)                    # (n_particles, batch_size, Dx)
+                X_prev = X
 
                 # collect X after rather than before resampling
-                Xs.append(X_prev)
+                Xs.append(X_ancestor)
 
             # to make sure len(Xs) = time
             Xs.append(X)

@@ -299,9 +299,11 @@ class trainer:
 
                 if self.draw_quiver_during_training:
                     cost_terms = log
-                    cost_term_values = self.evaluate(cost_terms, {self.obs: obs_train,
-                                                     self.x_0: x_0_feed_test,
-                                                     self.hidden: hidden_test})
+                    cost_term_values = self.evaluate(cost_terms,
+                                                     {self.obs: obs_test,
+                                                      self.x_0: x_0_feed_test,
+                                                      self.hidden: hidden_test},
+                                                     average=False)
 
                     f_terms, g_terms, q_terms = cost_term_values[3:]
                     f_terms = np.average(f_terms, axis=(0, 1, 2))

@@ -30,7 +30,9 @@ seed = 0
 generateTrainingData = False
 
 # if reading data from file
-datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4"
+datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
+# "C:/Users/admin/Desktop/research/code/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
+# "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
 isPython2 = False
 
@@ -75,7 +77,7 @@ use_residual = False
 output_cov = False
 
 # --------------------- printing and data saving params --------------------- #
-print_freq = 5
+print_freq = 1
 
 store_res = True
 rslt_dir_name = "lorenz_1D"

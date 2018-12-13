@@ -173,6 +173,7 @@ def main(_):
         # reliminate quiver_traj_num and saving_num to avoid they > n_train or n_test
         quiver_traj_num = min(quiver_traj_num, n_train, n_test)
         saving_num = min(saving_num, n_train, n_test)
+        MSE_steps = min(MSE_steps, time - 1)
 
         print("finished loading dataset")
 
