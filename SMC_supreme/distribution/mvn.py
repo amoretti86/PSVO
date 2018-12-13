@@ -25,40 +25,42 @@ class tf_mvn(distribution):
 
     def __init__(self, transformation,
                  output_0=None,
-                 sigma=None, sigma_init=5, sigma_min=1,
+                 sigma_init=5, sigma_min=1,
                  name='tf_mvn'):
         self.transformation = transformation
         self.output_0 = output_0
-        self.sigma = sigma
         self.sigma_init = sigma_init
         self.sigma_min = sigma_min
         self.name = name
 
     def get_mvn(self, Input=None):
         with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE):
+            sigma = None
+
             if Input is None:
-                if self.output_0 is None:
-                    raise ValueError("output_0 is not initialized for {}!".format(self.name))
+                assert self.output_0 is not None, "output_0 is not initialized for {}!".format(self.name)
                 mu = self.output_0
             else:
                 mu = self.transformation.transform(Input)
+                if isinstance(mu, tuple):
+                    assert len(mu) == 2, "output of {} should contain 2 elements".format(self.transformation.name)
+                    mu, sigma = mu
 
-            if self.sigma is not None:
-                sigma_tmp = tf.identity(self.sigma, name="sigma_tmp")
-            else:
+            if sigma is None:
                 Dout = mu.shape.as_list()[-1]
-                sigma_tmp = tf.get_variable("sigma",
-                                            shape=[Dout],
-                                            dtype=tf.float32,
-                                            initializer=tf.constant_initializer(self.sigma_init),
-                                            trainable=True)
-                sigma_tmp = tf.where(tf.is_nan(sigma_tmp), tf.zeros_like(sigma_tmp), tf.nn.softplus(sigma_tmp))
-                sigma_tmp = tf.maximum(sigma_tmp, self.sigma_min)
-                sigma_tmp = tf.matrix_diag(sigma_tmp, name="sigma_tmp")
+                sigma = tf.get_variable("sigma",
+                                        shape=[Dout],
+                                        dtype=tf.float32,
+                                        initializer=tf.constant_initializer(self.sigma_init),
+                                        trainable=True)
+                sigma = tf.nn.softplus(sigma)
 
-            mvn = tfd.MultivariateNormalFullCovariance(mu, sigma_tmp,
-                                                       validate_args=True,
-                                                       allow_nan_stats=False)
+            sigma = tf.where(tf.is_nan(sigma), tf.zeros_like(sigma), sigma)
+            sigma = tf.maximum(sigma, self.sigma_min)
+
+            mvn = tfd.MultivariateNormalDiag(mu, sigma,
+                                             validate_args=True,
+                                             allow_nan_stats=False)
             return mvn
 
     def sample_and_log_prob(self, Input, sample_shape=(), name=None):

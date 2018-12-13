@@ -6,6 +6,11 @@ import os
 import time
 import pdb
 
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+from rslts_saving.rslts_saving import plot_R_square_epoch
+
 
 class trainer:
     def __init__(self,
@@ -13,8 +18,9 @@ class trainer:
                  n_particles, time,
                  batch_size, lr, epoch,
                  MSE_steps,
-                 store_res, beta,
-                 maxNumberNoImprovement):
+                 beta,
+                 maxNumberNoImprovement,
+                 x_0_learnable):
         self.Dx = Dx
         self.Dy = Dy
 
@@ -27,24 +33,25 @@ class trainer:
 
         self.MSE_steps = MSE_steps
 
-        self.store_res = store_res
+        self.store_res = False
         self.draw_quiver_during_training = False
 
+        self.beta = beta
+        self.maxNumberNoImprovement = maxNumberNoImprovement
         self.bestCost = -np.inf
         self.costUpdate = 0
-        self.maxNumberNoImprovement = maxNumberNoImprovement
-        self.beta = beta
 
-        # self.fitRealData = fitRealData
+        self.x_0_learnable = x_0_learnable
 
-    def set_rslt_saving(self, RLT_DIR, save_freq, saving_num):
+    def set_rslt_saving(self, RLT_DIR, save_freq, saving_num, save_tensorboard=False, save_model=False):
+        self.store_res = True
         self.RLT_DIR = RLT_DIR
         self.save_freq = save_freq
         self.saving_num = saving_num
-        self.writer = tf.summary.FileWriter(RLT_DIR)
-
-    def set_fitReal(self, fitRealData):
-        self.fitRealData = fitRealData
+        self.save_tensorboard = save_tensorboard
+        self.save_model = save_model
+        if save_tensorboard:
+            self.writer = tf.summary.FileWriter(RLT_DIR)
 
     def set_SMC(self, SMC_train):
         self.SMC_train = SMC_train
@@ -54,9 +61,11 @@ class trainer:
         self.obs = obs
         self.hidden = hidden
 
-    def set_quiver_arg(self, nextX, lattice):
+    def set_quiver_arg(self, nextX, lattice, quiver_traj_num, lattice_shape):
         self.nextX = nextX
         self.lattice = lattice
+        self.quiver_traj_num = quiver_traj_num
+        self.lattice_shape = lattice_shape
         self.draw_quiver_during_training = True
 
     def evaluate(self, fetches, feed_dict_w_batches={}, average=False):
@@ -100,7 +109,7 @@ class trainer:
 
         return res
 
-    def evaluate_R_square(self, MSE_ks, y_means, y_vars, hidden_set, obs_set):
+    def evaluate_R_square(self, MSE_ks, y_means, y_vars, hidden_set, obs_set, is_test=False):
         n_steps = y_means.shape.as_list()[0] - 1
         Dy = y_means.shape.as_list()[1]
         batch_size = self.batch_size
@@ -109,10 +118,18 @@ class trainer:
         combined_MSE_ks = np.zeros((n_steps + 1))             # combined MSE_ks across all batches
         combined_y_means = np.zeros((n_steps + 1, Dy))        # combined y_means across all batches
         combined_y_vars = np.zeros((n_steps + 1, Dy))         # combined y_vars across all batches
+
         for i in range(0, n_batches, batch_size):
+
+            if self.x_0_learnable:
+                offset = self.n_train if is_test else 0
+                x_0_feed = np.arange(i, i + batch_size) + offset
+            else:
+                x_0_feed = hidden_set[i:i + batch_size, 0]
+
             batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
                                                                       {self.obs: obs_set[i:i + batch_size],
-                                                                       self.x_0: hidden_set[i:i + batch_size, 0],
+                                                                       self.x_0: x_0_feed,
                                                                        self.hidden: hidden_set[i:i + batch_size]})
             # batch_MSE_ks.shape = (n_steps + 1)
             # batch_y_means.shape = (n_steps + 1, Dy)
@@ -146,23 +163,18 @@ class trainer:
         return mean_MSE_ks, R_square
 
     def train(self, obs_train, obs_test, print_freq, hidden_train, hidden_test):
-        # print("self.fitRealData:", self.fitRealData)
-        # if self.fitRealData is True:
-        #     # ugly hack to keep SMC class unchanged
-        #     hidden_train = self.x_0_init_mean + \
-        #         self.x_0_init_scale * np.random.randn(obs_train.shape[0], obs_train.shape[1], self.Dx)
-        #     hidden_test = self.x_0_init_mean + \
-        #         self.x_0_init_scale * np.random.randn(obs_test.shape[0], obs_test.shape[1], self.Dx)
+        self.n_train = n_train = len(obs_train)
+        self.n_test = n_test = len(obs_test)
 
-        log_ZSMC_train, log_train = self.SMC_train.get_log_ZSMC(self.obs, self.x_0, self.hidden)
+        log_ZSMC, log = self.SMC_train.get_log_ZSMC(self.obs, self.hidden)
 
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
-        Xs = log_train[0]
+        Xs = log[0]
         MSE_ks_train, y_means_train, y_vars_train, y_hat_train = \
             self.SMC_train.n_step_MSE(self.MSE_steps, Xs, self.obs)
 
-        cost_w_MSE = -log_ZSMC_train + self.beta * MSE_ks_train[0]
+        cost_w_MSE = -log_ZSMC + self.beta * MSE_ks_train[0]
         with tf.variable_scope("train"):
             train_op = tf.train.AdamOptimizer(self.lr).minimize(cost_w_MSE)
 
@@ -183,34 +195,42 @@ class trainer:
         print("initializing variables...")
         self.sess.run(init)
 
-        if self.store_res:
+        if self.store_res and self.save_tensorboard:
             self.writer.add_graph(self.sess.graph)
 
         # print("trainable_variables:")
         # for tnsr in tf.trainable_variables():
         #     print("\t", tnsr)
 
-        log_ZSMC_train_val = self.evaluate(log_ZSMC_train,
-                                           {self.obs: obs_train,
-                                            self.x_0: hidden_train[:, 0],  # (trials, time, Dx)
-                                            self.hidden: hidden_train},
-                                           average=True)
-        log_ZSMC_test_val = self.evaluate(log_ZSMC_train,
-                                          {self.obs: obs_test,
-                                           self.x_0: hidden_test[:, 0],
-                                           self.hidden: hidden_test},
-                                          average=True)
+        if self.x_0_learnable:
+            x_0_feed_train = np.arange(n_train)
+            x_0_feed_test = n_train + np.arange(n_test)
+        else:
+            x_0_feed_train = hidden_train[:, 0]
+            x_0_feed_test = hidden_test[:, 0]
+
+        log_ZSMC_train = self.evaluate(log_ZSMC,
+                                       {self.obs: obs_train,
+                                        self.x_0: x_0_feed_train,
+                                        self.hidden: hidden_train},
+                                       average=True)
+        log_ZSMC_test = self.evaluate(log_ZSMC,
+                                      {self.obs: obs_test,
+                                       self.x_0: x_0_feed_test,
+                                       self.hidden: hidden_test},
+                                      average=True)
 
         MSE_train, R_square_train = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
-                                                           hidden_train, obs_train)
+                                                           hidden_train, obs_train, is_test=False)
         MSE_test, R_square_test = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
-                                                         hidden_test, obs_test)
+                                                         hidden_test, obs_test, is_test=True)
+
         print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"
-              .format(0, log_ZSMC_train_val, log_ZSMC_test_val))
+              .format(0, log_ZSMC_train, log_ZSMC_test))
 
         if self.store_res:
-            log_ZSMC_trains.append(log_ZSMC_train_val)
-            log_ZSMC_tests.append(log_ZSMC_test_val)
+            log_ZSMC_trains.append(log_ZSMC_train)
+            log_ZSMC_tests.append(log_ZSMC_test)
             MSE_trains.append(MSE_train)
             MSE_tests.append(MSE_test)
             R_square_trains.append(R_square_train)
@@ -223,34 +243,40 @@ class trainer:
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
             for j in range(0, len(obs_train), self.batch_size):
+                if self.x_0_learnable:
+                    x_0_feed = np.arange(j, j + self.batch_size)
+                else:
+                    x_0_feed = hidden_train[j:j + self.batch_size, 0]
                 self.sess.run(train_op, feed_dict={self.obs: obs_train[j:j + self.batch_size],
-                                                   self.x_0: hidden_train[j:j + self.batch_size, 0],
+                                                   self.x_0: x_0_feed,
                                                    self.hidden: hidden_train[j:j + self.batch_size]})
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:
-                log_ZSMC_train_val = self.evaluate(log_ZSMC_train,
-                                                   {self.obs: obs_train,
-                                                    self.x_0: hidden_train[:, 0],
-                                                    self.hidden: hidden_train},
-                                                   average=True)
-                log_ZSMC_test_val = self.evaluate(log_ZSMC_train,
-                                                  {self.obs: obs_test,
-                                                   self.x_0: hidden_test[:, 0],
-                                                   self.hidden: hidden_test},
-                                                  average=True)
+                log_ZSMC_train = self.evaluate(log_ZSMC,
+                                               {self.obs: obs_train,
+                                                self.x_0: x_0_feed_train,
+                                                self.hidden: hidden_train},
+                                               average=True)
+                log_ZSMC_test = self.evaluate(log_ZSMC,
+                                              {self.obs: obs_test,
+                                               self.x_0: x_0_feed_test,
+                                               self.hidden: hidden_test},
+                                              average=True)
+
                 MSE_train, R_square_train = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
-                                                                   hidden_train, obs_train)
+                                                                   hidden_train, obs_train, is_test=False)
                 MSE_test, R_square_test = self.evaluate_R_square(MSE_ks_train, y_means_train, y_vars_train,
-                                                                 hidden_test, obs_test)
+                                                                 hidden_test, obs_test, is_test=True)
+
                 print("iter {:>3}, train log_ZSMC: {:>7.3f}, valid log_ZSMC: {:>7.3f}"
-                      .format(i + 1, log_ZSMC_train_val, log_ZSMC_test_val))
+                      .format(i + 1, log_ZSMC_train, log_ZSMC_test))
 
                 print("Train, Valid k-step Rsq:\n", R_square_train, "\n", R_square_test)
 
                 if self.store_res:
-                    log_ZSMC_trains.append(log_ZSMC_train_val)
-                    log_ZSMC_tests.append(log_ZSMC_test_val)
+                    log_ZSMC_trains.append(log_ZSMC_train)
+                    log_ZSMC_tests.append(log_ZSMC_test)
                     MSE_trains.append(MSE_train)
                     MSE_tests.append(MSE_test)
                     R_square_trains.append(R_square_train)
@@ -269,14 +295,13 @@ class trainer:
                             print("valid cost not improving. stopping training...")
                             break
 
-                from rslts_saving.rslts_saving import plot_R_square_epoch
                 plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
                 if self.draw_quiver_during_training:
-                    cost_terms = log_train
+                    cost_terms = log
                     cost_term_values = self.evaluate(cost_terms, {self.obs: obs_train,
-                                                     self.x_0: hidden_train[:, 0],
-                                                     self.hidden: hidden_train})
+                                                     self.x_0: x_0_feed_test,
+                                                     self.hidden: hidden_test})
 
                     f_terms, g_terms, q_terms = cost_term_values[3:]
                     f_terms = np.average(f_terms, axis=(0, 1, 2))
@@ -285,13 +310,13 @@ class trainer:
                     total = f_terms + g_terms - q_terms
                     print("f_contrib, g_contrib, q_contrib:", f_terms / total, g_terms / total, q_terms / total)
 
-                    Xs_val = cost_term_values[0][0:self.batch_size]
+                    Xs_val = cost_term_values[0][0:self.quiver_traj_num]
                     if self.Dx == 2:
                         self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
                     elif self.Dx == 3:
                         self.draw_3D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
 
-            if self.store_res and (i + 1) % self.save_freq == 0:
+            if self.store_res and self.save_model and (i + 1) % self.save_freq == 0:
                 if not os.path.exists(self.RLT_DIR + "model/"):
                     os.makedirs(self.RLT_DIR + "model/")
                 saver.save(self.sess, self.RLT_DIR + "model/model_epoch", global_step=i + 1)
@@ -306,7 +331,7 @@ class trainer:
             losses = [log_ZSMC_trains, log_ZSMC_tests,
                       MSE_trains, MSE_tests,
                       R_square_trains, R_square_tests]
-        tensors = [log_train, y_hat_train]
+        tensors = [log, y_hat_train]
 
         return losses, tensors
 
@@ -317,7 +342,6 @@ class trainer:
         # Xs_val.shape = (saving_num, time, n_particles, Dx)
         X_trajs = np.mean(Xs_val, axis=2)
 
-        import matplotlib.pyplot as plt
         plt.figure()
         for X_traj in X_trajs:
             plt.plot(X_traj[:, 0], X_traj[:, 1])
@@ -342,20 +366,16 @@ class trainer:
         plt.savefig(self.RLT_DIR + "quiver/epoch_{}".format(epoch))
         plt.close()
 
-    @staticmethod
-    def define2Dlattice(x1range=(-30.0, 30.0), x2range=(-30.0, 30.)):
+    def define2Dlattice(self, x1range=(-30.0, 30.0), x2range=(-30.0, 30.)):
 
-        x1coords = np.linspace(x1range[0], x1range[1])
-        x2coords = np.linspace(x2range[0], x2range[1])
+        x1coords = np.linspace(x1range[0], x1range[1], num=self.lattice_shape[0])
+        x2coords = np.linspace(x2range[0], x2range[1], num=self.lattice_shape[1])
         Xlattice = np.stack(np.meshgrid(x1coords, x2coords), axis=-1)
         return Xlattice
 
     def draw_3D_quiver_plot(self, Xs_val, nextX, lattice, epoch):
         # Xs_val.shape = (saving_num, time, n_particles, Dx)
         X_trajs = np.mean(Xs_val, axis=2)
-
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
 
         fig = plt.figure()
         ax = fig.gca(projection="3d")
@@ -375,7 +395,7 @@ class trainer:
             X = lattice_val
             nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
 
-            length = 0.01 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0])
+            length = 0.004 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0])
             plt.quiver(X[:, :, :, 0],
                        X[:, :, :, 1],
                        X[:, :, :, 2],
@@ -383,7 +403,7 @@ class trainer:
                        nextX[:, :, :, 1] - X[:, :, :, 2],
                        nextX[:, :, :, 2] - X[:, :, :, 2],
                        length=length,
-                       alpha=0.3)
+                       alpha=0.25)
 
         if not os.path.exists(self.RLT_DIR + "quiver/"):
             os.makedirs(self.RLT_DIR + "quiver/")
@@ -392,11 +412,10 @@ class trainer:
             plt.savefig(self.RLT_DIR + "quiver/epoch_{}_angle_{}".format(epoch, angle))
         plt.close()
 
-    @staticmethod
-    def define3Dlattice(x1range=(-30.0, 30.0), x2range=(-30.0, 30.), x3range=(-30.0, 30.)):
+    def define3Dlattice(self, x1range=(-30.0, 30.0), x2range=(-30.0, 30.), x3range=(-30.0, 30.)):
 
-        x1coords = np.linspace(x1range[0], x1range[1], num=10)
-        x2coords = np.linspace(x2range[0], x2range[1], num=10)
-        x3coords = np.linspace(x3range[0], x3range[1], num=3)
+        x1coords = np.linspace(x1range[0], x1range[1], num=self.lattice_shape[0])
+        x2coords = np.linspace(x2range[0], x2range[1], num=self.lattice_shape[1])
+        x3coords = np.linspace(x3range[0], x3range[1], num=self.lattice_shape[2])
         Xlattice = np.stack(np.meshgrid(x1coords, x2coords, x3coords), axis=-1)
         return Xlattice

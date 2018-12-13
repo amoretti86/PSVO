@@ -24,7 +24,7 @@ class SMC:
 
         self.name = name
 
-    def get_log_ZSMC(self, obs, x_0, hidden, q_cov=1):
+    def get_log_ZSMC(self, obs, hidden, q_cov=1):
         """
         Input:
             obs.shape = (batch_size, time, Dy)
@@ -34,7 +34,7 @@ class SMC:
         """
         with tf.variable_scope(self.name):
             batch_size, time, Dy = obs.get_shape().as_list()
-            batch_size, Dx = x_0.get_shape().as_list()
+            batch_size, Dx = self.q.output_0.get_shape().as_list()
 
             Xs = []
             log_Ws = []
@@ -42,9 +42,6 @@ class SMC:
             fs = []
             gs = []
             qs = []
-
-            if self.encoder_cell is not None:
-                self.encoder_cell.encode(obs[:, 0:-1], x_0)
 
             log_ZSMC = 0
             X_prev = None
@@ -59,7 +56,7 @@ class SMC:
 
                 if self.q_takes_y:
                     if t == 0:
-                        q_t_Input = tf.concat([x_0, obs[:, 0]], axis=-1)
+                        q_t_Input = tf.concat([self.q.output_0, obs[:, 0]], axis=-1)
                     else:
                         y_t_expanded = tf.tile(tf.expand_dims(obs[:, t], axis=0), (self.n_particles, 1, 1))
                         q_t_Input = tf.concat([X_prev, y_t_expanded], axis=-1)
