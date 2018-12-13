@@ -77,7 +77,7 @@ use_residual = False
 output_cov = False
 
 # --------------------- printing and data saving params --------------------- #
-print_freq = 1
+print_freq = 5
 
 store_res = True
 rslt_dir_name = "lorenz_1D"
