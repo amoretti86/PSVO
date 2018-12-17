@@ -164,7 +164,10 @@ def main(_):
                 data = pickle.load(handle)
 
         obs_train = data["Ytrain"]
-        obs_test = data["Yvalid"]
+        if "Ytest" in data:
+            obs_test = data["Ytest"]
+        else:
+            obs_test = data["Yvalid"]
 
         n_train = obs_train.shape[0]
         n_test = obs_test.shape[0]
