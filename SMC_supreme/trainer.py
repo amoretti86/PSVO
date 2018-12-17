@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.utils import shuffle
+import math
 
 import tensorflow as tf
 import os
@@ -274,6 +275,9 @@ class trainer:
 
                 print("Train, Valid k-step Rsq:\n", R_square_train, "\n", R_square_test)
 
+                if not math.isfinite(log_ZSMC_train):
+                    break
+
                 if self.store_res:
                     log_ZSMC_trains.append(log_ZSMC_train)
                     log_ZSMC_tests.append(log_ZSMC_test)
@@ -389,7 +393,7 @@ class trainer:
             ax.plot(X_traj[:, 0], X_traj[:, 1], X_traj[:, 2])
             ax.scatter(X_traj[0, 0], X_traj[0, 1], X_traj[0, 2])
 
-        if True:
+        if False:
             x1range, x2range, x3range = ax.get_xlim(), ax.get_ylim(), ax.get_zlim()
 
             lattice_val = self.define3Dlattice(x1range, x2range, x3range)
@@ -397,7 +401,7 @@ class trainer:
             X = lattice_val
             nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
 
-            length = 0.004 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0])
+            length = 0.0001 * max(x1range[1] - x1range[0], x2range[1] - x2range[0], x3range[1] - x3range[0])
             plt.quiver(X[:, :, :, 0],
                        X[:, :, :, 1],
                        X[:, :, :, 2],
@@ -409,7 +413,7 @@ class trainer:
 
         if not os.path.exists(self.RLT_DIR + "quiver/"):
             os.makedirs(self.RLT_DIR + "quiver/")
-        for angle in range(45, 360, 90):
+        for angle in range(45, 360, 45):
             ax.view_init(30, angle)
             plt.savefig(self.RLT_DIR + "quiver/epoch_{}_angle_{}".format(epoch, angle))
         plt.close()

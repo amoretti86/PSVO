@@ -170,8 +170,14 @@ def main(_):
         n_test = obs_test.shape[0]
         time = obs_train.shape[1]
 
-        hidden_train = data["Xtrue"][:n_train]
-        hidden_test = data["Xtrue"][n_train:]
+        if "Xtrue" in data:
+            hidden_train = data["Xtrue"][:n_train]
+            hidden_test = data["Xtrue"][n_train:]
+        elif "Xtrain" in data and "Xtest" in data:
+            hidden_train = data["Xtrain"]
+            hidden_test = data["Xtest"]
+        else:
+            raise ValueError("No key found for hidden_train and hidden_test")
 
         # reliminate quiver_traj_num and saving_num to avoid they > n_train or n_test
         quiver_traj_num = min(quiver_traj_num, n_train, n_test)
