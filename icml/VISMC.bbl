@@ -1,0 +1,79 @@
+\begin{thebibliography}{10}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Anonymous(2019)]{anonymous2019a}
+Anonymous.
+\newblock A novel variational family for hidden non-linear markov models.
+\newblock In \emph{Submitted to International Conference on Learning
+  Representations}, 2019.
+\newblock under review.
+
+\bibitem[Burda et~al.(2015)Burda, Grosse, and
+  Salakhutdinov]{journals/corr/BurdaGS15}
+Burda, Y., Grosse, R.~B., and Salakhutdinov, R.
+\newblock Importance weighted autoencoders.
+\newblock \emph{CoRR}, abs/1509.00519, 2015.
+
+\bibitem[Chung et~al.(2015)Chung, Kastner, Dinh, Goel, Courville, and
+  Bengio]{NIPS2015_5653}
+Chung, J., Kastner, K., Dinh, L., Goel, K., Courville, A.~C., and Bengio, Y.
+\newblock A recurrent latent variable model for sequential data.
+\newblock In Cortes, C., Lawrence, N.~D., Lee, D.~D., Sugiyama, M., and
+  Garnett, R. (eds.), \emph{Advances in Neural Information Processing Systems
+  28}, pp.\  2980--2988. Curran Associates, Inc., 2015.
+
+\bibitem[Gao et~al.(2016)Gao, Archer, Paninski, and Cunningham]{NIPS2016_6430}
+Gao, Y., Archer, E.~W., Paninski, L., and Cunningham, J.~P.
+\newblock Linear dynamical neural population models through nonlinear
+  embeddings.
+\newblock In Lee, D.~D., Sugiyama, M., Luxburg, U.~V., Guyon, I., and Garnett,
+  R. (eds.), \emph{Advances in Neural Information Processing Systems 29}, pp.\
+  163--171. Curran Associates, Inc., 2016.
+
+\bibitem[Kingma \& Welling(2013)Kingma and
+  Welling]{DBLP:journals/corr/KingmaW13}
+Kingma, D.~P. and Welling, M.
+\newblock Auto-encoding variational bayes.
+\newblock \emph{CoRR}, abs/1312.6114, 2013.
+
+\bibitem[Le et~al.(2018)Le, Igl, Rainforth, Jin, and Wood]{anh2018autoencoding}
+Le, T.~A., Igl, M., Rainforth, T., Jin, T., and Wood, F.
+\newblock Auto-encoding sequential monte carlo.
+\newblock In \emph{International Conference on Learning Representations}, 2018.
+
+\bibitem[Maddison et~al.(2017)Maddison, Lawson, Tucker, Heess, Norouzi, Mnih,
+  Doucet, and Teh]{NIPS2017_7235}
+Maddison, C.~J., Lawson, J., Tucker, G., Heess, N., Norouzi, M., Mnih, A.,
+  Doucet, A., and Teh, Y.
+\newblock Filtering variational objectives.
+\newblock In Guyon, I., Luxburg, U.~V., Bengio, S., Wallach, H., Fergus, R.,
+  Vishwanathan, S., and Garnett, R. (eds.), \emph{Advances in Neural
+  Information Processing Systems 30}, pp.\  6573--6583. Curran Associates,
+  Inc., 2017.
+
+\bibitem[Naesseth et~al.(2018)Naesseth, Linderman, Ranganath, and
+  Blei]{DBLP:conf/aistats/NaessethLRB18}
+Naesseth, C.~A., Linderman, S.~W., Ranganath, R., and Blei, D.~M.
+\newblock Variational sequential monte carlo.
+\newblock In \emph{{AISTATS}}, volume~84 of \emph{Proceedings of Machine
+  Learning Research}, pp.\  968--977. {PMLR}, 2018.
+
+\bibitem[Salimans et~al.(2015)Salimans, Kingma, and
+  Welling]{DBLP:conf/icml/SalimansKW15}
+Salimans, T., Kingma, D.~P., and Welling, M.
+\newblock Markov chain monte carlo and variational inference: Bridging the gap.
+\newblock In \emph{Proceedings of the 32nd International Conference on Machine
+  Learning, {ICML} 2015, Lille, France, 6-11 July 2015}, pp.\  1218--1226,
+  2015.
+
+\bibitem[Sussillo et~al.(2016)Sussillo, J{\'{o}}zefowicz, Abbott, and
+  Pandarinath]{DBLP:journals/corr/SussilloJAP16}
+Sussillo, D., J{\'{o}}zefowicz, R., Abbott, L.~F., and Pandarinath, C.
+\newblock {LFADS} - latent factor analysis via dynamical systems.
+\newblock \emph{CoRR}, abs/1608.06315, 2016.
+
+\end{thebibliography}
