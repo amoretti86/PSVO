@@ -76,6 +76,7 @@
 \newcommand{\bZ}{\mbf{Z}}
 \newcommand{\bP}{\mbf{P}}
 \newcommand{\bz}{\mbf{z}}
+\newcommand{\baa}{\mbf{a}}
 \newcommand{\bY}{\mbf{Y}}
 \newcommand{\bfy}{\mbf{y}}
 \newcommand{\bth}{\bm{\theta}}
@@ -207,6 +208,35 @@ Recap main idea from AESMC and FIVO.
 \be
 \hat{\mathcal{Z}}_{SMC} \equiv \prod\limits_{t=1}^{T}\Big[\frac{1}{N}\sum\limits_{n=1}^{N}w_t^{(n)} \Big] 
 \ee
+
+
+Importance Weighted Auto Encoders have been extended to the time series setting in the design of Sequential Monte Carlo (SMC) algorithms~\cite{DBLP:conf/aistats/NaessethLRB18, NIPS2017_7235, anh2018autoencoding}. SMC methods factorize the target distribution into a distribution of increasing spaces by performing importance sampling sequentially. Define importance weights $w_t^{(k)}$ at time $t$ for sample $k$ as follows:
+\begin{align}
+w_t^{(k)} &\equiv \frac{f(\bz_t^{(k)}|\bz_{t-1}^{(k)})g(\bx_t|\bz_t^{(k)})}{q(\bz_t^{(k)}|\bz_{t-1}^{(k)},\bx_t)} \\
+\intertext{where $\bz_t^{(k)}$ is sampled:} 
+\bz_t^{(k)} &\sim q(\bz_t^{(k)}|\bz_{t-1}^{(k)},\bx_t)
+\end{align}
+Various resampling schemes exist so that the samples which are referred to as particles are focused on promising regions of state space. This can be achieved by resampling particles according to their importance sampling weights:
+\begin{align}
+\baa_{t-1}^{k} &\sim \text{Discrete}(\cdot|w_{t-1}^{(1)}, \cdots, w_{t-1}^{(K)})  \\
+w_t^k &\equiv \frac{f(\bz_t^{(k)}|\bz_{t-1}^{\baa_{t-1}^k})g(\bx_t|\bz_t^{\baa_{t-1}^k})}{q(\bz_t^{k}|\bz_{t-1}^{\baa_{t-1}^k},\bx_t)} 
+\end{align}
+At the last time step, we can evaluate the posterior as $\sum\limits_{k=1}^{K}\bar w_T^k\delta_{\bZ_{1:T}^k}(\bZ_{1:T})$ averaging over paths to compute the functional integral. SMC also gives an unbiased estimate for the marginal likelihood:
+\be
+\hat{\mathcal{Z}}_{SMC} \equiv \prod\limits_{t=1}^{T}\Big[\frac{1}{K}\sum\limits_{k=1}^{K}w_t^{(k)} \Big] 
+\ee
+
+An important insight of \cite{NIPS2017_7235, anh2018autoencoding} is that the SMC algorithm is deterministic conditioning on $(\bZ_{1:T}^{(1:K)}, \mbf{A}_{1:T-1}^{(1:K)})$. The proposal can thus be reparameterized to act as a variational distribution that can be encoded:
+\begin{align}
+Q_{SMC}&(\bZ_{1:T}^{1:K}, \mbf{A}_{1:T-1}^{1:K}) \equiv \Bigg(\prod\limits_{k=1}^{K}q_{1,\phi}(\bz_1^k) \Bigg) \\
+\times &\Bigg(\prod\limits_{t=2}^{T}\prod\limits_{k=1}^{K}q_{t,\phi}(\bz_t^k|\bz_{1:t-1}^{\baa_{t-1}^k})\cdot\text{Discrete}(\baa_{t-1}^k |\mbf{w}_{t-1}^{1:K}) \Bigg) \nonumber
+\end{align}
+This gives a way of constructing a cost function for simultaneous model inference and learning. The cost is constructed by running SMC and performing stochastic gradient ascent on the importance weighted ELBO:
+\begin{align}
+ \msc{L}_{\trm{ELBO SMC}}&(\theta, \phi, \bZ_{1:T}) \equiv \int Q_{SMC}(\bZ_{1:T}^{1:K}, \mbf{A}_{1:T-1}^{1:K})\\
+ \times &\log \hat{\mathcal{Z}}_{SMC}(\bZ_{1:T}^{1:K}, \mbf{A}_{1:T-1}^{1:K})d\bZ_{1:T}^{1:N}d\mbf{A}_{1:T}^{1:K} \nonumber
+\end{align}
+Unlike pure variational methods, this does not involve inverting a block-tridiagonal matrix which mixes components of state space through the covariance. Information from the complete data $\bX_{1:T}$ is not used to the future of $t<T$ to infer $\bz_t$.
 
 \subsection{Smoothing Variational Objectives}
 Emphasize novelty of the proposed model, novelty of the experiments and the results. Discuss the implementation details. 
