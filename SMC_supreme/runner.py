@@ -32,7 +32,7 @@ def main(_):
     FLAGS = tf.app.flags.FLAGS
     # print(FLAGS)
 
-    # ============================================ parameter part ============================================ #
+    # ============================================ parameter part begins ============================================ #
     # training hyperparameters
     Dx = FLAGS.Dx
     Dy = FLAGS.Dy
@@ -62,10 +62,12 @@ def main(_):
     q_train_layers = [int(x) for x in FLAGS.q_train_layers.split(",")]
     f_train_layers = [int(x) for x in FLAGS.f_train_layers.split(",")]
     g_train_layers = [int(x) for x in FLAGS.g_train_layers.split(",")]
+    q2_train_layers = [int(x) for x in FLAGS.q2_train_layers.split(",")]
 
     q_sigma_init, q_sigma_min = FLAGS.q_sigma_init, FLAGS.q_sigma_min
     f_sigma_init, f_sigma_min = FLAGS.f_sigma_init, FLAGS.f_sigma_min
     g_sigma_init, g_sigma_min = FLAGS.f_sigma_init, FLAGS.g_sigma_min
+    q2_sigma_init, q2_sigma_min = FLAGS.q2_sigma_init, FLAGS.q2_sigma_min
 
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
@@ -95,6 +97,12 @@ def main(_):
     # if q, f and g networks also output covariance (sigma)
     output_cov = FLAGS.output_cov
 
+    # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
+    # if True, use_bootstrap will be overwritten as True
+    #          q_takes_y as False
+    #          q_uses_true_X as False
+    use_2_q = FLAGS.use_2_q
+
     # --------------------- printing and data saving params --------------------- #
     print_freq = FLAGS.print_freq
 
@@ -111,6 +119,14 @@ def main(_):
     save_tensorboard = FLAGS.save_tensorboard
     save_model = FLAGS.save_model
     save_freq = FLAGS.save_freq
+
+    # ============================================ parameter part ends ============================================ #
+
+    if use_2_q:
+        use_bootstrap = True
+        q_uses_true_X = False
+    if use_bootstrap:
+        q_takes_y = False
 
     MSE_steps = min(MSE_steps, time - 1)
     quiver_traj_num = min(quiver_traj_num, n_train, n_test)
@@ -211,9 +227,16 @@ def main(_):
                                       use_residual=False,
                                       output_cov=output_cov,
                                       name="g_train_tran")
+    if use_2_q:
+        q2_train_tran = MLP_transformation(q2_train_layers, Dx,
+                                           use_residual=False,
+                                           output_cov=output_cov,
+                                           name="q2_train_tran")
+    else:
+        q2_train_tran = None
+
     if use_bootstrap:
         f_train_tran = q_train_tran
-        q_takes_y = False
     else:
         f_train_tran = MLP_transformation(f_train_layers, Dx,
                                           use_residual=use_residual,
@@ -222,20 +245,28 @@ def main(_):
 
     q_train_dist = tf_mvn(q_train_tran, x_0_val, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
     g_train_dist = tf_mvn(g_train_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_train_dist")
+
+    if use_2_q:
+        q2_train_dist = tf_mvn(q2_train_tran,
+                               x_0_val,
+                               sigma_init=q2_sigma_init,
+                               sigma_min=q2_sigma_min,
+                               name="q2_train_dist")
+    else:
+        q2_train_dist = None
+
     if use_bootstrap:
         f_train_dist = q_train_dist
     else:
-        f_train_dist = tf_mvn(f_train_tran, x_0_val, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_train_dist")
-
-    init_dict = {"q_sigma_init": q_sigma_init,
-                 "q_sigma_min": q_sigma_min,
-                 "f_sigma_init": f_sigma_init,
-                 "f_sigma_min": f_sigma_min,
-                 "g_sigma_init": g_sigma_init,
-                 "g_sigma_min": g_sigma_min}
+        f_train_dist = tf_mvn(f_train_tran,
+                              x_0_val,
+                              sigma_init=f_sigma_init,
+                              sigma_min=f_sigma_min,
+                              name="f_train_dist")
 
     SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
                     n_particles,
+                    q2_train_dist,
                     smoothing=smoothing,
                     q_takes_y=q_takes_y,
                     q_uses_true_X=q_uses_true_X,
@@ -323,9 +354,7 @@ def main(_):
                      "MSE_tests": MSE_tests,
                      "R_square_trains": R_square_trains,
                      "R_square_tests": R_square_tests}
-        data_dict = {"params": params_dict,
-                     "init_dict": init_dict,
-                     "loss": loss_dict}
+        data_dict = {"loss": loss_dict}
 
         if generateTrainingData:
             data_dict["true_model_dict"] = true_model_dict

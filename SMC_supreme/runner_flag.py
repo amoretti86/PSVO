@@ -27,7 +27,7 @@ seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = True
+generateTrainingData = False
 
 # if reading data from file
 datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
@@ -46,10 +46,12 @@ n_test = 40 * batch_size
 q_train_layers = [50]
 f_train_layers = [50]
 g_train_layers = [50]
+q2_train_layers = [50]
 
 q_sigma_init, q_sigma_min = 5, 1
 f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
+q2_sigma_init, q2_sigma_min = 5, 1
 
 # do q and f use the same network?
 use_bootstrap = True
@@ -79,6 +81,12 @@ use_residual = False
 # if q, f and g networks also output covariance (sigma)
 output_cov = False
 
+# if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
+# if True, use_bootstrap will be overwritten as True
+#          q_takes_y as False
+#          q_uses_true_X as False
+use_2_q = True
+
 # --------------------- printing and data saving params --------------------- #
 print_freq = 5
 
@@ -99,6 +107,7 @@ save_freq = 10
 q_train_layers = ",".join([str(x) for x in q_train_layers])
 f_train_layers = ",".join([str(x) for x in f_train_layers])
 g_train_layers = ",".join([str(x) for x in g_train_layers])
+q2_train_layers = ",".join([str(x) for x in q2_train_layers])
 lattice_shape = ",".join([str(x) for x in lattice_shape])
 
 
@@ -141,14 +150,18 @@ flags.DEFINE_string("f_train_layers", f_train_layers, "architecture for f networ
                                                       "for example: '50,50' ")
 flags.DEFINE_string("g_train_layers", g_train_layers, "architecture for g network, int seperated by comma, "
                                                       "for example: '50,50' ")
+flags.DEFINE_string("q2_train_layers", q2_train_layers, "architecture for q2 network, int seperated by comma, "
+                                                        "for example: '50,50' ")
 
 flags.DEFINE_float("q_sigma_init", q_sigma_init, "initial value of q_sigma")
 flags.DEFINE_float("f_sigma_init", f_sigma_init, "initial value of f_sigma")
 flags.DEFINE_float("g_sigma_init", g_sigma_init, "initial value of g_sigma")
+flags.DEFINE_float("q2_sigma_init", q2_sigma_init, "initial value of q2_sigma")
 
 flags.DEFINE_float("q_sigma_min", q_sigma_min, "minimal value of q_sigma")
 flags.DEFINE_float("f_sigma_min", f_sigma_min, "minimal value of f_sigma")
 flags.DEFINE_float("g_sigma_min", g_sigma_min, "minimal value of g_sigma")
+flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 
 flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether use f and q are the same")
 flags.DEFINE_boolean("q_takes_y", q_takes_y, "whether input of q stack y")
@@ -162,7 +175,10 @@ flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "if x0 is learnable or take
 flags.DEFINE_boolean("smoothing", smoothing, "is filtering or smoothing?")
 flags.DEFINE_boolean("use_residual", use_residual, "if f and q use residual network")
 flags.DEFINE_boolean("output_cov", output_cov, "if q, f and g networks also output covariance (sigma)")
-
+flags.DEFINE_boolean("use_2_q", use_2_q, "if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t), "
+                                         "if True, use_bootstrap will be overwritten as True, "
+                                         "q_takes_y as False, "
+                                         "q_uses_true_X as False")
 
 # --------------------- printing and data saving params --------------------- #
 

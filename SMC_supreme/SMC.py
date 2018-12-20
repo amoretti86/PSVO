@@ -5,6 +5,7 @@ from tensorflow_probability import distributions as tfd
 class SMC:
     def __init__(self, q, f, g,
                  n_particles,
+                 q2=None,
                  smoothing=False,
                  q_takes_y=True,
                  q_uses_true_X=False,
@@ -14,6 +15,7 @@ class SMC:
         self.q = q
         self.f = f
         self.g = g
+        self.q2 = q2
         self.n_particles = n_particles
 
         self.smoothing = smoothing
@@ -71,8 +73,11 @@ class SMC:
                     X = mvn.sample((n_particles))
                     q_t_log_prob = mvn.log_prob(X)
                 else:
-                    X, q_t_log_prob = self.q.sample_and_log_prob(q_t_Input, sample_shape=sample_size,
-                                                                 name="q_{}_sample_and_log_prob".format(t))
+                    if self.q2 is None:
+                        X, q_t_log_prob = self.q.sample_and_log_prob(q_t_Input, sample_shape=sample_size,
+                                                                     name="q_{}_sample_and_log_prob".format(t))
+                    else:
+                        X, q_t_log_prob, f_t_log_prob = self.sample_from_2_q(X_ancestor, obs[:, t], sample_size)
 
                 if self.smoothing and t != 0:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
@@ -83,8 +88,11 @@ class SMC:
                     f_t_log_prob = tf.gather_nd(f_t_all_log_prob, f_t_idx, name="f_{}_log_prob".format(t))
 
                     all_fs.append(f_t_all_log_prob)
-                else:
+                elif self.q2 is None:
                     f_t_log_prob = self.f.log_prob(X_ancestor, X, name="f_{}_log_prob".format(t))
+                else:
+                    # if q uses 2 networks, f_t_log_prob is already calculated above
+                    pass
 
                 g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_{}_log_prob".format(t))
 
@@ -128,6 +136,29 @@ class SMC:
             gs = tf.transpose(gs, perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
 
         return log_ZSMC, [Xs, log_Ws, fs, gs, qs]
+
+    def sample_from_2_q(self, X_ancestor, y_t, sample_size):
+        q1_mvn = self.q.get_mvn(X_ancestor)
+        q2_mvn = self.q2.get_mvn(y_t)
+
+        assert isinstance(q1_mvn, tfd.MultivariateNormalDiag) and isinstance(q2_mvn, tfd.MultivariateNormalDiag)
+
+        q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), q1_mvn.stddev()
+        q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), q2_mvn.stddev()
+
+        q1_mvn_cov_inv, q2_mvn_cov_inv = 1 / q1_mvn_cov, 1 / q2_mvn_cov
+        combined_cov = 1 / (q1_mvn_cov_inv + q2_mvn_cov_inv)
+        combined_mean = combined_cov * (q1_mvn_cov_inv * q1_mvn_mean + q2_mvn_cov_inv * q2_mvn_mean)
+
+        mvn = tfd.MultivariateNormalDiag(combined_mean,
+                                         combined_cov,
+                                         validate_args=True,
+                                         allow_nan_stats=False)
+        X = mvn.sample(sample_size)
+        q_t_log_prob = mvn.log_prob(X)
+        f_t_log_prob = q1_mvn.log_prob(X)
+
+        return X, q_t_log_prob, f_t_log_prob
 
     def get_resample_idx(self, log_W, t):
         n_particles, batch_size = log_W.get_shape().as_list()

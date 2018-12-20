@@ -4,6 +4,7 @@ import math
 
 import tensorflow as tf
 import os
+import pickle
 import time
 import pdb
 
@@ -316,7 +317,7 @@ class trainer:
                     total = f_terms + g_terms - q_terms
                     print("f_contrib, g_contrib, q_contrib:", f_terms / total, g_terms / total, q_terms / total)
 
-                    Xs_val = cost_term_values[0][0:self.quiver_traj_num]
+                    Xs_val = cost_term_values[0]
                     if self.Dx == 2:
                         self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
                     elif self.Dx == 3:
@@ -349,7 +350,7 @@ class trainer:
         X_trajs = np.mean(Xs_val, axis=2)
 
         plt.figure()
-        for X_traj in X_trajs:
+        for X_traj in X_trajs[0:self.quiver_traj_num]:
             plt.plot(X_traj[:, 0], X_traj[:, 1])
             plt.scatter(X_traj[0, 0], X_traj[0, 1])
         plt.title("quiver")
@@ -371,6 +372,10 @@ class trainer:
             os.makedirs(self.RLT_DIR + "quiver/")
         plt.savefig(self.RLT_DIR + "quiver/epoch_{}".format(epoch))
         plt.close()
+
+        quiver_dict = {"X_trajs": X_trajs, "X": X, "nextX": nextX}
+        with open(self.RLT_DIR + "quiver/quiver_dict_epoch_{}.p".format(epoch), "wb") as f:
+            pickle.dump(quiver_dict, f)
 
     def define2Dlattice(self, x1range=(-30.0, 30.0), x2range=(-30.0, 30.)):
 
@@ -417,6 +422,10 @@ class trainer:
             ax.view_init(30, angle)
             plt.savefig(self.RLT_DIR + "quiver/epoch_{}_angle_{}".format(epoch, angle))
         plt.close()
+
+        quiver_dict = {"X_trajs": X_trajs}
+        with open(self.RLT_DIR + "quiver/quiver_dict_epoch_{}.p".format(epoch), "wb") as f:
+            pickle.dump(quiver_dict, f)
 
     def define3Dlattice(self, x1range=(-30.0, 30.0), x2range=(-30.0, 30.), x3range=(-30.0, 30.)):
 
