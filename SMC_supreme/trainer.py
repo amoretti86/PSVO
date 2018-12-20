@@ -11,7 +11,7 @@ import pdb
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from rslts_saving.rslts_saving import plot_R_square_epoch
+from rslts_saving.rslts_saving import plot_and_save_R_square_epoch
 
 
 class trainer:
@@ -300,7 +300,7 @@ class trainer:
                             print("valid cost not improving. stopping training...")
                             break
 
-                plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
+                plot_and_save_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
                 if self.draw_quiver_during_training:
                     cost_terms = log
