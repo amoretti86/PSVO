@@ -123,7 +123,7 @@ def plot_R_square(RLT_DIR, R_square_trains, R_square_tests, print_freq):
         plt.close()
 
 
-def plot_and_save_R_square_epoch(RLT_DIR, R_square_trains, R_square_tests, epoch):
+def plot_R_square_epoch(RLT_DIR, R_square_trains, R_square_tests, epoch):
     if not os.path.exists(RLT_DIR + "R_square"):
         os.makedirs(RLT_DIR + "R_square")
     plt.figure()
@@ -134,10 +134,6 @@ def plot_and_save_R_square_epoch(RLT_DIR, R_square_trains, R_square_tests, epoch
     sns.despine()
     plt.savefig(RLT_DIR + "R_square/epoch_{}".format(epoch))
     plt.close()
-
-    R_square = {"R_square_trains": R_square_trains, "R_square_tests": R_square_tests}
-    with open(RLT_DIR + "R_square/epoch_{}.p".format(epoch)) as f:
-        pickle.dump(R_square, f)
 
 
 def plot_fhn_results(RLT_DIR, Xs_val):

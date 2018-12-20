@@ -196,7 +196,10 @@ def main(_):
             hidden_train = data["Xtrain"]
             hidden_test = data["Xtest"]
         else:
-            raise ValueError("No key found for hidden_train and hidden_test")
+            if (x_0_learnable is False) or (q_uses_true_X is True):
+                raise ValueError("Cannot find the keys for hidden_train and hidden_test in the data file")
+            hidden_train = np.zeros((n_train, time, Dx))
+            hidden_test = np.zeros((n_test, time, Dx))
 
         # reliminate quiver_traj_num and saving_num to avoid they > n_train or n_test
         quiver_traj_num = min(quiver_traj_num, n_train, n_test)
@@ -325,15 +328,15 @@ def main(_):
 
         Xs = log_train[0]
         if x_0_learnable:
-            x_0_feed = n_train + np.arange(saving_num)
+            x_0_feed = n_train + np.arange(n_test)
         else:
-            x_0_feed = hidden_test[0:saving_num, 0]
+            x_0_feed = hidden_test[:, 0]
 
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_test[0:saving_num],
-                                         x_0: x_0_feed,
+                                         x_0: x_0_feed[0:saving_num],
                                          hidden: hidden_test[0:saving_num]})
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_test[0:saving_num],
-                                                 x_0: x_0_feed,
+                                                 x_0: x_0_feed[0:saving_num],
                                                  hidden: hidden_test[0:saving_num]})
 
         print("finish evaluating training results")

@@ -45,13 +45,16 @@ if __name__ == "__main__":
     # --------------------- model parameters --------------------- #
     # Define encoder and decoder network architectures
     params_dict["q_train_layers"] = [[50]]
+    params_dict["q2_train_layers"] = [[50]]
     params_dict["f_train_layers"] = [[50]]
     params_dict["g_train_layers"] = [[50]]
 
     params_dict["q_sigma_init"] = [5]
+    params_dict["q2_sigma_init"] = [5]
     params_dict["f_sigma_init"] = [5]
     params_dict["g_sigma_init"] = [5]
     params_dict["q_sigma_min"] = [1]
+    params_dict["q2_sigma_min"] = [1]
     params_dict["f_sigma_min"] = [1]
     params_dict["g_sigma_min"] = [1]
 
@@ -75,6 +78,7 @@ if __name__ == "__main__":
     params_dict["smoothing"] = [False]
     params_dict["use_residual"] = [False]
     params_dict["output_cov"] = [False]
+    params_dict["use_2_q"] = [False]
 
     # --------------------- printing and data saving params --------------------- #
     params_dict["print_freq"] = [5]

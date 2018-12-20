@@ -18,16 +18,16 @@ print("\ttensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 3
 Dy = 1
-n_particles = 500
+n_particles = 3
 
 batch_size = 1
 lr = 1e-3
-epoch = 300
+epoch = 5
 seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = False
+generateTrainingData = True
 
 # if reading data from file
 datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
@@ -37,9 +37,9 @@ datadict = "datadict"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
-time = 200
-n_train = 200 * batch_size
-n_test = 40 * batch_size
+time = 3
+n_train = 2 * batch_size
+n_test = 2 * batch_size
 
 # --------------------- model parameters --------------------- #
 # network architectures
@@ -98,7 +98,7 @@ MSE_steps = min(10, time - 1)
 quiver_traj_num = min(5, n_train, n_test)
 lattice_shape = [10, 10, 3]  # [25, 25] or [10, 10, 3]
 
-saving_num = min(10, n_train, n_test)
+saving_num = min(40, n_train, n_test)
 
 save_tensorboard = False
 save_model = False
