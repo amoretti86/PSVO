@@ -55,6 +55,10 @@ class trainer:
         if save_tensorboard:
             self.writer = tf.summary.FileWriter(RLT_DIR)
 
+        epoch_data_DIR = self.RLT_DIR.split("/")
+        epoch_data_DIR.insert(epoch_data_DIR.index("rslts") + 1, "epoch_data")
+        self.epoch_data_DIR = "/".join(epoch_data_DIR)
+
     def set_SMC(self, SMC_train):
         self.SMC_train = SMC_train
 
@@ -304,9 +308,9 @@ class trainer:
                                   "Xs_val": Xs_val,
                                   "y_hat_val": y_hat_val}
 
-                    if not os.path.exists(self.RLT_DIR + "epoch_data"):
-                        os.makedirs(self.RLT_DIR + "epoch_data")
-                    with open(self.RLT_DIR + "epoch_data/epoch_{}.p".format(i + 1), "wb") as f:
+                    if not os.path.exists(self.epoch_data_DIR):
+                        os.makedirs(self.epoch_data_DIR)
+                    with open(self.epoch_data_DIR + "epoch_{}.p".format(i + 1), "wb") as f:
                         pickle.dump(epoch_dict, f)
 
                 if self.draw_quiver_during_training:

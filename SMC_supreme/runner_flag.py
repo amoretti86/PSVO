@@ -92,13 +92,13 @@ print_freq = 5
 
 store_res = True
 rslt_dir_name = "lorenz_1D"
-MSE_steps = min(10, time - 1)
+MSE_steps = 10
 
 # how many trajectories to draw in quiver plot
 quiver_traj_num = min(5, n_train, n_test)
 lattice_shape = [10, 10, 3]  # [25, 25] or [10, 10, 3]
 
-saving_num = min(40, n_train, n_test)
+saving_num = 40
 
 save_tensorboard = False
 save_model = False

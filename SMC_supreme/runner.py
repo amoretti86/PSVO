@@ -135,7 +135,8 @@ def main(_):
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    assert len(lattice_shape) == Dx
+    if Dx == 2:
+        assert len(lattice_shape) == Dx
     lattice_shape.append(Dx)
 
     # ============================================= dataset part ============================================= #
@@ -296,6 +297,9 @@ def main(_):
 
         RLT_DIR = create_RLT_DIR(Experiment_params)
         print("RLT_DIR:", RLT_DIR)
+
+        with open(RLT_DIR + "param.json", "w") as f:
+            json.dump(params_dict, f, indent=4, cls=NumpyEncoder)
 
     # ============================================= training part ============================================ #
     mytrainer = trainer(Dx, Dy,
