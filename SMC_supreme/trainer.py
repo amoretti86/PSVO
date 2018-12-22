@@ -384,7 +384,7 @@ class trainer:
         plt.close()
 
         quiver_dict = {"X_trajs": X_trajs, "X": X, "nextX": nextX}
-        with open(self.RLT_DIR + "quiver/lattice_val_{}.p".format(epoch), "wb") as f:
+        with open(self.epoch_data_DIR + "lattice_val_{}.p".format(epoch), "wb") as f:
             pickle.dump(quiver_dict, f)
 
     def define2Dlattice(self, x1range=(-30.0, 30.0), x2range=(-30.0, 30.)):

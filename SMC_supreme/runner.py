@@ -186,6 +186,10 @@ def main(_):
         else:
             obs_test = data["Yvalid"]
 
+        if len(obs_train.shape) == 2:
+            obs_train = np.expand_dims(obs_train, axis=2)
+            obs_test = np.expand_dims(obs_test, axis=2)
+
         n_train = obs_train.shape[0]
         n_test = obs_test.shape[0]
         time = obs_train.shape[1]
