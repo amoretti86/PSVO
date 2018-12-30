@@ -22,12 +22,12 @@ n_particles = 3
 
 batch_size = 1
 lr = 1e-3
-epoch = 5
+epoch = 200
 seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = True
+generateTrainingData = False
 
 # if reading data from file
 datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
@@ -37,9 +37,9 @@ datadict = "datadict"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
-time = 3
-n_train = 2 * batch_size
-n_test = 2 * batch_size
+time = 200
+n_train = 200 * batch_size
+n_test = 40 * batch_size
 
 # --------------------- model parameters --------------------- #
 # network architectures
@@ -73,7 +73,7 @@ maxNumberNoImprovement = 5
 x_0_learnable = False
 
 # filtering or smoothing
-smoothing = False
+smoothing = True
 
 # if f and q use residual
 use_residual = False

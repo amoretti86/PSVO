@@ -10,6 +10,7 @@ class SMC:
                  q_takes_y=True,
                  q_uses_true_X=False,
                  use_stop_gradient=False,
+                 smoothing_perc=1.0,
                  name="log_ZSMC"):
 
         self.q = q
@@ -23,6 +24,7 @@ class SMC:
         self.q_uses_true_X = q_uses_true_X
         self.use_stop_gradient = use_stop_gradient
 
+        self.smoothing_perc = smoothing_perc
         self.name = name
 
     def get_log_ZSMC(self, obs, hidden, q_cov=1):
@@ -119,7 +121,8 @@ class SMC:
 
             if self.smoothing:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
-                log_ZSMC = self.compute_log_ZSMC(reweighted_log_Ws)
+                log_ZSMC = self.smoothing_perc * self.compute_log_ZSMC(reweighted_log_Ws) + \
+                    (1.0 - self.smoothing_perc) * self.compute_log_ZSMC(log_Ws)
             else:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
 
@@ -198,7 +201,6 @@ class SMC:
         for t in reversed(range(time)):
             if t == time - 1:
                 reweighted_log_Ws[t] = log_Ws[t]
-                print(log_Ws[t].shape)
             else:
                 denominator = \
                     tf.reduce_logsumexp(tf.expand_dims(log_Ws[t], axis=1) + all_fs[t], axis=0)

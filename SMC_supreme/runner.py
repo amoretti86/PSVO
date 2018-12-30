@@ -224,6 +224,7 @@ def main(_):
         x_0_val = tf.identity(x_0, name="x_0_val")
     obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
     hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
+    smoothing_perc = tf.placeholder(tf.float32, shape=(1), name="hidden")
 
     # transformations
     # f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
@@ -278,6 +279,7 @@ def main(_):
                     smoothing=smoothing,
                     q_takes_y=q_takes_y,
                     q_uses_true_X=q_uses_true_X,
+                    smoothing_perc=smoothing_perc,
                     name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
@@ -315,11 +317,11 @@ def main(_):
                         x_0_learnable)
 
     mytrainer.set_SMC(SMC_train)
-    mytrainer.set_placeholders(x_0, obs, hidden)
+    mytrainer.set_placeholders(x_0, obs, hidden, smoothing_perc)
 
     if store_res:
         mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num, save_tensorboard, save_model)
-        if Dx == 2 or Dx == 3:
+        if Dx == 2:
             lattice = tf.placeholder(tf.float32, shape=lattice_shape, name="lattice")
             nextX = SMC_train.get_nextX(lattice)
             mytrainer.set_quiver_arg(nextX, lattice, quiver_traj_num, lattice_shape)

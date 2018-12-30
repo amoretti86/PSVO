@@ -62,10 +62,11 @@ class trainer:
     def set_SMC(self, SMC_train):
         self.SMC_train = SMC_train
 
-    def set_placeholders(self, x_0, obs, hidden):
+    def set_placeholders(self, x_0, obs, hidden, smoothing_perc):
         self.x_0 = x_0
         self.obs = obs
         self.hidden = hidden
+        self.smoothing_perc = smoothing_perc
 
     def set_quiver_arg(self, nextX, lattice, quiver_traj_num, lattice_shape):
         self.nextX = nextX
@@ -217,12 +218,14 @@ class trainer:
         log_ZSMC_train = self.evaluate(log_ZSMC,
                                        {self.obs: obs_train,
                                         self.x_0: x_0_feed_train,
-                                        self.hidden: hidden_train},
+                                        self.hidden: hidden_train,
+                                        self.smoothing_perc: np.zeros(len(obs_train))},
                                        average=True)
         log_ZSMC_test = self.evaluate(log_ZSMC,
                                       {self.obs: obs_test,
                                        self.x_0: x_0_feed_test,
-                                       self.hidden: hidden_test},
+                                       self.hidden: hidden_test,
+                                       self.smoothing_perc: np.zeros(len(obs_test))},
                                       average=True)
 
         MSE_train, R_square_train = self.evaluate_R_square(MSE_ks, y_means, y_vars,
@@ -244,6 +247,8 @@ class trainer:
         for i in range(self.epoch):
             start = time.time()
 
+            smoothing_perc_epoch = i / self.epoch
+            # smoothing_perc_epoch = (1 - i / self.epoch) ** 1.5
             # self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
@@ -254,19 +259,22 @@ class trainer:
                     x_0_feed = hidden_train[j:j + self.batch_size, 0]
                 self.sess.run(train_op, feed_dict={self.obs: obs_train[j:j + self.batch_size],
                                                    self.x_0: x_0_feed,
-                                                   self.hidden: hidden_train[j:j + self.batch_size]})
+                                                   self.hidden: hidden_train[j:j + self.batch_size],
+                                                   self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch})
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:
                 log_ZSMC_train = self.evaluate(log_ZSMC,
                                                {self.obs: obs_train,
                                                 self.x_0: x_0_feed_train,
-                                                self.hidden: hidden_train},
+                                                self.hidden: hidden_train,
+                                                self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
                                                average=True)
                 log_ZSMC_test = self.evaluate(log_ZSMC,
                                               {self.obs: obs_test,
                                                self.x_0: x_0_feed_test,
-                                               self.hidden: hidden_test},
+                                               self.hidden: hidden_test,
+                                               self.smoothing_perc: np.ones(len(obs_test)) * smoothing_perc_epoch},
                                               average=True)
 
                 MSE_train, R_square_train = self.evaluate_R_square(MSE_ks, y_means, y_vars,
