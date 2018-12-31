@@ -18,11 +18,11 @@ print("\ttensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 3
 Dy = 1
-n_particles = 3
+n_particles = 500
 
 batch_size = 1
 lr = 1e-3
-epoch = 200
+epoch = 300
 seed = 0
 
 # --------------------- data set parameters --------------------- #
@@ -86,6 +86,10 @@ output_cov = False
 #          q_takes_y as False
 #          q_uses_true_X as False
 use_2_q = True
+
+use_stop_gradient = True
+
+smoothing_perc_factor = 0
 
 # --------------------- printing and data saving params --------------------- #
 print_freq = 5
@@ -179,6 +183,11 @@ flags.DEFINE_boolean("use_2_q", use_2_q, "if q uses two networks q1(x_t|x_t-1) a
                                          "if True, use_bootstrap will be overwritten as True, "
                                          "q_takes_y as False, "
                                          "q_uses_true_X as False")
+flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "if smoothing use stop gradient for reweighting factors")
+
+flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
+                   "determine how the percentage of smoothing loss in the total loss changes with epoch num"
+                   "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")
 
 # --------------------- printing and data saving params --------------------- #
 

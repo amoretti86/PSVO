@@ -123,8 +123,12 @@ class SMC:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
                 log_ZSMC = self.smoothing_perc * self.compute_log_ZSMC(reweighted_log_Ws) + \
                     (1.0 - self.smoothing_perc) * self.compute_log_ZSMC(log_Ws)
+                reweighted_log_Ws = tf.stack(reweighted_log_Ws)
+                reweighted_log_Ws = tf.transpose(reweighted_log_Ws, perm=[2, 0, 1], name="reweighted_log_Ws")
+                log = [reweighted_log_Ws]
             else:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
+                log = []
 
             Xs = tf.stack(Xs)
             log_Ws = tf.stack(log_Ws)
@@ -138,7 +142,7 @@ class SMC:
             fs = tf.transpose(fs, perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
             gs = tf.transpose(gs, perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
 
-        return log_ZSMC, [Xs, log_Ws, fs, gs, qs]
+        return log_ZSMC, [Xs, log_Ws, fs, gs, qs] + log
 
     def sample_from_2_q(self, X_ancestor, y_t, sample_size):
         q1_mvn = self.q.get_mvn(X_ancestor)
@@ -193,8 +197,7 @@ class SMC:
 
         return resample_idx_NxBx2
 
-    @staticmethod
-    def reweight_log_Ws(log_Ws, all_fs):
+    def reweight_log_Ws(self, log_Ws, all_fs):
         time = len(log_Ws)
         reweighted_log_Ws = ["placeholder"] * time
 
@@ -208,7 +211,10 @@ class SMC:
                                                       all_fs[t] -
                                                       denominator,
                                                       axis=1)
-                reweighted_log_Ws[t] = log_Ws[t] + reweight_factor
+                if self.use_stop_gradient:
+                    reweighted_log_Ws[t] = log_Ws[t] + tf.stop_gradient(reweight_factor)
+                else:
+                    reweighted_log_Ws[t] = log_Ws[t] + reweight_factor
 
         return reweighted_log_Ws
 

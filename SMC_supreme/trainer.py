@@ -22,7 +22,8 @@ class trainer:
                  MSE_steps,
                  beta,
                  maxNumberNoImprovement,
-                 x_0_learnable):
+                 x_0_learnable,
+                 smoothing_perc_factor):
         self.Dx = Dx
         self.Dy = Dy
 
@@ -44,6 +45,8 @@ class trainer:
         self.costUpdate = 0
 
         self.x_0_learnable = x_0_learnable
+
+        self.smoothing_perc_factor = smoothing_perc_factor
 
     def set_rslt_saving(self, RLT_DIR, save_freq, saving_num, save_tensorboard=False, save_model=False):
         self.store_res = True
@@ -247,8 +250,7 @@ class trainer:
         for i in range(self.epoch):
             start = time.time()
 
-            smoothing_perc_epoch = i / self.epoch
-            # smoothing_perc_epoch = (1 - i / self.epoch) ** 1.5
+            smoothing_perc_epoch = 1 - (1 - i / self.epoch) ** self.smoothing_perc_factor
             # self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
@@ -261,6 +263,27 @@ class trainer:
                                                    self.x_0: x_0_feed,
                                                    self.hidden: hidden_train[j:j + self.batch_size],
                                                    self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch})
+
+                if len(log) == 6:
+                    log_Ws = log[1]
+                    reweighted_log_Ws = log[-1]
+
+                    log_Ws_val, reweighted_log_Ws_val = \
+                        self.evaluate([log_Ws, reweighted_log_Ws],
+                                      {self.obs: obs_train[0:self.batch_size],
+                                       self.x_0: x_0_feed_train[0:self.batch_size],
+                                       self.hidden: hidden_train[0:self.batch_size]},
+                                      average=False)
+
+                    for t in range(self.time):
+                        idx = np.argsort(-log_Ws_val[0, t, :])[:5]
+                        print("time {}", t)
+                        print("top 5 log_W", log_Ws_val[0, t, idx])
+                        print("corresponding 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
+                        idx = np.argsort(-reweighted_log_Ws_val[0, t, :])[:5]
+                        print("top 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
+
+                    print("\n")
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:

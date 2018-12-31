@@ -103,6 +103,10 @@ def main(_):
     #          q_uses_true_X as False
     use_2_q = FLAGS.use_2_q
 
+    use_stop_gradient = FLAGS.use_stop_gradient
+
+    smoothing_perc_factor = FLAGS.smoothing_perc_factor
+
     # --------------------- printing and data saving params --------------------- #
     print_freq = FLAGS.print_freq
 
@@ -280,6 +284,7 @@ def main(_):
                     q_takes_y=q_takes_y,
                     q_uses_true_X=q_uses_true_X,
                     smoothing_perc=smoothing_perc,
+                    use_stop_gradient=use_stop_gradient,
                     name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
@@ -314,7 +319,8 @@ def main(_):
                         MSE_steps,
                         loss_beta,
                         maxNumberNoImprovement,
-                        x_0_learnable)
+                        x_0_learnable,
+                        smoothing_perc_factor)
 
     mytrainer.set_SMC(SMC_train)
     mytrainer.set_placeholders(x_0, obs, hidden, smoothing_perc)
