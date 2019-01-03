@@ -264,26 +264,45 @@ class trainer:
                                                    self.hidden: hidden_train[j:j + self.batch_size],
                                                    self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch})
 
-                if len(log) == 6:
+                if True and len(log) == 6 and self.Dx == 2:
                     log_Ws = log[1]
                     reweighted_log_Ws = log[-1]
 
-                    log_Ws_val, reweighted_log_Ws_val = \
-                        self.evaluate([log_Ws, reweighted_log_Ws],
+                    Xs_val, log_Ws_val, reweighted_log_Ws_val = \
+                        self.evaluate([Xs, log_Ws, reweighted_log_Ws],
                                       {self.obs: obs_train[0:self.batch_size],
                                        self.x_0: x_0_feed_train[0:self.batch_size],
                                        self.hidden: hidden_train[0:self.batch_size]},
                                       average=False)
 
-                    for t in range(self.time):
-                        idx = np.argsort(-log_Ws_val[0, t, :])[:5]
-                        print("time {}", t)
-                        print("top 5 log_W", log_Ws_val[0, t, idx])
-                        print("corresponding 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
-                        idx = np.argsort(-reweighted_log_Ws_val[0, t, :])[:5]
-                        print("top 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
+                    # for t in range(self.time):
+                    #     idx = np.argsort(-log_Ws_val[0, t, :])[:5]
+                    #     print("time", t)
+                    #     print("top 5 log_W", log_Ws_val[0, t, idx])
+                    #     print("corresponding 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
+                    #     idx = np.argsort(-reweighted_log_Ws_val[0, t, :])[:5]
+                    #     print("top 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
 
-                    print("\n")
+                    if not os.path.exists(self.RLT_DIR + "/weights"):
+                        os.makedirs(self.RLT_DIR + "/weights")
+                    for t in range(self.time):
+                        plt.figure()
+                        plt.title("filtering weights")
+                        plt.xlabel("x_dim 1")
+                        plt.ylabel("x_dim 2")
+                        plt.scatter(Xs_val[0, t, :, 0], Xs_val[0, t, :, 1],
+                                    c=log_Ws_val[0, t, :], cmap="coolwarm")
+                        plt.savefig(self.RLT_DIR + "/weights/epoch_{}_t_{}_filtering".format(i, t))
+                        plt.close()
+
+                        plt.figure()
+                        plt.title("smoothing weights")
+                        plt.xlabel("x_dim 1")
+                        plt.ylabel("x_dim 2")
+                        plt.scatter(Xs_val[0, t, :, 0], Xs_val[0, t, :, 1],
+                                    c=reweighted_log_Ws_val[0, t, :], cmap="coolwarm")
+                        plt.savefig(self.RLT_DIR + "/weights/epoch_{}_t_{}_smoothing".format(i, t))
+                        plt.close()
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:

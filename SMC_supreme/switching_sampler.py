@@ -116,9 +116,9 @@ def plot_lorenz_results(RLT_DIR, Xs_val):
 
 if __name__ == "__main__":
     Dx = 2
-    Dy = 1
+    Dy = 2
 
-    time_list = [50] * 4
+    time_list = [200] * 1
     n_train = 200
     n_test = 40
 
@@ -136,10 +136,10 @@ if __name__ == "__main__":
 
     f_sample_cov = 0.0 * np.eye(Dx)
 
-    f_params_list = [f_params1, f_params2] * 2
+    f_params_list = [f_params1] * 1
 
     # g_params = np.random.randn(Dy, Dx)  # np.array([[1.0, 1.0]]) or np.random.randn(Dy, Dx)
-    g_params = np.array([[1.0, 0.0]])
+    g_params = np.array([[1.0, 0.0], [0.0, 1.0]])
     g_sample_cov = 0.1 * np.eye(Dy)
 
     datadict["time_list"] = time_list
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     datadict["Ytrain"] = obs_train
     datadict["Yvalid"] = obs_test
 
-    RLT_DIR = "../data/fhn/changing/"
+    RLT_DIR = "../data/fhn/2D_obs/"
     if not os.path.exists(RLT_DIR):
         os.makedirs(RLT_DIR)
 
