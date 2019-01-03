@@ -40,7 +40,8 @@ class SMC:
             batch_size, Dx = self.q.output_0.get_shape().as_list()
             n_particles = self.n_particles
 
-            Xs = []
+            X_prevs = []
+            X_ancestors = []
             log_Ws = []
             qs = []
             fs = []
@@ -114,10 +115,12 @@ class SMC:
                 X_prev = X
 
                 # collect X after rather than before resampling
-                Xs.append(X_ancestor)
+                X_prevs.append(X_prev)
+                X_ancestors.append(X_ancestor)
 
             # to make sure len(Xs) = time
-            Xs.append(X)
+            X_prevs.append(X_prev)
+            X_ancestors.append(X_ancestor)
 
             if self.smoothing:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
@@ -130,19 +133,22 @@ class SMC:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
                 log = []
 
-            Xs = tf.stack(Xs)
+            X_prevs = tf.stack(X_prevs)
+            X_ancestors = tf.stack(X_ancestors)
             log_Ws = tf.stack(log_Ws)
             qs = tf.stack(qs)
             fs = tf.stack(fs)
             gs = tf.stack(gs)
 
-            Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")             # (batch_size, time, n_particles, Dx)
+            # (batch_size, time, n_particles, Dx)
+            X_prevs = tf.transpose(X_prevs, perm=[2, 0, 1, 3], name="X_prevs")
+            X_ancestors = tf.transpose(X_ancestors, perm=[2, 0, 1, 3], name="X_ancestors")
             log_Ws = tf.transpose(log_Ws, perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
             qs = tf.transpose(qs, perm=[2, 0, 1], name="qs")                # (batch_size, time, n_particles)
             fs = tf.transpose(fs, perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
             gs = tf.transpose(gs, perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
 
-        return log_ZSMC, [Xs, log_Ws, fs, gs, qs] + log
+        return log_ZSMC, [X_prevs, X_ancestors, log_Ws, fs, gs, qs] + log
 
     def sample_from_2_q(self, X_ancestor, y_t, sample_size):
         q1_mvn = self.q.get_mvn(X_ancestor)
