@@ -251,7 +251,10 @@ class trainer:
         for i in range(self.epoch):
             start = time.time()
 
-            smoothing_perc_epoch = 1 - (1 - i / self.epoch) ** self.smoothing_perc_factor
+            if i < self.epoch * 3 / 4:
+                smoothing_perc_epoch = 1 - (1 - i / self.epoch) ** self.smoothing_perc_factor
+            else:
+                smoothing_perc_epoch = 1
             # self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
@@ -308,13 +311,13 @@ class trainer:
                                            {self.obs: obs_test[0:self.saving_num],
                                             self.x_0: x_0_feed_test[0:self.saving_num],
                                             self.hidden: hidden_test[0:self.saving_num],
-                                            self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch},
+                                            self.smoothing_perc: np.ones(self.saving_num)},
                                            average=False)
                     y_hat_val = self.evaluate(y_hat,
                                               {self.obs: obs_test[0:self.saving_num],
                                                self.x_0: x_0_feed_test[0:self.saving_num],
                                                self.hidden: hidden_test[0:self.saving_num],
-                                               self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch},
+                                               self.smoothing_perc: np.ones(self.saving_num)},
                                               average=False)
 
                     epoch_dict = {"R_square_train": R_square_train[-1],
