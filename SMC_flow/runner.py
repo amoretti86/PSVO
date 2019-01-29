@@ -22,10 +22,10 @@ from distribution.poisson import poisson, tf_poisson
 from rslts_saving.rslts_saving import *
 from rslts_saving.fhn_rslts_saving import *
 from rslts_saving.lorenz_rslts_saving import *
-from SMC_supreme.trainer import trainer
+from trainer import trainer
 
-from SMC_supreme.sampler import create_dataset
-from SMC_supreme.SMC import SMC
+from sampler import create_dataset
+from SMC import SMC
 from flow import NF
 
 
@@ -213,10 +213,10 @@ def main(_):
             hidden_train = np.zeros((n_train, time, Dx))
             hidden_test = np.zeros((n_test, time, Dx))
 
-        if "time_list" in data:
-            time_list = data["time_list"]
-        else:
-            time_list = [time]
+        # if "time_list" in data:
+        #     time_list = data["time_list"]
+        # else:
+        #     time_list = [time]
 
         # reliminate quiver_traj_num and saving_num to avoid they > n_train or n_test
         quiver_traj_num = min(quiver_traj_num, n_train, n_test)
