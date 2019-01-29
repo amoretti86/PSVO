@@ -180,7 +180,7 @@ class trainer:
 
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
-        Xs = log[1]
+        Xs = log[0]
         MSE_ks, y_means, y_vars, y_hat = self.SMC_train.n_step_MSE(self.MSE_steps, Xs, self.obs)
 
         cost_w_MSE = -log_ZSMC  # + self.beta * MSE_ks[0]
@@ -251,6 +251,7 @@ class trainer:
             start = time.time()
 
             smoothing_perc_epoch = 1 - (1 - i / self.epoch) ** self.smoothing_perc_factor
+            smoothing_perc_epoch = 1
             # self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
@@ -259,51 +260,11 @@ class trainer:
                     x_0_feed = np.arange(j, j + self.batch_size)
                 else:
                     x_0_feed = hidden_train[j:j + self.batch_size, 0]
-                self.sess.run(train_op, feed_dict={self.obs: obs_train[j:j + self.batch_size],
-                                                   self.x_0: x_0_feed,
-                                                   self.hidden: hidden_train[j:j + self.batch_size],
-                                                   self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch})
-
-            if True and len(log) == 6 and self.Dx == 2:
-                X_prevs = log[0]
-                log_Ws = log[2]
-                reweighted_log_Ws = log[-1]
-
-                X_prevs_val, log_Ws_val, reweighted_log_Ws_val = \
-                    self.evaluate([X_prevs, log_Ws, reweighted_log_Ws],
-                                  {self.obs: obs_train[0:self.batch_size],
-                                   self.x_0: x_0_feed_train[0:self.batch_size],
-                                   self.hidden: hidden_train[0:self.batch_size]},
-                                  average=False)
-
-                # for t in range(self.time):
-                #     idx = np.argsort(-log_Ws_val[0, t, :])[:5]
-                #     print("time", t)
-                #     print("top 5 log_W", log_Ws_val[0, t, idx])
-                #     print("corresponding 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
-                #     idx = np.argsort(-reweighted_log_Ws_val[0, t, :])[:5]
-                #     print("top 5 reweighted_log_Ws", reweighted_log_Ws_val[0, t, idx])
-
-                if not os.path.exists(self.RLT_DIR + "/weights"):
-                    os.makedirs(self.RLT_DIR + "/weights")
-                for t in range(self.time):
-                    plt.figure()
-                    plt.title("filtering weights")
-                    plt.xlabel("x_dim 1")
-                    plt.ylabel("x_dim 2")
-                    plt.scatter(X_prevs_val[0, t, :, 0], X_prevs_val[0, t, :, 1],
-                                c=log_Ws_val[0, t, :], cmap="coolwarm")
-                    plt.savefig(self.RLT_DIR + "/weights/epoch_{}_t_{}_filtering".format(i, t))
-                    plt.close()
-
-                    plt.figure()
-                    plt.title("smoothing weights")
-                    plt.xlabel("x_dim 1")
-                    plt.ylabel("x_dim 2")
-                    plt.scatter(X_prevs_val[0, t, :, 0], X_prevs_val[0, t, :, 1],
-                                c=reweighted_log_Ws_val[0, t, :], cmap="coolwarm")
-                    plt.savefig(self.RLT_DIR + "/weights/epoch_{}_t_{}_smoothing".format(i, t))
-                    plt.close()
+                self.sess.run(train_op,
+                              feed_dict={self.obs: obs_train[j:j + self.batch_size],
+                                         self.x_0: x_0_feed,
+                                         self.hidden: hidden_train[j:j + self.batch_size],
+                                         self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch})
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:
@@ -346,12 +307,14 @@ class trainer:
                     Xs_val = self.evaluate(Xs,
                                            {self.obs: obs_test[0:self.saving_num],
                                             self.x_0: x_0_feed_test[0:self.saving_num],
-                                            self.hidden: hidden_test[0:self.saving_num]},
+                                            self.hidden: hidden_test[0:self.saving_num],
+                                            self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch},
                                            average=False)
                     y_hat_val = self.evaluate(y_hat,
                                               {self.obs: obs_test[0:self.saving_num],
                                                self.x_0: x_0_feed_test[0:self.saving_num],
-                                               self.hidden: hidden_test[0:self.saving_num]},
+                                               self.hidden: hidden_test[0:self.saving_num],
+                                               self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch},
                                               average=False)
 
                     epoch_dict = {"R_square_train": R_square_train[-1],

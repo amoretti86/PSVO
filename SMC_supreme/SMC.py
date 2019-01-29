@@ -85,12 +85,10 @@ class SMC:
                 if self.smoothing and t != 0:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
                     f_t_all_log_prob = self.f.log_prob(X_prev, X_tile, name="f_{}_all_log_prob".format(t))
-
-                    idx_NxBx1, batch_NxBx1 = tf.unstack(resample_idx, axis=2)
-                    f_t_idx = tf.stack((idx_NxBx1, idx_NxBx1, batch_NxBx1), axis=2)
-                    f_t_log_prob = tf.gather_nd(f_t_all_log_prob, f_t_idx, name="f_{}_log_prob".format(t))
-
                     all_fs.append(f_t_all_log_prob)
+
+                    f_t_log_prob = self.f.log_prob(X_ancestor, X, name="f_{}_log_prob".format(t))
+
                 elif self.q2 is None:
                     f_t_log_prob = self.f.log_prob(X_ancestor, X, name="f_{}_log_prob".format(t))
                 else:
@@ -124,31 +122,34 @@ class SMC:
 
             if self.smoothing:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
-                log_ZSMC = self.smoothing_perc * self.compute_log_ZSMC(reweighted_log_Ws) + \
-                    (1.0 - self.smoothing_perc) * self.compute_log_ZSMC(log_Ws)
+                log_ZSMC = self.compute_log_ZSMC(reweighted_log_Ws)
+
+                Xs = []
+                for t in range(time):
+                    smoothing_idx = self.get_resample_idx(reweighted_log_Ws[t])
+                    smoothed_X_t = tf.gather_nd(X_prevs[t], smoothing_idx)
+                    Xs.append(smoothed_X_t)
+
                 reweighted_log_Ws = tf.stack(reweighted_log_Ws)
                 reweighted_log_Ws = tf.transpose(reweighted_log_Ws, perm=[2, 0, 1], name="reweighted_log_Ws")
                 log = [reweighted_log_Ws]
             else:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
+                Xs = X_ancestors
                 log = []
 
-            X_prevs = tf.stack(X_prevs)
-            X_ancestors = tf.stack(X_ancestors)
             log_Ws = tf.stack(log_Ws)
             qs = tf.stack(qs)
             fs = tf.stack(fs)
             gs = tf.stack(gs)
 
             # (batch_size, time, n_particles, Dx)
-            X_prevs = tf.transpose(X_prevs, perm=[2, 0, 1, 3], name="X_prevs")
-            X_ancestors = tf.transpose(X_ancestors, perm=[2, 0, 1, 3], name="X_ancestors")
             log_Ws = tf.transpose(log_Ws, perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
             qs = tf.transpose(qs, perm=[2, 0, 1], name="qs")                # (batch_size, time, n_particles)
             fs = tf.transpose(fs, perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
             gs = tf.transpose(gs, perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
 
-        return log_ZSMC, [X_prevs, X_ancestors, log_Ws, fs, gs, qs] + log
+        return log_ZSMC, [Xs, X_ancestors, log_Ws, fs, gs, qs] + log
 
     def sample_from_2_q(self, X_ancestor, y_t, sample_size):
         q1_mvn = self.q.get_mvn(X_ancestor)
@@ -183,7 +184,7 @@ class SMC:
 
         # sample multiple times to remove idx out of range
         idx = tf.ones((n_particles, batch_size), dtype=tf.int32) * n_particles
-        for _ in range(5):
+        for _ in range(3):
             if self.use_stop_gradient:
                 fixup_idx = tf.stop_gradient(categorical.sample(n_particles))  # (n_particles, batch_size)
             else:
@@ -218,9 +219,9 @@ class SMC:
                                                       denominator,
                                                       axis=1)
                 if self.use_stop_gradient:
-                    reweighted_log_Ws[t] = log_Ws[t] + tf.stop_gradient(reweight_factor)
+                    reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * tf.stop_gradient(reweight_factor)
                 else:
-                    reweighted_log_Ws[t] = log_Ws[t] + reweight_factor
+                    reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * reweight_factor
 
         return reweighted_log_Ws
 

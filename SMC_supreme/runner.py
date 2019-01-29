@@ -228,7 +228,7 @@ def main(_):
         x_0_val = tf.identity(x_0, name="x_0_val")
     obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
     hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
-    smoothing_perc = tf.placeholder(tf.float32, shape=(1), name="hidden")
+    smoothing_perc = tf.placeholder(tf.float32, name="smoothing_perc")
 
     # transformations
     # f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
