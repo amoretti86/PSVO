@@ -40,6 +40,8 @@ class SMC:
             batch_size, Dx = self.q.output_0.get_shape().as_list()
             n_particles = self.n_particles
 
+            self.n_particles, self.batch_size, self.time, self.Dx, self.Dy = n_particles, batch_size, time, Dx, Dy
+
             X_prevs = []
             X_ancestors = []
             log_Ws = []
@@ -126,7 +128,7 @@ class SMC:
 
                 Xs = []
                 for t in range(time):
-                    smoothing_idx = self.get_resample_idx(reweighted_log_Ws[t])
+                    smoothing_idx = self.get_resample_idx(reweighted_log_Ws[t], t)
                     smoothed_X_t = tf.gather_nd(X_prevs[t], smoothing_idx)
                     Xs.append(smoothed_X_t)
 
@@ -138,12 +140,14 @@ class SMC:
                 Xs = X_ancestors
                 log = []
 
+            Xs = tf.stack(Xs)
             log_Ws = tf.stack(log_Ws)
             qs = tf.stack(qs)
             fs = tf.stack(fs)
             gs = tf.stack(gs)
 
             # (batch_size, time, n_particles, Dx)
+            Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")
             log_Ws = tf.transpose(log_Ws, perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
             qs = tf.transpose(qs, perm=[2, 0, 1], name="qs")                # (batch_size, time, n_particles)
             fs = tf.transpose(fs, perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
@@ -175,7 +179,7 @@ class SMC:
         return X, q_t_log_prob, f_t_log_prob
 
     def get_resample_idx(self, log_W, t):
-        n_particles, batch_size = log_W.get_shape().as_list()
+        n_particles, batch_size = self.n_particles, self.batch_size
 
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0), name="log_W_max")
         log_W = tf.transpose(log_W - log_W_max)

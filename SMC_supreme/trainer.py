@@ -140,7 +140,8 @@ class trainer:
             batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
                                                                       {self.obs: obs_set[i:i + batch_size],
                                                                        self.x_0: x_0_feed,
-                                                                       self.hidden: hidden_set[i:i + batch_size]})
+                                                                       self.hidden: hidden_set[i:i + batch_size],
+                                                                       self.smoothing_perc: np.ones(batch_size)})
             # batch_MSE_ks.shape = (n_steps + 1)
             # batch_y_means.shape = (n_steps + 1, Dy)
             # batch_y_vars.shape = (n_steps + 1, Dy)
@@ -251,7 +252,6 @@ class trainer:
             start = time.time()
 
             smoothing_perc_epoch = 1 - (1 - i / self.epoch) ** self.smoothing_perc_factor
-            smoothing_perc_epoch = 1
             # self.lr = (self.start_lr - i/self.epoch*(self.lr - self.end_lr))
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)

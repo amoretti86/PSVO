@@ -350,10 +350,12 @@ def main(_):
 
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_test[0:saving_num],
                                          x_0: x_0_feed[0:saving_num],
-                                         hidden: hidden_test[0:saving_num]})
+                                         hidden: hidden_test[0:saving_num],
+                                         smoothing_perc: np.ones(saving_num)})
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_test[0:saving_num],
                                                  x_0: x_0_feed[0:saving_num],
-                                                 hidden: hidden_test[0:saving_num]})
+                                                 hidden: hidden_test[0:saving_num],
+                                                 smoothing_perc: np.ones(saving_num)})
 
         print("finish evaluating training results")
 
