@@ -79,7 +79,7 @@ class tf_mvn(distribution):
                     assert len(mu) == 2, "output of {} should contain 2 elements".format(self.transformation.name)
                     mu, sigma = mu
 
-            sigma = self.get_sigma(mu, sigma)
+            sigma = self.get_sigma(mu, sigma) + sigma or tf.zeros_like(mu)
 
             mvn = tfd.MultivariateNormalDiag(mu, sigma,
                                              validate_args=True,
@@ -87,14 +87,13 @@ class tf_mvn(distribution):
             return mvn
 
     def get_sigma(self, mu, sigma=None):
-        if sigma is None:
-            Dout = mu.shape.as_list()[-1]
-            sigma = tf.get_variable("sigma",
-                                    shape=[Dout],
-                                    dtype=tf.float32,
-                                    initializer=tf.constant_initializer(self.sigma_init),
-                                    trainable=True)
-            sigma = tf.nn.softplus(sigma)
+        Dout = mu.shape.as_list()[-1]
+        sigma = tf.get_variable("sigma",
+                                shape=[Dout],
+                                dtype=tf.float32,
+                                initializer=tf.constant_initializer(self.sigma_init),
+                                trainable=True)
+        sigma = tf.nn.softplus(sigma)
 
         sigma = tf.where(tf.is_nan(sigma), tf.zeros_like(sigma), sigma)
         sigma = tf.maximum(sigma, self.sigma_min)
