@@ -57,13 +57,15 @@ class tf_mvn(distribution):
             sigma_con = tf.maximum(sigma_con, self.sigma_min)
 
             if sigma is None:
-                sigma = tf.diag(sigma_con)
+                mvn = tfd.MultivariateNormalDiag(mu, sigma_con,
+                                                 validate_args=True,
+                                                 allow_nan_stats=False)
             else:
                 sigma = tf.diag(sigma_con) + 0.1 * tf.matmul(sigma, sigma, transpose_b=True)
+                mvn = tfd.MultivariateNormalFullCovariance(mu, sigma,
+                                                           validate_args=True,
+                                                           allow_nan_stats=False)
 
-            mvn = tfd.MultivariateNormalFullCovariance(mu, sigma,
-                                                       validate_args=True,
-                                                       allow_nan_stats=False)
             return mvn
 
     def sample_and_log_prob(self, Input, sample_shape=(), name=None):
