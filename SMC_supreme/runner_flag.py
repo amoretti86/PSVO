@@ -18,16 +18,16 @@ print("\ttensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 3
 Dy = 1
-n_particles = 500
+n_particles = 3
 
 batch_size = 1
 lr = 1e-3
-epoch = 300
+epoch = 5
 seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = False
+generateTrainingData = True
 
 # if reading data from file
 datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
@@ -37,9 +37,9 @@ datadict = "datadict"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
-time = 200
-n_train = 200 * batch_size
-n_test = 40 * batch_size
+time = 3
+n_train = 2 * batch_size
+n_test = 2 * batch_size
 
 # --------------------- model parameters --------------------- #
 # network architectures
@@ -79,7 +79,7 @@ smoothing = True
 use_residual = False
 
 # if q, f and g networks also output covariance (sigma)
-output_cov = False
+output_cov = True
 
 # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
 # if True, use_bootstrap will be overwritten as True

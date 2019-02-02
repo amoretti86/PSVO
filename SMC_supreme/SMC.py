@@ -159,19 +159,44 @@ class SMC:
         q1_mvn = self.q.get_mvn(X_ancestor)
         q2_mvn = self.q2.get_mvn(y_t)
 
-        assert isinstance(q1_mvn, tfd.MultivariateNormalDiag) and isinstance(q2_mvn, tfd.MultivariateNormalDiag)
+        if isinstance(q1_mvn, tfd.MultivariateNormalDiag) and isinstance(q2_mvn, tfd.MultivariateNormalDiag):
+            q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), q1_mvn.stddev()
+            q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), q2_mvn.stddev()
 
-        q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), q1_mvn.stddev()
-        q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), q2_mvn.stddev()
+            q1_mvn_cov_inv, q2_mvn_cov_inv = 1 / q1_mvn_cov, 1 / q2_mvn_cov
+            combined_cov = 1 / (q1_mvn_cov_inv + q2_mvn_cov_inv)
+            combined_mean = combined_cov * (q1_mvn_cov_inv * q1_mvn_mean + q2_mvn_cov_inv * q2_mvn_mean)
 
-        q1_mvn_cov_inv, q2_mvn_cov_inv = 1 / q1_mvn_cov, 1 / q2_mvn_cov
-        combined_cov = 1 / (q1_mvn_cov_inv + q2_mvn_cov_inv)
-        combined_mean = combined_cov * (q1_mvn_cov_inv * q1_mvn_mean + q2_mvn_cov_inv * q2_mvn_mean)
+            mvn = tfd.MultivariateNormalDiag(combined_mean,
+                                             combined_cov,
+                                             validate_args=True,
+                                             allow_nan_stats=False)
+        else:
+            if isinstance(q1_mvn, tfd.MultivariateNormalDiag):
+                q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), tf.diag(q1_mvn.stddev())
+            else:
+                q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), q1_mvn.covariance()
+            if isinstance(q2_mvn, tfd.MultivariateNormalDiag):
+                q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), tf.diag(q2_mvn.stddev())
+            else:
+                q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), q2_mvn.covariance()
 
-        mvn = tfd.MultivariateNormalDiag(combined_mean,
-                                         combined_cov,
-                                         validate_args=True,
-                                         allow_nan_stats=False)
+            if len(q1_mvn_cov.shape.as_list()) == 2:
+                q1_mvn_cov = tf.expand_dims(q1_mvn_cov, axis=0)
+
+            q1_mvn_cov_inv, q2_mvn_cov_inv = tf.linalg.inv(q1_mvn_cov), tf.linalg.inv(q2_mvn_cov)
+            combined_cov = tf.linalg.inv(q1_mvn_cov_inv + q2_mvn_cov_inv)
+            combined_mean = tf.matmul(combined_cov,
+                                      tf.matmul(q1_mvn_cov_inv, tf.expand_dims(q1_mvn_mean, axis=-1)) +
+                                      tf.matmul(q2_mvn_cov_inv, tf.expand_dims(q2_mvn_mean, axis=-1))
+                                      )
+            combined_mean = tf.squeeze(combined_mean, axis=-1)
+
+            mvn = tfd.MultivariateNormalFullCovariance(combined_mean,
+                                                       combined_cov,
+                                                       validate_args=True,
+                                                       allow_nan_stats=False)
+
         X = mvn.sample(sample_size)
         q_t_log_prob = mvn.log_prob(X)
         f_t_log_prob = q1_mvn.log_prob(X)

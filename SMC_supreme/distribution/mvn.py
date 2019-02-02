@@ -35,7 +35,7 @@ class tf_mvn(distribution):
 
     def get_mvn(self, Input=None):
         with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE):
-            sigma_from_t = None
+            sigma = None
 
             if Input is None:
                 assert self.output_0 is not None, "output_0 is not initialized for {}!".format(self.name)
@@ -44,24 +44,26 @@ class tf_mvn(distribution):
                 mu = self.transformation.transform(Input)
                 if isinstance(mu, tuple):
                     assert len(mu) == 2, "output of {} should contain 2 elements".format(self.transformation.name)
-                    mu, sigma_from_t = mu
+                    mu, sigma = mu
 
             Dout = mu.shape.as_list()[-1]
-            sigma = tf.get_variable("sigma",
-                                    shape=[Dout],
-                                    dtype=tf.float32,
-                                    initializer=tf.constant_initializer(self.sigma_init),
-                                    trainable=True)
-            sigma = tf.nn.softplus(sigma)
+            sigma_con = tf.get_variable("sigma_con",
+                                        shape=[Dout],
+                                        dtype=tf.float32,
+                                        initializer=tf.constant_initializer(self.sigma_init),
+                                        trainable=True)
+            sigma_con = tf.nn.softplus(sigma_con)
+            sigma_con = tf.where(tf.is_nan(sigma_con), tf.zeros_like(sigma_con), sigma_con)
+            sigma_con = tf.maximum(sigma_con, self.sigma_min)
 
-            sigma = tf.where(tf.is_nan(sigma), tf.zeros_like(sigma), sigma)
-            sigma = tf.maximum(sigma, self.sigma_min)
-            if sigma_from_t is not None:
-                sigma += sigma_from_t
+            if sigma is None:
+                sigma = tf.diag(sigma_con)
+            else:
+                sigma = tf.diag(sigma_con) + 0.1 * tf.matmul(sigma, sigma, transpose_b=True)
 
-            mvn = tfd.MultivariateNormalDiag(mu, sigma,
-                                             validate_args=True,
-                                             allow_nan_stats=False)
+            mvn = tfd.MultivariateNormalFullCovariance(mu, sigma,
+                                                       validate_args=True,
+                                                       allow_nan_stats=False)
             return mvn
 
     def sample_and_log_prob(self, Input, sample_shape=(), name=None):
