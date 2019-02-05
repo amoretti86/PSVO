@@ -22,12 +22,12 @@ n_particles = 3
 
 batch_size = 1
 lr = 1e-3
-epoch = 5
+epoch = 300
 seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = True
+generateTrainingData = False
 
 # if reading data from file
 datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
@@ -37,9 +37,9 @@ datadict = "datadict"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
-time = 3
-n_train = 2 * batch_size
-n_test = 2 * batch_size
+time = 200
+n_train = 200 * batch_size
+n_test = 40 * batch_size
 
 # --------------------- model parameters --------------------- #
 # network architectures
@@ -52,6 +52,8 @@ q_sigma_init, q_sigma_min = 5, 1
 f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
 q2_sigma_init, q2_sigma_min = 5, 1
+
+lstm_Dh = 10
 
 # do q and f use the same network?
 use_bootstrap = True
@@ -90,6 +92,10 @@ use_2_q = True
 use_stop_gradient = True
 
 smoothing_perc_factor = 0
+
+
+get_X0_w_bRNN = True
+smooth_y_w_bRNN = True
 
 # --------------------- printing and data saving params --------------------- #
 print_freq = 5
@@ -156,6 +162,7 @@ flags.DEFINE_string("g_train_layers", g_train_layers, "architecture for g networ
                                                       "for example: '50,50' ")
 flags.DEFINE_string("q2_train_layers", q2_train_layers, "architecture for q2 network, int seperated by comma, "
                                                         "for example: '50,50' ")
+flags.DEFINE_integer("lstm_Dh", lstm_Dh, "hidden state dimension for bidirectional LSTM")
 
 flags.DEFINE_float("q_sigma_init", q_sigma_init, "initial value of q_sigma")
 flags.DEFINE_float("f_sigma_init", f_sigma_init, "initial value of f_sigma")
@@ -188,6 +195,9 @@ flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "if smoothing use s
 flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
                    "determine how the percentage of smoothing loss in the total loss changes with epoch num"
                    "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")
+
+flags.DEFINE_boolean("get_X0_w_bRNN", get_X0_w_bRNN, "if learn X0 from obs with a bidirectional RNN")
+flags.DEFINE_boolean("smooth_y_w_bRNN", smooth_y_w_bRNN, "if encode obs with a bidirectional RNN")
 
 # --------------------- printing and data saving params --------------------- #
 

@@ -69,6 +69,8 @@ def main(_):
     g_sigma_init, g_sigma_min = FLAGS.f_sigma_init, FLAGS.g_sigma_min
     q2_sigma_init, q2_sigma_min = FLAGS.q2_sigma_init, FLAGS.q2_sigma_min
 
+    lstm_Dh = FLAGS.lstm_Dh
+
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
 
@@ -106,6 +108,9 @@ def main(_):
     use_stop_gradient = FLAGS.use_stop_gradient
 
     smoothing_perc_factor = FLAGS.smoothing_perc_factor
+
+    get_X0_w_bRNN = FLAGS.get_X0_w_bRNN
+    smooth_y_w_bRNN = FLAGS.smooth_y_w_bRNN
 
     # --------------------- printing and data saving params --------------------- #
     print_freq = FLAGS.print_freq
@@ -277,12 +282,22 @@ def main(_):
                               sigma_min=f_sigma_min,
                               name="f_train_dist")
 
+    if get_X0_w_bRNN or smooth_y_w_bRNN:
+        forward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="forward_RNN")
+        backward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="backward_RNN")
+        bRNN = (forward_RNN, backward_RNN)
+    else:
+        bRNN = None
+
     SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
                     n_particles,
                     q2_train_dist,
                     smoothing=smoothing,
                     q_takes_y=q_takes_y,
                     q_uses_true_X=q_uses_true_X,
+                    bRNN=bRNN,
+                    get_X0_w_bRNN=get_X0_w_bRNN,
+                    smooth_y_w_bRNN=smooth_y_w_bRNN,
                     smoothing_perc=smoothing_perc,
                     use_stop_gradient=use_stop_gradient,
                     name="log_ZSMC_train")

@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
+from tensorflow.contrib.layers import fully_connected, xavier_initializer
 
 
 class SMC:
@@ -9,6 +10,9 @@ class SMC:
                  smoothing=False,
                  q_takes_y=True,
                  q_uses_true_X=False,
+                 bRNN=None,
+                 get_X0_w_bRNN=False,
+                 smooth_y_w_bRNN=False,
                  use_stop_gradient=False,
                  smoothing_perc=1.0,
                  name="log_ZSMC"):
@@ -22,6 +26,14 @@ class SMC:
         self.smoothing = smoothing
         self.q_takes_y = q_takes_y
         self.q_uses_true_X = q_uses_true_X
+
+        if bRNN is not None:
+            self.forward_RNN, self.backward_RNN = bRNN
+            self.get_X0_w_bRNN = get_X0_w_bRNN
+            self.smooth_y_w_bRNN = smooth_y_w_bRNN
+        else:
+            self.get_X0_w_bRNN = self.smooth_y_w_bRNN = False
+
         self.use_stop_gradient = use_stop_gradient
 
         self.smoothing_perc = smoothing_perc
@@ -55,6 +67,9 @@ class SMC:
             X_prev = None
             resample_idx = None
 
+            if self.smooth_y_w_bRNN or self.get_X0_w_bRNN:
+                X_ancestor, encoded_obs = self.encode_y(obs)
+
             for t in range(0, time):
                 # when t = 1, sample with x_0
                 # otherwise, sample with X_ancestor
@@ -65,9 +80,9 @@ class SMC:
 
                 if self.q_takes_y:
                     if t == 0:
-                        q_t_Input = tf.concat([self.q.output_0, obs[:, 0]], axis=-1)
+                        q_t_Input = tf.concat([X_ancestor or self.q.output_0, encoded_obs[0]], axis=-1)
                     else:
-                        y_t_expanded = tf.tile(tf.expand_dims(obs[:, t], axis=0), (n_particles, 1, 1))
+                        y_t_expanded = tf.tile(tf.expand_dims(encoded_obs[t], axis=0), (n_particles, 1, 1))
                         q_t_Input = tf.concat([X_ancestor, y_t_expanded], axis=-1)
                 else:
                     q_t_Input = X_ancestor
@@ -82,7 +97,7 @@ class SMC:
                         X, q_t_log_prob = self.q.sample_and_log_prob(q_t_Input, sample_shape=sample_size,
                                                                      name="q_{}_sample_and_log_prob".format(t))
                     else:
-                        X, q_t_log_prob, f_t_log_prob = self.sample_from_2_q(X_ancestor, obs[:, t], sample_size)
+                        X, q_t_log_prob, f_t_log_prob = self.sample_from_2_q(X_ancestor, encoded_obs[t], sample_size)
 
                 if self.smoothing and t != 0:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
@@ -266,6 +281,34 @@ class SMC:
         log_ZSMC -= tf.log(tf.constant(n_particles, dtype=tf.float32)) * time * batch_size
 
         return log_ZSMC
+
+    def encode_y(self, obs):
+        f_obs_list = tf.unstack(obs, axis=1)
+        b_obs_list = list(reversed(f_obs_list))
+
+        f_outputs, f_last_state = tf.nn.static_rnn(self.forward_RNN, f_obs_list, dtype=tf.float32)
+        b_outputs, b_last_state = tf.nn.static_rnn(self.backward_RNN, b_obs_list, dtype=tf.float32)
+
+        f_last_h, b_last_h = f_last_state[1], b_last_state[1]
+
+        if self.get_X0_w_bRNN:
+            X0 = fully_connected(tf.concat((f_last_h, b_last_h), axis=1),
+                                 self.Dx,
+                                 weights_initializer=xavier_initializer(uniform=False),
+                                 biases_initializer=tf.constant_initializer(0),
+                                 activation_fn=None,
+                                 reuse=tf.AUTO_REUSE, scope="get_X0_w_bRNN")
+            print(X0.shape.as_list())
+        else:
+            X0 = None
+
+        if self.smooth_y_w_bRNN:
+            encoded_obs_list = [tf.concat((f_output, b_output), axis=-1)
+                                for f_output, b_output in zip(f_outputs, b_outputs)]
+        else:
+            encoded_obs_list = tf.unstack(obs, axis=1)
+
+        return X0, encoded_obs_list
 
     def n_step_MSE(self, n_steps, hidden, obs):
         # Compute MSE_k for k = 0, ..., n_steps
