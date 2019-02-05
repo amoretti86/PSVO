@@ -94,8 +94,8 @@ use_stop_gradient = True
 smoothing_perc_factor = 0
 
 
-get_X0_w_bRNN = True
-smooth_y_w_bRNN = True
+get_X0_w_bRNN = False
+smooth_y_w_bRNN = False
 
 # --------------------- printing and data saving params --------------------- #
 print_freq = 5

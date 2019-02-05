@@ -69,6 +69,8 @@ class SMC:
 
             if self.smooth_y_w_bRNN or self.get_X0_w_bRNN:
                 X_ancestor, encoded_obs = self.encode_y(obs)
+            else:
+                encoded_obs = tf.unstack(obs, axis=1)
 
             for t in range(0, time):
                 # when t = 1, sample with x_0
