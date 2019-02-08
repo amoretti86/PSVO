@@ -87,7 +87,7 @@ class trainer:
             return self.sess.run(fetches)
 
         n_batches = len(list(feed_dict_w_batches.values())[0])
-        assert n_batches % self.batch_size == 0
+        assert n_batches >= self.batch_size
 
         fetches_list = []
         feed_dict = {}
@@ -334,7 +334,7 @@ class trainer:
                     if self.Dx == 2:
                         self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
                     elif self.Dx == 3:
-                        self.draw_3D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
+                        self.draw_3D_quiver_plot(Xs_val, i + 1)
 
                 # determine whether should stop training
                 cost = np.array(log_ZSMC_tests) - self.beta * np.array([x[0] for x in MSE_tests])
@@ -411,7 +411,7 @@ class trainer:
         Xlattice = np.stack(np.meshgrid(x1coords, x2coords), axis=-1)
         return Xlattice
 
-    def draw_3D_quiver_plot(self, Xs_val, nextX, lattice, epoch):
+    def draw_3D_quiver_plot(self, Xs_val, epoch):
         # Xs_val.shape = (saving_num, time, n_particles, Dx)
         X_trajs = np.mean(Xs_val, axis=2)
 

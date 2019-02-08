@@ -346,6 +346,8 @@ def main(_):
             lattice = tf.placeholder(tf.float32, shape=lattice_shape, name="lattice")
             nextX = SMC_train.get_nextX(lattice)
             mytrainer.set_quiver_arg(nextX, lattice, quiver_traj_num, lattice_shape)
+        elif Dx == 3:
+            mytrainer.draw_quiver_during_training = True
 
     losses, tensors = mytrainer.train(obs_train, obs_test, print_freq, hidden_train, hidden_test)
 
