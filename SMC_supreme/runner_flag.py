@@ -16,9 +16,10 @@ print("\ttensorflow_probability version:", tfp.__version__)
 
 
 # --------------------- training hyperparameters --------------------- #
-Dx = 3
+Dx = 2
 Dy = 1
-n_particles = 3
+Di = 1
+n_particles = 64
 
 batch_size = 1
 lr = 1e-3
@@ -30,7 +31,7 @@ seed = 0
 generateTrainingData = False
 
 # if reading data from file
-datadir = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
+datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/fhn/[1,0]_obs_cov_0.1/"
 # "C:/Users/admin/Desktop/research/code/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
@@ -58,15 +59,8 @@ lstm_Dh = 10
 # do q and f use the same network?
 use_bootstrap = True
 
-# if q takes y_t as input
-# if use_bootstrap, q_takes_y will be overwritten as False
-q_takes_y = False
-
 # should q use true_X to sample? (useful for debugging)
 q_uses_true_X = False
-
-# term to weight the added contribution of the MSE to the cost
-loss_beta = 0.0
 
 # stop training early if validation set does not improve
 maxNumberNoImprovement = 5
@@ -81,7 +75,7 @@ smoothing = True
 use_residual = False
 
 # if q, f and g networks also output covariance (sigma)
-output_cov = True
+output_cov = False
 
 # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
 # if True, use_bootstrap will be overwritten as True
@@ -89,13 +83,18 @@ output_cov = True
 #          q_uses_true_X as False
 use_2_q = True
 
+# whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
 use_stop_gradient = True
 
+# how fast the model transfers from filtering to smoothing
 smoothing_perc_factor = 0
 
-
+# whether use birdectional RNN to get X0 and encode observation
 get_X0_w_bRNN = False
 smooth_y_w_bRNN = False
+
+# whether use input in q and f
+use_input = False
 
 # --------------------- printing and data saving params --------------------- #
 print_freq = 5
@@ -106,7 +105,7 @@ MSE_steps = 10
 
 # how many trajectories to draw in quiver plot
 quiver_traj_num = min(5, n_train, n_test)
-lattice_shape = [10, 10, 3]  # [25, 25] or [10, 10, 3]
+lattice_shape = [25, 25]  # [25, 25] or [10, 10, 3]
 
 saving_num = 40
 
@@ -129,6 +128,7 @@ flags = tf.app.flags
 # --------------------- training hyperparameters --------------------- #
 flags.DEFINE_integer("Dx", Dx, "dimension of hidden states")
 flags.DEFINE_integer("Dy", Dy, "dimension of observations")
+flags.DEFINE_integer("Di", Di, "dimension of inputs")
 
 flags.DEFINE_integer("n_particles", n_particles, "number of particles")
 flags.DEFINE_integer("batch_size", batch_size, "batch_size")
@@ -175,29 +175,30 @@ flags.DEFINE_float("g_sigma_min", g_sigma_min, "minimal value of g_sigma")
 flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 
 flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether use f and q are the same")
-flags.DEFINE_boolean("q_takes_y", q_takes_y, "whether input of q stack y")
 flags.DEFINE_boolean("q_uses_true_X", q_uses_true_X, "whether q uses true hidden states to sample")
 
-flags.DEFINE_float("loss_beta", loss_beta, "loss = log_ZSMC + loss_beta * MSE_0_step")
 flags.DEFINE_integer("maxNumberNoImprovement", maxNumberNoImprovement,
                      "stop training early if validation set does not improve for certain epochs")
 
-flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "if x0 is learnable or takes ground truth")
-flags.DEFINE_boolean("smoothing", smoothing, "is filtering or smoothing?")
-flags.DEFINE_boolean("use_residual", use_residual, "if f and q use residual network")
-flags.DEFINE_boolean("output_cov", output_cov, "if q, f and g networks also output covariance (sigma)")
-flags.DEFINE_boolean("use_2_q", use_2_q, "if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t), "
+flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "whether x0 is learnable or takes ground truth")
+flags.DEFINE_boolean("smoothing", smoothing, "whether filtering or smoothing")
+flags.DEFINE_boolean("use_residual", use_residual, "whether f and q use residual network")
+flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
+flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t), "
                                          "if True, use_bootstrap will be overwritten as True, "
                                          "q_takes_y as False, "
                                          "q_uses_true_X as False")
-flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "if smoothing use stop gradient for reweighting factors")
+flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "whether use tf.stop_gradient "
+                                                             "when resampling and reweighting weights during smoothing")
 
 flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
-                   "determine how the percentage of smoothing loss in the total loss changes with epoch num"
+                   "determine how the percentage of smoothing loss in the total loss changes with epoch num, "
                    "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")
 
-flags.DEFINE_boolean("get_X0_w_bRNN", get_X0_w_bRNN, "if learn X0 from obs with a bidirectional RNN")
-flags.DEFINE_boolean("smooth_y_w_bRNN", smooth_y_w_bRNN, "if encode obs with a bidirectional RNN")
+flags.DEFINE_boolean("get_X0_w_bRNN", get_X0_w_bRNN, "whether learn X0 from obs with a bidirectional RNN")
+flags.DEFINE_boolean("smooth_y_w_bRNN", smooth_y_w_bRNN, "whether encode obs with a bidirectional RNN")
+
+flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
 
 # --------------------- printing and data saving params --------------------- #
 

@@ -79,7 +79,8 @@ class tf_mvn(distribution):
                     assert len(mu) == 2, "output of {} should contain 2 elements".format(self.transformation.name)
                     mu, sigma = mu
 
-            sigma = self.get_sigma(mu, sigma) + sigma or tf.zeros_like(mu)
+            if sigma is None:
+                sigma = self.get_sigma(mu, sigma)
 
             mvn = tfd.MultivariateNormalDiag(mu, sigma,
                                              validate_args=True,

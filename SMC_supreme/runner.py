@@ -36,6 +36,7 @@ def main(_):
     # training hyperparameters
     Dx = FLAGS.Dx
     Dy = FLAGS.Dy
+    Di = FLAGS.Di
     n_particles = FLAGS.n_particles
 
     batch_size = FLAGS.batch_size
@@ -74,15 +75,8 @@ def main(_):
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
 
-    # if q takes y_t as input
-    # if use_bootstrap, q_takes_y will be overwritten as False
-    q_takes_y = FLAGS.q_takes_y
-
     # should q use true_X to sample? (useful for debugging)
     q_uses_true_X = FLAGS.q_uses_true_X
-
-    # term to weight the added contribution of the MSE to the cost
-    loss_beta = FLAGS.loss_beta
 
     # stop training early if validation set does not improve
     maxNumberNoImprovement = FLAGS.maxNumberNoImprovement
@@ -105,12 +99,18 @@ def main(_):
     #          q_uses_true_X as False
     use_2_q = FLAGS.use_2_q
 
+    # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
     use_stop_gradient = FLAGS.use_stop_gradient
 
+    # how fast the model transfers from filtering to smoothing
     smoothing_perc_factor = FLAGS.smoothing_perc_factor
 
+    # whether use birdectional RNN to get X0 and encode observation
     get_X0_w_bRNN = FLAGS.get_X0_w_bRNN
     smooth_y_w_bRNN = FLAGS.smooth_y_w_bRNN
+
+    # whether use input in q and f
+    use_input = FLAGS.use_input
 
     # --------------------- printing and data saving params --------------------- #
     print_freq = FLAGS.print_freq
@@ -215,6 +215,13 @@ def main(_):
             hidden_train = np.zeros((n_train, time, Dx))
             hidden_test = np.zeros((n_test, time, Dx))
 
+        if use_input and "Itrain" in data and "Ivalid" in data:
+            input_train = data["Itrain"]
+            input_test = data["Ivalid"]
+        else:
+            input_train = np.zeros((n_train, time, Di))
+            input_test = np.zeros((n_test, time, Di))
+
         # reliminate quiver_traj_num and saving_num to avoid they > n_train or n_test
         quiver_traj_num = min(quiver_traj_num, n_train, n_test)
         saving_num = min(saving_num, n_train, n_test)
@@ -233,6 +240,7 @@ def main(_):
         x_0_val = tf.identity(x_0, name="x_0_val")
     obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
     hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
+    Input = tf.placeholder(tf.float32, shape=(batch_size, time, Di), name="Input")
     smoothing_perc = tf.placeholder(tf.float32, name="smoothing_perc")
 
     # transformations
@@ -293,13 +301,13 @@ def main(_):
                     n_particles,
                     q2_train_dist,
                     smoothing=smoothing,
-                    q_takes_y=q_takes_y,
                     q_uses_true_X=q_uses_true_X,
                     bRNN=bRNN,
                     get_X0_w_bRNN=get_X0_w_bRNN,
                     smooth_y_w_bRNN=smooth_y_w_bRNN,
                     smoothing_perc=smoothing_perc,
                     use_stop_gradient=use_stop_gradient,
+                    use_input=use_input,
                     name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
@@ -332,13 +340,12 @@ def main(_):
                         n_particles, time,
                         batch_size, lr, epoch,
                         MSE_steps,
-                        loss_beta,
                         maxNumberNoImprovement,
                         x_0_learnable,
                         smoothing_perc_factor)
 
     mytrainer.set_SMC(SMC_train)
-    mytrainer.set_placeholders(x_0, obs, hidden, smoothing_perc)
+    mytrainer.set_placeholders(x_0, obs, hidden, Input, smoothing_perc)
 
     if store_res:
         mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num, save_tensorboard, save_model)
@@ -349,7 +356,10 @@ def main(_):
         elif Dx == 3:
             mytrainer.draw_quiver_during_training = True
 
-    losses, tensors = mytrainer.train(obs_train, obs_test, print_freq, hidden_train, hidden_test)
+    losses, tensors = mytrainer.train(obs_train, obs_test,
+                                      hidden_train, hidden_test,
+                                      input_train, input_test,
+                                      print_freq)
 
     # ======================================= another data saving part ======================================= #
     # _, R_square_trains, R_square_tests = losses
@@ -368,10 +378,12 @@ def main(_):
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_test[0:saving_num],
                                          x_0: x_0_feed[0:saving_num],
                                          hidden: hidden_test[0:saving_num],
+                                         Input: input_test[0:saving_num],
                                          smoothing_perc: np.ones(saving_num)})
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_test[0:saving_num],
                                                  x_0: x_0_feed[0:saving_num],
                                                  hidden: hidden_test[0:saving_num],
+                                                 Input: input_test[0:saving_num],
                                                  smoothing_perc: np.ones(saving_num)})
 
         print("finish evaluating training results")

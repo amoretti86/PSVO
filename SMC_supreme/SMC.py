@@ -8,12 +8,12 @@ class SMC:
                  n_particles,
                  q2=None,
                  smoothing=False,
-                 q_takes_y=True,
                  q_uses_true_X=False,
                  bRNN=None,
                  get_X0_w_bRNN=False,
                  smooth_y_w_bRNN=False,
                  use_stop_gradient=False,
+                 use_input=False,
                  smoothing_perc=1.0,
                  name="log_ZSMC"):
 
@@ -24,7 +24,6 @@ class SMC:
         self.n_particles = n_particles
 
         self.smoothing = smoothing
-        self.q_takes_y = q_takes_y
         self.q_uses_true_X = q_uses_true_X
 
         if bRNN is not None:
@@ -35,11 +34,12 @@ class SMC:
             self.get_X0_w_bRNN = self.smooth_y_w_bRNN = False
 
         self.use_stop_gradient = use_stop_gradient
+        self.use_input = use_input
 
         self.smoothing_perc = smoothing_perc
         self.name = name
 
-    def get_log_ZSMC(self, obs, hidden, q_cov=1):
+    def get_log_ZSMC(self, obs, hidden, Input, q_cov=1):
         """
         Input:
             obs.shape = (batch_size, time, Dy)
@@ -80,14 +80,14 @@ class SMC:
                 else:
                     sample_size = ()
 
-                if self.q_takes_y:
+                if self.use_input:
                     if t == 0:
-                        q_t_Input = tf.concat([X_ancestor or self.q.output_0, encoded_obs[0]], axis=-1)
+                        q_f_t_feed = tf.concat([X_ancestor or self.q.output_0, Input[:, 0, :]], axis=-1)
                     else:
-                        y_t_expanded = tf.tile(tf.expand_dims(encoded_obs[t], axis=0), (n_particles, 1, 1))
-                        q_t_Input = tf.concat([X_ancestor, y_t_expanded], axis=-1)
+                        Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
+                        q_f_t_feed = tf.concat([X_ancestor, Input_t_expanded], axis=-1)
                 else:
-                    q_t_Input = X_ancestor
+                    q_f_t_feed = X_ancestor
 
                 if self.q_uses_true_X:
                     mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov * tf.eye(Dx),
@@ -96,20 +96,27 @@ class SMC:
                     q_t_log_prob = mvn.log_prob(X)
                 else:
                     if self.q2 is None:
-                        X, q_t_log_prob = self.q.sample_and_log_prob(q_t_Input, sample_shape=sample_size,
+                        X, q_t_log_prob = self.q.sample_and_log_prob(q_f_t_feed, sample_shape=sample_size,
                                                                      name="q_{}_sample_and_log_prob".format(t))
                     else:
-                        X, q_t_log_prob, f_t_log_prob = self.sample_from_2_q(X_ancestor, encoded_obs[t], sample_size)
+                        X, q_t_log_prob, f_t_log_prob = self.sample_from_2_q(q_f_t_feed, encoded_obs[t], sample_size)
 
                 if self.smoothing and t != 0:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
-                    f_t_all_log_prob = self.f.log_prob(X_prev, X_tile, name="f_{}_all_log_prob".format(t))
+
+                    if self.use_input:
+                        Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
+                        f_t_all_feed = tf.concat([X_prev, Input_t_expanded], axis=-1)
+                    else:
+                        f_t_all_feed = X_prev
+
+                    f_t_all_log_prob = self.f.log_prob(f_t_all_feed, X_tile, name="f_{}_all_log_prob".format(t))
                     all_fs.append(f_t_all_log_prob)
 
-                    f_t_log_prob = self.f.log_prob(X_ancestor, X, name="f_{}_log_prob".format(t))
+                    f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(t))
 
                 elif self.q2 is None:
-                    f_t_log_prob = self.f.log_prob(X_ancestor, X, name="f_{}_log_prob".format(t))
+                    f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(t))
                 else:
                     # if q uses 2 networks, f_t_log_prob is already calculated above
                     pass
@@ -172,8 +179,8 @@ class SMC:
 
         return log_ZSMC, [Xs, X_ancestors, log_Ws, fs, gs, qs] + log
 
-    def sample_from_2_q(self, X_ancestor, y_t, sample_size):
-        q1_mvn = self.q.get_mvn(X_ancestor)
+    def sample_from_2_q(self, q_f_t_feed, y_t, sample_size):
+        q1_mvn = self.q.get_mvn(q_f_t_feed)
         q2_mvn = self.q2.get_mvn(y_t)
 
         if isinstance(q1_mvn, tfd.MultivariateNormalDiag) and isinstance(q2_mvn, tfd.MultivariateNormalDiag):
@@ -312,11 +319,13 @@ class SMC:
 
         return X0, encoded_obs_list
 
-    def n_step_MSE(self, n_steps, hidden, obs):
+    def n_step_MSE(self, n_steps, hidden, obs, Input):
         # Compute MSE_k for k = 0, ..., n_steps
         batch_size, time, _, Dx = hidden.shape.as_list()
-        batch_size, time, Dy = obs.shape.as_list()
+        _, _, Dy = obs.shape.as_list()
+        _, _, Di = Input.shape.as_list()
         assert n_steps < time, "n_steps = {} >= time".format(n_steps)
+
         with tf.variable_scope(self.name):
 
             hidden = tf.reduce_mean(hidden, axis=2)
@@ -331,7 +340,11 @@ class SMC:
 
                 x_Tmk_BxDz = tf.unstack(x_BxTmkxDz, axis=1, name="x_Tmk_BxDz")      # list of (batch_size, Dx)
                 x_BxTmkxDz = tf.stack(x_Tmk_BxDz[:-1], axis=1, name="x_BxTmkxDz")   # (batch_size, time - k - 1, Dx)
-                x_BxTmkxDz = self.f.mean(x_BxTmkxDz)                                # (batch_size, time - k - 1, Dx)
+                if self.use_input:
+                    f_k_input = tf.concat((x_BxTmkxDz, Input[:, :-(k + 1), :]), axis=-1)
+                else:
+                    f_k_input = x_BxTmkxDz
+                x_BxTmkxDz = self.f.mean(f_k_input)                                # (batch_size, time - k - 1, Dx)
 
             y_hat_BxTmNxDy = self.g.mean(x_BxTmkxDz)                                # (batch_size, time - N, Dy)
             y_hat_N_BxTxDy.append(y_hat_BxTmNxDy)
@@ -363,5 +376,7 @@ class SMC:
             return MSE_ks, y_means, y_vars, y_hat_N_BxTxDy
 
     def get_nextX(self, X):
+        if self.use_input:
+            return None
         with tf.variable_scope(self.name):
             return self.f.mean(X)
