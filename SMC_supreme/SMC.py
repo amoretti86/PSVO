@@ -82,7 +82,9 @@ class SMC:
 
                 if self.use_input:
                     if t == 0:
-                        q_f_t_feed = tf.concat([X_ancestor or self.q.output_0, Input[:, 0, :]], axis=-1)
+                        if X_ancestor is None:
+                            X_ancestor = self.q.output_0
+                        q_f_t_feed = tf.concat([X_ancestor, Input[:, 0, :]], axis=-1)
                     else:
                         Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
                         q_f_t_feed = tf.concat([X_ancestor, Input_t_expanded], axis=-1)
