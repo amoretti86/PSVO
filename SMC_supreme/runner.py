@@ -71,6 +71,7 @@ def main(_):
     q2_sigma_init, q2_sigma_min = FLAGS.q2_sigma_init, FLAGS.q2_sigma_min
 
     lstm_Dh = FLAGS.lstm_Dh
+    X0_layers = [int(x) for x in FLAGS.X0_layers.split(",")]
 
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
@@ -179,6 +180,8 @@ def main(_):
         # Create train and test dataset
         hidden_train, obs_train, hidden_test, obs_test = \
             create_dataset(n_train, n_test, time, Dx, Dy, f_sample_dist, g_sample_dist, lb=-2.5, ub=2.5)
+        input_train = np.zeros((n_train, time, Di))
+        input_test = np.zeros((n_test, time, Di))
         print("finished creating dataset")
 
     else:
@@ -215,9 +218,9 @@ def main(_):
             hidden_train = np.zeros((n_train, time, Dx))
             hidden_test = np.zeros((n_test, time, Dx))
 
-        if use_input and "Itrain" in data and "Ivalid" in data:
+        if use_input and "Itrain" in data and "Itest" in data:
             input_train = data["Itrain"]
-            input_test = data["Ivalid"]
+            input_test = data["Itest"]
         else:
             input_train = np.zeros((n_train, time, Di))
             input_test = np.zeros((n_test, time, Di))
@@ -305,6 +308,7 @@ def main(_):
                     bRNN=bRNN,
                     get_X0_w_bRNN=get_X0_w_bRNN,
                     smooth_y_w_bRNN=smooth_y_w_bRNN,
+                    X0_layers=X0_layers,
                     smoothing_perc=smoothing_perc,
                     use_stop_gradient=use_stop_gradient,
                     use_input=use_input,

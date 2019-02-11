@@ -16,7 +16,7 @@ print("\ttensorflow_probability version:", tfp.__version__)
 
 
 # --------------------- training hyperparameters --------------------- #
-Dx = 2
+Dx = 3
 Dy = 1
 Di = 1
 n_particles = 64
@@ -55,6 +55,7 @@ g_sigma_init, g_sigma_min = 5, 1
 q2_sigma_init, q2_sigma_min = 5, 1
 
 lstm_Dh = 10
+X0_layers = [10]
 
 # do q and f use the same network?
 use_bootstrap = True
@@ -69,7 +70,7 @@ maxNumberNoImprovement = 5
 x_0_learnable = False
 
 # filtering or smoothing
-smoothing = True
+smoothing = False
 
 # if f and q use residual
 use_residual = False
@@ -84,14 +85,14 @@ output_cov = False
 use_2_q = True
 
 # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
-use_stop_gradient = True
+use_stop_gradient = False
 
 # how fast the model transfers from filtering to smoothing
 smoothing_perc_factor = 0
 
 # whether use birdectional RNN to get X0 and encode observation
-get_X0_w_bRNN = False
-smooth_y_w_bRNN = False
+get_X0_w_bRNN = True
+smooth_y_w_bRNN = True
 
 # whether use input in q and f
 use_input = False
@@ -117,6 +118,7 @@ q_train_layers = ",".join([str(x) for x in q_train_layers])
 f_train_layers = ",".join([str(x) for x in f_train_layers])
 g_train_layers = ",".join([str(x) for x in g_train_layers])
 q2_train_layers = ",".join([str(x) for x in q2_train_layers])
+X0_layers = ",".join([str(x) for x in X0_layers])
 lattice_shape = ",".join([str(x) for x in lattice_shape])
 
 
@@ -163,6 +165,8 @@ flags.DEFINE_string("g_train_layers", g_train_layers, "architecture for g networ
 flags.DEFINE_string("q2_train_layers", q2_train_layers, "architecture for q2 network, int seperated by comma, "
                                                         "for example: '50,50' ")
 flags.DEFINE_integer("lstm_Dh", lstm_Dh, "hidden state dimension for bidirectional LSTM")
+flags.DEFINE_string("X0_layers", X0_layers, "architecture for X0 network, int seperated by comma, "
+                                            "for example: '50,50' ")
 
 flags.DEFINE_float("q_sigma_init", q_sigma_init, "initial value of q_sigma")
 flags.DEFINE_float("f_sigma_init", f_sigma_init, "initial value of f_sigma")

@@ -12,6 +12,7 @@ class SMC:
                  bRNN=None,
                  get_X0_w_bRNN=False,
                  smooth_y_w_bRNN=False,
+                 X0_layers=[],
                  use_stop_gradient=False,
                  use_input=False,
                  smoothing_perc=1.0,
@@ -30,6 +31,7 @@ class SMC:
             self.forward_RNN, self.backward_RNN = bRNN
             self.get_X0_w_bRNN = get_X0_w_bRNN
             self.smooth_y_w_bRNN = smooth_y_w_bRNN
+            self.X0_layers = X0_layers
         else:
             self.get_X0_w_bRNN = self.smooth_y_w_bRNN = False
 
@@ -297,27 +299,34 @@ class SMC:
         f_obs_list = tf.unstack(obs, axis=1)
         b_obs_list = list(reversed(f_obs_list))
 
-        f_outputs, f_last_state = tf.nn.static_rnn(self.forward_RNN, f_obs_list, dtype=tf.float32)
-        b_outputs, b_last_state = tf.nn.static_rnn(self.backward_RNN, b_obs_list, dtype=tf.float32)
+        with tf.variable_scope("encode_y"):
 
-        f_last_h, b_last_h = f_last_state[1], b_last_state[1]
+            f_outputs, f_last_state = tf.nn.static_rnn(self.forward_RNN, f_obs_list, dtype=tf.float32)
+            b_outputs, b_last_state = tf.nn.static_rnn(self.backward_RNN, b_obs_list, dtype=tf.float32)
 
-        if self.get_X0_w_bRNN:
-            X0 = fully_connected(tf.concat((f_last_h, b_last_h), axis=1),
-                                 self.Dx,
-                                 weights_initializer=xavier_initializer(uniform=False),
-                                 biases_initializer=tf.constant_initializer(0),
-                                 activation_fn=None,
-                                 reuse=tf.AUTO_REUSE, scope="get_X0_w_bRNN")
-            print(X0.shape.as_list())
-        else:
-            X0 = None
+            f_last_h, b_last_h = f_last_state[1], b_last_state[1]
 
-        if self.smooth_y_w_bRNN:
-            encoded_obs_list = [tf.concat((f_output, b_output), axis=-1)
-                                for f_output, b_output in zip(f_outputs, b_outputs)]
-        else:
-            encoded_obs_list = tf.unstack(obs, axis=1)
+            if self.get_X0_w_bRNN:
+                hidden = tf.concat((f_last_h, b_last_h), axis=1)
+                for i, Dh in enumerate(self.X0_layers):
+                    hidden = fully_connected(hidden, Dh,
+                                             weights_initializer=xavier_initializer(uniform=False),
+                                             biases_initializer=tf.constant_initializer(0),
+                                             activation_fn=tf.nn.leaky_relu,
+                                             reuse=tf.AUTO_REUSE, scope="hidden_{}".format(i))
+                X0 = fully_connected(hidden, self.Dx,
+                                     weights_initializer=xavier_initializer(uniform=False),
+                                     biases_initializer=tf.constant_initializer(0),
+                                     activation_fn=None,
+                                     reuse=tf.AUTO_REUSE, scope="X0")
+            else:
+                X0 = None
+
+            if self.smooth_y_w_bRNN:
+                encoded_obs_list = [tf.concat((f_output, b_output), axis=-1)
+                                    for f_output, b_output in zip(f_outputs, b_outputs)]
+            else:
+                encoded_obs_list = tf.unstack(obs, axis=1)
 
         return X0, encoded_obs_list
 
