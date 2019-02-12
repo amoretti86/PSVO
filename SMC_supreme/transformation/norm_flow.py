@@ -459,3 +459,48 @@ class MultiLayerPlanarFlow(NormalizingFlow):
         n_flow = kwargs["n_flow"]
 
         return (num_layer, n_flow, 2 * dim + 1)
+
+
+class CondNormFlow(object):
+
+    def __init__(self, in_dim, out_dim, num_layer, mlp_hidden_units):
+        """Initializes the conditional distribution.
+
+        params:
+        -------
+        in_dim: int
+            Dimensionality of input variable that the distribution is
+            conditioned on.
+        out_dim: int
+            dimensionality of the output random variable.
+        num_layer: int
+            Number of layers for the normalizing flow.
+        mlp_hidden_units: list of int
+            Hidden units per layer of the MLP respectively.
+        """
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.num_nf_layer = num_layer
+        # MLP that indexes into the parameters of the normalizing flow.
+        nf_param_dim = (self.out_dim * 2 + 1) * self.num_nf_layer
+        self.nf_param_mlp = MultiLayerPerceptron(
+                in_dim=self.in_dim, out_dim=nf_param_dim,
+                hidden_units=mlp_hidden_units)
+
+    def sample_log_prob(self, sample_shape, input_tensor):
+        """Samples from the conditional distribtion conditioned on given input.
+
+        params:
+        -------
+        sample_shape: int
+            Number of samples from the conditional distributions.
+        input_tensor: tf.Tensor
+            Shape of the input should be (?, in_dim).
+        """
+        assert(len(input_tensor.shape) == 2, "Input tensor not correct size")
+        assert(input_tensor.shape[1].value == self.in_dim)
+
+        loc, scale = tf.zeros(self.out_dim), tf.ones(self.out_dim)
+        base = tf.contrib.distributions.MultivariateNormalDiag(
+                loc=loc, scale=scale)
+
