@@ -57,6 +57,12 @@ q2_sigma_init, q2_sigma_min = 5, 1
 lstm_Dh = 10
 X0_layers = [10]
 
+num_hidden_layers = 4
+num_heads = 4
+hidden_size = 4 * num_heads * Dy
+filter_size = hidden_size
+dropout_rate = 0.9
+
 # do q and f use the same network?
 use_bootstrap = True
 
@@ -93,6 +99,7 @@ smoothing_perc_factor = 0
 # whether use birdectional RNN to get X0 and encode observation
 get_X0_w_bRNN = True
 smooth_y_w_bRNN = True
+use_RNN = True
 
 # whether use input in q and f
 use_input = False
@@ -164,9 +171,16 @@ flags.DEFINE_string("g_train_layers", g_train_layers, "architecture for g networ
                                                       "for example: '50,50' ")
 flags.DEFINE_string("q2_train_layers", q2_train_layers, "architecture for q2 network, int seperated by comma, "
                                                         "for example: '50,50' ")
+
 flags.DEFINE_integer("lstm_Dh", lstm_Dh, "hidden state dimension for bidirectional LSTM")
 flags.DEFINE_string("X0_layers", X0_layers, "architecture for X0 network, int seperated by comma, "
                                             "for example: '50,50' ")
+
+flags.DEFINE_integer("num_hidden_layers", num_hidden_layers, "number of encoder layers in attention encoder")
+flags.DEFINE_integer("num_heads", num_heads, "num of parallel heads in attention encoder")
+flags.DEFINE_integer("hidden_size", hidden_size, "hidden size for the self-attention layer in attention encoder")
+flags.DEFINE_integer("filter_size", filter_size, "filter size for the feed-forward networks in attention encoder")
+flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for attention encoder during training")
 
 flags.DEFINE_float("q_sigma_init", q_sigma_init, "initial value of q_sigma")
 flags.DEFINE_float("f_sigma_init", f_sigma_init, "initial value of f_sigma")
@@ -201,6 +215,7 @@ flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
 
 flags.DEFINE_boolean("get_X0_w_bRNN", get_X0_w_bRNN, "whether learn X0 from obs with a bidirectional RNN")
 flags.DEFINE_boolean("smooth_y_w_bRNN", smooth_y_w_bRNN, "whether encode obs with a bidirectional RNN")
+flags.DEFINE_boolean("use_RNN", use_RNN, "whether use RNN or attention to smooth")
 
 flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
 

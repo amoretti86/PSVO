@@ -22,10 +22,11 @@ from distribution.poisson import poisson, tf_poisson
 from rslts_saving.rslts_saving import *
 from rslts_saving.fhn_rslts_saving import *
 from rslts_saving.lorenz_rslts_saving import *
-from trainer import trainer
 
+from trainer import trainer
 from sampler import create_dataset
 from SMC import SMC
+from attention import AttentionStack
 
 
 def main(_):
@@ -73,6 +74,14 @@ def main(_):
     lstm_Dh = FLAGS.lstm_Dh
     X0_layers = [int(x) for x in FLAGS.X0_layers.split(",")]
 
+    num_hidden_layers = FLAGS.num_hidden_layers
+    num_heads = FLAGS.num_heads
+    hidden_size = FLAGS.hidden_size
+    filter_size = FLAGS.filter_size
+    dropout_rate = FLAGS.dropout_rate
+
+    assert hidden_size % (num_heads * Dy) == 0
+
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
 
@@ -109,6 +118,7 @@ def main(_):
     # whether use birdectional RNN to get X0 and encode observation
     get_X0_w_bRNN = FLAGS.get_X0_w_bRNN
     smooth_y_w_bRNN = FLAGS.smooth_y_w_bRNN
+    use_RNN = FLAGS.use_RNN
 
     # whether use input in q and f
     use_input = FLAGS.use_input
@@ -244,6 +254,7 @@ def main(_):
     obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
     hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
     Input = tf.placeholder(tf.float32, shape=(batch_size, time, Di), name="Input")
+    dropout = tf.placeholder(tf.float32, name="dropout")
     smoothing_perc = tf.placeholder(tf.float32, name="smoothing_perc")
 
     # transformations
@@ -294,21 +305,27 @@ def main(_):
                               name="f_train_dist")
 
     if get_X0_w_bRNN or smooth_y_w_bRNN:
-        forward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="forward_RNN")
-        backward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="backward_RNN")
-        bRNN = (forward_RNN, backward_RNN)
+        if use_RNN:
+            forward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="forward_RNN")
+            backward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="backward_RNN")
+            bRNN = (forward_RNN, backward_RNN)
+            attention_encoder = None
+        else:
+            attention_encoder = AttentionStack(num_hidden_layers, hidden_size, num_heads, filter_size, dropout)
+            bRNN = None
     else:
-        bRNN = None
+        bRNN = attention_encoder = None
 
     SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
                     n_particles,
                     q2_train_dist,
-                    smoothing=smoothing,
                     q_uses_true_X=q_uses_true_X,
                     bRNN=bRNN,
                     get_X0_w_bRNN=get_X0_w_bRNN,
                     smooth_y_w_bRNN=smooth_y_w_bRNN,
                     X0_layers=X0_layers,
+                    attention_encoder=attention_encoder,
+                    smoothing=smoothing,
                     smoothing_perc=smoothing_perc,
                     use_stop_gradient=use_stop_gradient,
                     use_input=use_input,
@@ -346,10 +363,11 @@ def main(_):
                         MSE_steps,
                         maxNumberNoImprovement,
                         x_0_learnable,
-                        smoothing_perc_factor)
+                        smoothing_perc_factor,
+                        dropout_rate)
 
     mytrainer.set_SMC(SMC_train)
-    mytrainer.set_placeholders(x_0, obs, hidden, Input, smoothing_perc)
+    mytrainer.set_placeholders(x_0, obs, hidden, Input, dropout, smoothing_perc)
 
     if store_res:
         mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num, save_tensorboard, save_model)
@@ -383,11 +401,13 @@ def main(_):
                                          x_0: x_0_feed[0:saving_num],
                                          hidden: hidden_test[0:saving_num],
                                          Input: input_test[0:saving_num],
+                                         dropout: np.zeros(saving_num),
                                          smoothing_perc: np.ones(saving_num)})
         ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_test[0:saving_num],
                                                  x_0: x_0_feed[0:saving_num],
                                                  hidden: hidden_test[0:saving_num],
                                                  Input: input_test[0:saving_num],
+                                                 dropout: np.zeros(saving_num),
                                                  smoothing_perc: np.ones(saving_num)})
 
         print("finish evaluating training results")

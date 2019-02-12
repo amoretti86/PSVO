@@ -7,14 +7,15 @@ class SMC:
     def __init__(self, q, f, g,
                  n_particles,
                  q2=None,
-                 smoothing=False,
                  q_uses_true_X=False,
                  bRNN=None,
                  get_X0_w_bRNN=False,
                  smooth_y_w_bRNN=False,
                  X0_layers=[],
+                 attention_encoder=None,
                  use_stop_gradient=False,
                  use_input=False,
+                 smoothing=False,
                  smoothing_perc=1.0,
                  name="log_ZSMC"):
 
@@ -24,11 +25,18 @@ class SMC:
         self.q2 = q2
         self.n_particles = n_particles
 
-        self.smoothing = smoothing
         self.q_uses_true_X = q_uses_true_X
 
-        if bRNN is not None:
-            self.forward_RNN, self.backward_RNN = bRNN
+        if (bRNN or attention_encoder) is not None:
+
+            assert not (bRNN is not None and attention_encoder is not None)
+
+            if bRNN is not None:
+                self.forward_RNN, self.backward_RNN = bRNN
+                self.attention_encoder = None
+            if attention_encoder is not None:
+                self.attention_encoder = attention_encoder
+
             self.get_X0_w_bRNN = get_X0_w_bRNN
             self.smooth_y_w_bRNN = smooth_y_w_bRNN
             self.X0_layers = X0_layers
@@ -38,6 +46,7 @@ class SMC:
         self.use_stop_gradient = use_stop_gradient
         self.use_input = use_input
 
+        self.smoothing = smoothing
         self.smoothing_perc = smoothing_perc
         self.name = name
 
@@ -296,18 +305,26 @@ class SMC:
         return log_ZSMC
 
     def encode_y(self, obs):
-        f_obs_list = tf.unstack(obs, axis=1)
-        b_obs_list = list(reversed(f_obs_list))
 
         with tf.variable_scope("encode_y"):
+            if self.attention_encoder is None:
+                f_obs_list = tf.unstack(obs, axis=1)
+                b_obs_list = list(reversed(f_obs_list))
 
-            f_outputs, f_last_state = tf.nn.static_rnn(self.forward_RNN, f_obs_list, dtype=tf.float32)
-            b_outputs, b_last_state = tf.nn.static_rnn(self.backward_RNN, b_obs_list, dtype=tf.float32)
+                f_outputs, f_last_state = tf.nn.static_rnn(self.forward_RNN, f_obs_list, dtype=tf.float32)
+                b_outputs, b_last_state = tf.nn.static_rnn(self.backward_RNN, b_obs_list, dtype=tf.float32)
 
-            f_last_h, b_last_h = f_last_state[1], b_last_state[1]
+                f_last_h, b_last_h = f_last_state[1], b_last_state[1]
+                encoded_X0 = tf.concat((f_last_h, b_last_h), axis=1)
+                encoded_obs_list = [tf.concat((f_output, b_output), axis=-1)
+                                    for f_output, b_output in zip(f_outputs, b_outputs)]
+            else:
+                encoded_obs = self.attention_encoder(obs)
+                encoded_obs_list = tf.unstack(encoded_obs, axis=1)
+                encoded_X0 = encoded_obs_list[0]
 
             if self.get_X0_w_bRNN:
-                hidden = tf.concat((f_last_h, b_last_h), axis=1)
+                hidden = encoded_X0
                 for i, Dh in enumerate(self.X0_layers):
                     hidden = fully_connected(hidden, Dh,
                                              weights_initializer=xavier_initializer(uniform=False),
@@ -322,10 +339,7 @@ class SMC:
             else:
                 X0 = None
 
-            if self.smooth_y_w_bRNN:
-                encoded_obs_list = [tf.concat((f_output, b_output), axis=-1)
-                                    for f_output, b_output in zip(f_outputs, b_outputs)]
-            else:
+            if not self.smooth_y_w_bRNN:
                 encoded_obs_list = tf.unstack(obs, axis=1)
 
         return X0, encoded_obs_list

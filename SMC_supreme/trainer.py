@@ -22,7 +22,8 @@ class trainer:
                  MSE_steps,
                  maxNumberNoImprovement,
                  x_0_learnable,
-                 smoothing_perc_factor):
+                 smoothing_perc_factor,
+                 dropout_rate):
         self.Dx = Dx
         self.Dy = Dy
 
@@ -45,6 +46,7 @@ class trainer:
         self.x_0_learnable = x_0_learnable
 
         self.smoothing_perc_factor = smoothing_perc_factor
+        self.dropout_rate = dropout_rate
 
     def set_rslt_saving(self, RLT_DIR, save_freq, saving_num, save_tensorboard=False, save_model=False):
         self.store_res = True
@@ -63,11 +65,12 @@ class trainer:
     def set_SMC(self, SMC_train):
         self.SMC_train = SMC_train
 
-    def set_placeholders(self, x_0, obs, hidden, Input, smoothing_perc):
+    def set_placeholders(self, x_0, obs, hidden, Input, dropout, smoothing_perc):
         self.x_0 = x_0
         self.obs = obs
         self.hidden = hidden
         self.Input = Input
+        self.dropout = dropout
         self.smoothing_perc = smoothing_perc
 
     def set_quiver_arg(self, nextX, lattice, quiver_traj_num, lattice_shape):
@@ -141,6 +144,7 @@ class trainer:
                                                                        self.x_0: x_0_feed,
                                                                        self.hidden: hidden_set[i:i + batch_size],
                                                                        self.Input: input_set[i:i + batch_size],
+                                                                       self.dropout: np.zeros(batch_size),
                                                                        self.smoothing_perc: np.ones(batch_size)})
             # batch_MSE_ks.shape = (n_steps + 1)
             # batch_y_means.shape = (n_steps + 1, Dy)
@@ -227,6 +231,7 @@ class trainer:
                                         self.x_0: x_0_feed_train,
                                         self.hidden: hidden_train,
                                         self.Input: input_train,
+                                        self.dropout: np.zeros(len(obs_train)),
                                         self.smoothing_perc: np.zeros(len(obs_train))},
                                        average=True)
         log_ZSMC_test = self.evaluate(log_ZSMC,
@@ -234,6 +239,7 @@ class trainer:
                                        self.x_0: x_0_feed_test,
                                        self.hidden: hidden_test,
                                        self.Input: input_test,
+                                       self.dropout: np.zeros(len(obs_test)),
                                        self.smoothing_perc: np.zeros(len(obs_test))},
                                       average=True)
 
@@ -275,6 +281,7 @@ class trainer:
                                          self.x_0: x_0_feed,
                                          self.hidden: hidden_train[j:j + self.batch_size],
                                          self.Input: input_train[j:j + self.batch_size],
+                                         self.dropout: np.ones(self.batch_size) * self.dropout_rate,
                                          self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch})
 
             # print training and testing loss
@@ -284,6 +291,7 @@ class trainer:
                                                 self.x_0: x_0_feed_train,
                                                 self.hidden: hidden_train,
                                                 self.Input: input_train,
+                                                self.dropout: np.zeros(len(obs_train)),
                                                 self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
                                                average=True)
                 log_ZSMC_test = self.evaluate(log_ZSMC,
@@ -291,6 +299,7 @@ class trainer:
                                                self.x_0: x_0_feed_test,
                                                self.hidden: hidden_test,
                                                self.Input: input_test,
+                                               self.dropout: np.zeros(len(obs_test)),
                                                self.smoothing_perc: np.ones(len(obs_test)) * smoothing_perc_epoch},
                                               average=True)
 
@@ -324,6 +333,7 @@ class trainer:
                                             self.x_0: x_0_feed_test[0:self.saving_num],
                                             self.hidden: hidden_test[0:self.saving_num],
                                             self.Input: input_test[0:self.saving_num],
+                                            self.dropout: np.zeros(self.saving_num),
                                             self.smoothing_perc: np.ones(self.saving_num)},
                                            average=False)
                     y_hat_val = self.evaluate(y_hat,
@@ -331,6 +341,7 @@ class trainer:
                                                self.x_0: x_0_feed_test[0:self.saving_num],
                                                self.hidden: hidden_test[0:self.saving_num],
                                                self.Input: input_test[0:self.saving_num],
+                                               self.dropout: np.zeros(self.saving_num),
                                                self.smoothing_perc: np.ones(self.saving_num)},
                                               average=False)
 
