@@ -61,7 +61,7 @@ num_hidden_layers = 4
 num_heads = 4
 hidden_size = 4 * num_heads * Dy
 filter_size = hidden_size
-dropout_rate = 0.9
+dropout_rate = 0.1
 
 # do q and f use the same network?
 use_bootstrap = True

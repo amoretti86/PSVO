@@ -80,8 +80,6 @@ def main(_):
     filter_size = FLAGS.filter_size
     dropout_rate = FLAGS.dropout_rate
 
-    assert hidden_size % (num_heads * Dy) == 0
-
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
 
@@ -311,6 +309,7 @@ def main(_):
             bRNN = (forward_RNN, backward_RNN)
             attention_encoder = None
         else:
+            assert hidden_size % (num_heads * Dy) == 0
             attention_encoder = AttentionStack(num_hidden_layers, hidden_size, num_heads, filter_size, dropout)
             bRNN = None
     else:
