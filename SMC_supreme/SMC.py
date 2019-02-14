@@ -232,6 +232,9 @@ class SMC:
 
             d1_mvn_cov_inv, d2_mvn_cov_inv = tf.linalg.inv(d1_mvn_cov), tf.linalg.inv(d2_mvn_cov)
             combined_cov = tf.linalg.inv(d1_mvn_cov_inv + d2_mvn_cov_inv)
+            perm = list(range(len(combined_cov.shape)))
+            perm[-2], perm[-1] = perm[-1], perm[-2]
+            combined_cov = (combined_cov + tf.transpose(combined_cov, perm=perm)) / 2
             combined_mean = tf.matmul(combined_cov,
                                       tf.matmul(d1_mvn_cov_inv, tf.expand_dims(d1_mvn_mean, axis=-1)) +
                                       tf.matmul(d2_mvn_cov_inv, tf.expand_dims(d2_mvn_mean, axis=-1))
