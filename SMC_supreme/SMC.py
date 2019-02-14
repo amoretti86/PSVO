@@ -4,9 +4,8 @@ from tensorflow.contrib.layers import fully_connected, xavier_initializer
 
 
 class SMC:
-    def __init__(self, q, f, g,
+    def __init__(self, q0, q1, q2, f, g,
                  n_particles,
-                 q2=None,
                  q_uses_true_X=False,
                  bRNN=None,
                  get_X0_w_bRNN=False,
@@ -19,10 +18,11 @@ class SMC:
                  smoothing_perc=1.0,
                  name="log_ZSMC"):
 
-        self.q = q
+        self.q0 = q0
+        self.q1 = q1
+        self.q2 = q2
         self.f = f
         self.g = g
-        self.q2 = q2
         self.n_particles = n_particles
 
         self.q_uses_true_X = q_uses_true_X
@@ -60,7 +60,7 @@ class SMC:
         """
         with tf.variable_scope(self.name):
             batch_size, time, Dy = obs.get_shape().as_list()
-            batch_size, Dx = self.q.output_0.get_shape().as_list()
+            batch_size, Dx = self.q1.output_0.get_shape().as_list()
             n_particles = self.n_particles
 
             self.n_particles, self.batch_size, self.time, self.Dx, self.Dy = n_particles, batch_size, time, Dx, Dy
@@ -84,8 +84,6 @@ class SMC:
                 encoded_obs = tf.unstack(obs, axis=1)
 
             for t in range(0, time):
-                # when t = 1, sample with x_0
-                # otherwise, sample with X_ancestor
                 if t == 0:
                     sample_size = (n_particles)
                 else:
@@ -94,7 +92,7 @@ class SMC:
                 if self.use_input:
                     if t == 0:
                         if X_ancestor is None:
-                            X_ancestor = self.q.output_0
+                            X_ancestor = self.q1.output_0
                         q_f_t_feed = tf.concat([X_ancestor, Input[:, 0, :]], axis=-1)
                     else:
                         Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
@@ -109,10 +107,21 @@ class SMC:
                     q_t_log_prob = mvn.log_prob(X)
                 else:
                     if self.q2 is None:
-                        X, q_t_log_prob = self.q.sample_and_log_prob(q_f_t_feed, sample_shape=sample_size,
-                                                                     name="q_{}_sample_and_log_prob".format(t))
+                        if t == 0:
+                            X, q_t_log_prob = self.q0.sample_and_log_prob(q_f_t_feed, sample_shape=sample_size,
+                                                                          name="q_{}_sample_and_log_prob".format(t))
+                        else:
+                            X, q_t_log_prob = self.q1.sample_and_log_prob(q_f_t_feed, sample_shape=sample_size,
+                                                                          name="q_{}_sample_and_log_prob".format(t))
                     else:
-                        X, q_t_log_prob, f_t_log_prob = self.sample_from_2_q(q_f_t_feed, encoded_obs[t], sample_size)
+                        if t == 0:
+                            X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q0, self.q2,
+                                                                                    q_f_t_feed, encoded_obs[t],
+                                                                                    sample_size)
+                        else:
+                            X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q1, self.q2,
+                                                                                    q_f_t_feed, encoded_obs[t],
+                                                                                    sample_size)
 
                 if self.smoothing and t != 0:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
@@ -192,40 +201,40 @@ class SMC:
 
         return log_ZSMC, [Xs, X_ancestors, log_Ws, fs, gs, qs] + log
 
-    def sample_from_2_q(self, q_f_t_feed, y_t, sample_size):
-        q1_mvn = self.q.get_mvn(q_f_t_feed)
-        q2_mvn = self.q2.get_mvn(y_t)
+    def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size):
+        d1_mvn = dist1.get_mvn(d1_input)
+        d2_mvn = dist2.get_mvn(d2_input)
 
-        if isinstance(q1_mvn, tfd.MultivariateNormalDiag) and isinstance(q2_mvn, tfd.MultivariateNormalDiag):
-            q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), q1_mvn.stddev()
-            q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), q2_mvn.stddev()
+        if isinstance(d1_mvn, tfd.MultivariateNormalDiag) and isinstance(d2_mvn, tfd.MultivariateNormalDiag):
+            d1_mvn_mean, d1_mvn_cov = d1_mvn.mean(), d1_mvn.stddev()
+            d2_mvn_mean, d2_mvn_cov = d2_mvn.mean(), d2_mvn.stddev()
 
-            q1_mvn_cov_inv, q2_mvn_cov_inv = 1 / q1_mvn_cov, 1 / q2_mvn_cov
-            combined_cov = 1 / (q1_mvn_cov_inv + q2_mvn_cov_inv)
-            combined_mean = combined_cov * (q1_mvn_cov_inv * q1_mvn_mean + q2_mvn_cov_inv * q2_mvn_mean)
+            d1_mvn_cov_inv, d2_mvn_cov_inv = 1 / d1_mvn_cov, 1 / d2_mvn_cov
+            combined_cov = 1 / (d1_mvn_cov_inv + d2_mvn_cov_inv)
+            combined_mean = combined_cov * (d1_mvn_cov_inv * d1_mvn_mean + d2_mvn_cov_inv * d2_mvn_mean)
 
             mvn = tfd.MultivariateNormalDiag(combined_mean,
                                              combined_cov,
                                              validate_args=True,
                                              allow_nan_stats=False)
         else:
-            if isinstance(q1_mvn, tfd.MultivariateNormalDiag):
-                q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), tf.diag(q1_mvn.stddev())
+            if isinstance(d1_mvn, tfd.MultivariateNormalDiag):
+                d1_mvn_mean, d1_mvn_cov = d1_mvn.mean(), tf.diag(d1_mvn.stddev())
             else:
-                q1_mvn_mean, q1_mvn_cov = q1_mvn.mean(), q1_mvn.covariance()
-            if isinstance(q2_mvn, tfd.MultivariateNormalDiag):
-                q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), tf.diag(q2_mvn.stddev())
+                d1_mvn_mean, d1_mvn_cov = d1_mvn.mean(), d1_mvn.covariance()
+            if isinstance(d2_mvn, tfd.MultivariateNormalDiag):
+                d2_mvn_mean, d2_mvn_cov = d2_mvn.mean(), tf.diag(d2_mvn.stddev())
             else:
-                q2_mvn_mean, q2_mvn_cov = q2_mvn.mean(), q2_mvn.covariance()
+                d2_mvn_mean, d2_mvn_cov = d2_mvn.mean(), d2_mvn.covariance()
 
-            if len(q1_mvn_cov.shape.as_list()) == 2:
-                q1_mvn_cov = tf.expand_dims(q1_mvn_cov, axis=0)
+            if len(d1_mvn_cov.shape.as_list()) == 2:
+                d1_mvn_cov = tf.expand_dims(d1_mvn_cov, axis=0)
 
-            q1_mvn_cov_inv, q2_mvn_cov_inv = tf.linalg.inv(q1_mvn_cov), tf.linalg.inv(q2_mvn_cov)
-            combined_cov = tf.linalg.inv(q1_mvn_cov_inv + q2_mvn_cov_inv)
+            d1_mvn_cov_inv, d2_mvn_cov_inv = tf.linalg.inv(d1_mvn_cov), tf.linalg.inv(d2_mvn_cov)
+            combined_cov = tf.linalg.inv(d1_mvn_cov_inv + d2_mvn_cov_inv)
             combined_mean = tf.matmul(combined_cov,
-                                      tf.matmul(q1_mvn_cov_inv, tf.expand_dims(q1_mvn_mean, axis=-1)) +
-                                      tf.matmul(q2_mvn_cov_inv, tf.expand_dims(q2_mvn_mean, axis=-1))
+                                      tf.matmul(d1_mvn_cov_inv, tf.expand_dims(d1_mvn_mean, axis=-1)) +
+                                      tf.matmul(d2_mvn_cov_inv, tf.expand_dims(d2_mvn_mean, axis=-1))
                                       )
             combined_mean = tf.squeeze(combined_mean, axis=-1)
 
@@ -236,7 +245,7 @@ class SMC:
 
         X = mvn.sample(sample_size)
         q_t_log_prob = mvn.log_prob(X)
-        f_t_log_prob = q1_mvn.log_prob(X)
+        f_t_log_prob = d1_mvn.log_prob(X)
 
         return X, q_t_log_prob, f_t_log_prob
 
@@ -314,8 +323,7 @@ class SMC:
                 f_outputs, f_last_state = tf.nn.static_rnn(self.forward_RNN, f_obs_list, dtype=tf.float32)
                 b_outputs, b_last_state = tf.nn.static_rnn(self.backward_RNN, b_obs_list, dtype=tf.float32)
 
-                f_last_h, b_last_h = f_last_state[1], b_last_state[1]
-                encoded_X0 = tf.concat((f_last_h, b_last_h), axis=1)
+                encoded_X0 = tf.concat(list(f_last_state) + list(b_last_state), axis=-1)
                 encoded_obs_list = [tf.concat((f_output, b_output), axis=-1)
                                     for f_output, b_output in zip(f_outputs, b_outputs)]
             else:
@@ -324,18 +332,7 @@ class SMC:
                 encoded_X0 = encoded_obs_list[0]
 
             if self.get_X0_w_bRNN:
-                hidden = encoded_X0
-                for i, Dh in enumerate(self.X0_layers):
-                    hidden = fully_connected(hidden, Dh,
-                                             weights_initializer=xavier_initializer(uniform=False),
-                                             biases_initializer=tf.constant_initializer(0),
-                                             activation_fn=tf.nn.leaky_relu,
-                                             reuse=tf.AUTO_REUSE, scope="hidden_{}".format(i))
-                X0 = fully_connected(hidden, self.Dx,
-                                     weights_initializer=xavier_initializer(uniform=False),
-                                     biases_initializer=tf.constant_initializer(0),
-                                     activation_fn=None,
-                                     reuse=tf.AUTO_REUSE, scope="X0")
+                X0 = encoded_X0
             else:
                 X0 = None
 

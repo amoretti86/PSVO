@@ -28,7 +28,7 @@ seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = False
+generateTrainingData = True
 
 # if reading data from file
 datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/fhn/[1,0]_obs_cov_0.1/"
@@ -44,18 +44,19 @@ n_test = 40 * batch_size
 
 # --------------------- model parameters --------------------- #
 # network architectures
-q_train_layers = [50]
-f_train_layers = [50]
-g_train_layers = [50]
-q2_train_layers = [50]
+q0_layers = [50]
+q1_layers = [50]
+q2_layers = [50]
+f_layers = [50]
+g_layers = [50]
 
-q_sigma_init, q_sigma_min = 5, 1
+q0_sigma_init, q0_sigma_min = 5, 1
+q1_sigma_init, q1_sigma_min = 5, 1
+q2_sigma_init, q2_sigma_min = 5, 1
 f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
-q2_sigma_init, q2_sigma_min = 5, 1
 
 lstm_Dh = 10
-X0_layers = [10]
 
 num_hidden_layers = 4
 num_heads = 4
@@ -121,11 +122,11 @@ save_tensorboard = False
 save_model = False
 save_freq = 10
 
-q_train_layers = ",".join([str(x) for x in q_train_layers])
-f_train_layers = ",".join([str(x) for x in f_train_layers])
-g_train_layers = ",".join([str(x) for x in g_train_layers])
-q2_train_layers = ",".join([str(x) for x in q2_train_layers])
-X0_layers = ",".join([str(x) for x in X0_layers])
+q0_layers = ",".join([str(x) for x in q0_layers])
+q1_layers = ",".join([str(x) for x in q1_layers])
+q2_layers = ",".join([str(x) for x in q2_layers])
+f_layers = ",".join([str(x) for x in f_layers])
+g_layers = ",".join([str(x) for x in g_layers])
 lattice_shape = ",".join([str(x) for x in lattice_shape])
 
 
@@ -163,18 +164,18 @@ flags.DEFINE_integer("n_test", n_test, "number of trajactories for testing set")
 
 # --------------------- model parameters --------------------- #
 
-flags.DEFINE_string("q_train_layers", q_train_layers, "architecture for q network, int seperated by comma, "
-                                                      "for example: '50,50' ")
-flags.DEFINE_string("f_train_layers", f_train_layers, "architecture for f network, int seperated by comma, "
-                                                      "for example: '50,50' ")
-flags.DEFINE_string("g_train_layers", g_train_layers, "architecture for g network, int seperated by comma, "
-                                                      "for example: '50,50' ")
-flags.DEFINE_string("q2_train_layers", q2_train_layers, "architecture for q2 network, int seperated by comma, "
-                                                        "for example: '50,50' ")
+flags.DEFINE_string("q0_layers", q0_layers, "architecture for q0 network, int seperated by comma, "
+                                            "for example: '50,50' ")
+flags.DEFINE_string("q1_layers", q1_layers, "architecture for q1 network, int seperated by comma, "
+                                            "for example: '50,50' ")
+flags.DEFINE_string("q2_layers", q2_layers, "architecture for q2 network, int seperated by comma, "
+                                            "for example: '50,50' ")
+flags.DEFINE_string("f_layers", f_layers, "architecture for f network, int seperated by comma, "
+                                          "for example: '50,50' ")
+flags.DEFINE_string("g_layers", g_layers, "architecture for g network, int seperated by comma, "
+                                          "for example: '50,50' ")
 
 flags.DEFINE_integer("lstm_Dh", lstm_Dh, "hidden state dimension for bidirectional LSTM")
-flags.DEFINE_string("X0_layers", X0_layers, "architecture for X0 network, int seperated by comma, "
-                                            "for example: '50,50' ")
 
 flags.DEFINE_integer("num_hidden_layers", num_hidden_layers, "number of encoder layers in attention encoder")
 flags.DEFINE_integer("num_heads", num_heads, "num of parallel heads in attention encoder")
@@ -182,18 +183,20 @@ flags.DEFINE_integer("hidden_size", hidden_size, "hidden size for the self-atten
 flags.DEFINE_integer("filter_size", filter_size, "filter size for the feed-forward networks in attention encoder")
 flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for attention encoder during training")
 
-flags.DEFINE_float("q_sigma_init", q_sigma_init, "initial value of q_sigma")
+flags.DEFINE_float("q0_sigma_init", q0_sigma_init, "initial value of q0_sigma")
+flags.DEFINE_float("q1_sigma_init", q1_sigma_init, "initial value of q1_sigma")
+flags.DEFINE_float("q2_sigma_init", q2_sigma_init, "initial value of q2_sigma")
 flags.DEFINE_float("f_sigma_init", f_sigma_init, "initial value of f_sigma")
 flags.DEFINE_float("g_sigma_init", g_sigma_init, "initial value of g_sigma")
-flags.DEFINE_float("q2_sigma_init", q2_sigma_init, "initial value of q2_sigma")
 
-flags.DEFINE_float("q_sigma_min", q_sigma_min, "minimal value of q_sigma")
+flags.DEFINE_float("q0_sigma_min", q0_sigma_min, "minimal value of q0_sigma")
+flags.DEFINE_float("q1_sigma_min", q1_sigma_min, "minimal value of q1_sigma")
+flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 flags.DEFINE_float("f_sigma_min", f_sigma_min, "minimal value of f_sigma")
 flags.DEFINE_float("g_sigma_min", g_sigma_min, "minimal value of g_sigma")
-flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 
-flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether use f and q are the same")
-flags.DEFINE_boolean("q_uses_true_X", q_uses_true_X, "whether q uses true hidden states to sample")
+flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether use f and q1 are the same")
+flags.DEFINE_boolean("q_uses_true_X", q_uses_true_X, "whether q1 uses true hidden states to sample")
 
 flags.DEFINE_integer("maxNumberNoImprovement", maxNumberNoImprovement,
                      "stop training early if validation set does not improve for certain epochs")

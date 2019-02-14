@@ -61,18 +61,19 @@ def main(_):
 
     # --------------------- model parameters --------------------- #
     # network architectures
-    q_train_layers = [int(x) for x in FLAGS.q_train_layers.split(",")]
-    f_train_layers = [int(x) for x in FLAGS.f_train_layers.split(",")]
-    g_train_layers = [int(x) for x in FLAGS.g_train_layers.split(",")]
-    q2_train_layers = [int(x) for x in FLAGS.q2_train_layers.split(",")]
+    q0_layers = [int(x) for x in FLAGS.q0_layers.split(",")]
+    q1_layers = [int(x) for x in FLAGS.q1_layers.split(",")]
+    q2_layers = [int(x) for x in FLAGS.q2_layers.split(",")]
+    f_layers = [int(x) for x in FLAGS.f_layers.split(",")]
+    g_layers = [int(x) for x in FLAGS.g_layers.split(",")]
 
-    q_sigma_init, q_sigma_min = FLAGS.q_sigma_init, FLAGS.q_sigma_min
+    q0_sigma_init, q0_sigma_min = FLAGS.q0_sigma_init, FLAGS.q0_sigma_min
+    q1_sigma_init, q1_sigma_min = FLAGS.q1_sigma_init, FLAGS.q1_sigma_min
+    q2_sigma_init, q2_sigma_min = FLAGS.q2_sigma_init, FLAGS.q2_sigma_min
     f_sigma_init, f_sigma_min = FLAGS.f_sigma_init, FLAGS.f_sigma_min
     g_sigma_init, g_sigma_min = FLAGS.f_sigma_init, FLAGS.g_sigma_min
-    q2_sigma_init, q2_sigma_min = FLAGS.q2_sigma_init, FLAGS.q2_sigma_min
 
     lstm_Dh = FLAGS.lstm_Dh
-    X0_layers = [int(x) for x in FLAGS.X0_layers.split(",")]
 
     num_hidden_layers = FLAGS.num_hidden_layers
     num_heads = FLAGS.num_heads
@@ -256,51 +257,50 @@ def main(_):
     smoothing_perc = tf.placeholder(tf.float32, name="smoothing_perc")
 
     # transformations
-    # f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
-    q_train_tran = MLP_transformation(q_train_layers, Dx,
-                                      use_residual=use_residual and not q_takes_y,
-                                      output_cov=output_cov,
-                                      name="q_train_tran")
-    g_train_tran = MLP_transformation(g_train_layers, Dy,
-                                      use_residual=False,
-                                      output_cov=output_cov,
-                                      name="g_train_tran")
+    q0_tran = MLP_transformation(q0_layers, Dx,
+                                 use_residual=False,
+                                 output_cov=output_cov,
+                                 name="q0_tran")
+    q1_tran = MLP_transformation(q1_layers, Dx,
+                                 use_residual=use_residual and not q_takes_y,
+                                 output_cov=output_cov,
+                                 name="q1_tran")
     if use_2_q:
-        q2_train_tran = MLP_transformation(q2_train_layers, Dx,
-                                           use_residual=False,
-                                           output_cov=output_cov,
-                                           name="q2_train_tran")
+        q2_tran = MLP_transformation(q2_layers, Dx,
+                                     use_residual=False,
+                                     output_cov=output_cov,
+                                     name="q2_tran")
     else:
-        q2_train_tran = None
+        q2_tran = None
 
     if use_bootstrap:
-        f_train_tran = q_train_tran
+        f_tran = q1_tran
     else:
-        f_train_tran = MLP_transformation(f_train_layers, Dx,
-                                          use_residual=use_residual,
-                                          output_cov=output_cov,
-                                          name="f_train_tran")
+        f_tran = MLP_transformation(f_layers, Dx,
+                                    use_residual=use_residual,
+                                    output_cov=output_cov,
+                                    name="f_tran")
 
-    q_train_dist = tf_mvn(q_train_tran, x_0_val, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
-    g_train_dist = tf_mvn(g_train_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_train_dist")
+    g_tran = MLP_transformation(g_layers, Dy,
+                                use_residual=False,
+                                output_cov=output_cov,
+                                name="g_tran")
+
+    # distributions
+    q0_dist = tf_mvn(q0_tran, None, sigma_init=q0_sigma_init, sigma_min=q0_sigma_min, name="q0_dist")
+    q1_dist = tf_mvn(q1_tran, x_0_val, sigma_init=q1_sigma_init, sigma_min=q1_sigma_min, name="q1_dist")
 
     if use_2_q:
-        q2_train_dist = tf_mvn(q2_train_tran,
-                               x_0_val,
-                               sigma_init=q2_sigma_init,
-                               sigma_min=q2_sigma_min,
-                               name="q2_train_dist")
+        q2_dist = tf_mvn(q2_tran, x_0_val, sigma_init=q2_sigma_init, sigma_min=q2_sigma_min, name="q2_dist")
     else:
-        q2_train_dist = None
+        q2_dist = None
 
     if use_bootstrap:
-        f_train_dist = q_train_dist
+        f_dist = q1_dist
     else:
-        f_train_dist = tf_mvn(f_train_tran,
-                              x_0_val,
-                              sigma_init=f_sigma_init,
-                              sigma_min=f_sigma_min,
-                              name="f_train_dist")
+        f_dist = tf_mvn(f_tran, x_0_val, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_dist")
+
+    g_dist = tf_mvn(g_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_dist")
 
     if get_X0_w_bRNN or smooth_y_w_bRNN:
         if use_RNN:
@@ -315,14 +315,12 @@ def main(_):
     else:
         bRNN = attention_encoder = None
 
-    SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
+    SMC_train = SMC(q0_dist, q1_dist, q2_dist, f_dist, g_dist,
                     n_particles,
-                    q2_train_dist,
                     q_uses_true_X=q_uses_true_X,
                     bRNN=bRNN,
                     get_X0_w_bRNN=get_X0_w_bRNN,
                     smooth_y_w_bRNN=smooth_y_w_bRNN,
-                    X0_layers=X0_layers,
                     attention_encoder=attention_encoder,
                     smoothing=smoothing,
                     smoothing_perc=smoothing_perc,
