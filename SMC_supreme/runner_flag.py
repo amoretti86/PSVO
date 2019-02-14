@@ -77,7 +77,13 @@ maxNumberNoImprovement = 5
 x_0_learnable = False
 
 # filtering or smoothing
-smoothing = False
+smoothing = True
+
+# how fast the model transfers from filtering to smoothing
+smoothing_perc_factor = 0
+
+# whether use smoothing for inference or leaning
+smooth_to_learn = False
 
 # if f and q use residual
 use_residual = False
@@ -93,9 +99,6 @@ use_2_q = True
 
 # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
 use_stop_gradient = False
-
-# how fast the model transfers from filtering to smoothing
-smoothing_perc_factor = 0
 
 # whether use birdectional RNN to get X0 and encode observation
 get_X0_w_bRNN = True
@@ -202,7 +205,13 @@ flags.DEFINE_integer("maxNumberNoImprovement", maxNumberNoImprovement,
                      "stop training early if validation set does not improve for certain epochs")
 
 flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "whether x0 is learnable or takes ground truth")
+
 flags.DEFINE_boolean("smoothing", smoothing, "whether filtering or smoothing")
+flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
+                   "determine how the percentage of smoothing loss in the total loss changes with epoch num, "
+                   "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")
+flags.DEFINE_boolean("smooth_to_learn", smooth_to_learn, "whether use smoothing for inference or leaning")
+
 flags.DEFINE_boolean("use_residual", use_residual, "whether f and q use residual network")
 flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
 flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t), "
@@ -211,10 +220,6 @@ flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t
                                          "q_uses_true_X as False")
 flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "whether use tf.stop_gradient "
                                                              "when resampling and reweighting weights during smoothing")
-
-flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
-                   "determine how the percentage of smoothing loss in the total loss changes with epoch num, "
-                   "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")
 
 flags.DEFINE_boolean("get_X0_w_bRNN", get_X0_w_bRNN, "whether learn X0 from obs with a bidirectional RNN")
 flags.DEFINE_boolean("smooth_y_w_bRNN", smooth_y_w_bRNN, "whether encode obs with a bidirectional RNN")

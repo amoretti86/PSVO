@@ -1,4 +1,5 @@
 import tensorflow as tf
+import math
 
 
 class Attention(tf.layers.Layer):
@@ -180,6 +181,32 @@ class PrePostProcessingWrapper(object):
         return x + y
 
 
+def get_position_encoding(
+        length, hidden_size, min_timescale=1.0, max_timescale=1.0e4):
+    """Return positional encoding.
+    Calculates the position encoding as a mix of sine and cosine functions with
+    geometrically increasing wavelengths.
+    Defined and formulized in Attention is All You Need, section 3.5.
+    Args:
+        length: Sequence length.
+        hidden_size: Size of the
+        min_timescale: Minimum scale that will be applied at each position
+        max_timescale: Maximum scale that will be applied at each position
+    Returns:
+        Tensor with shape [length, hidden_size]
+    """
+    position = tf.to_float(tf.range(length))
+    num_timescales = hidden_size // 2
+    log_timescale_increment = (
+        math.log(float(max_timescale) / float(min_timescale)) /
+        (tf.to_float(num_timescales) - 1))
+    inv_timescales = min_timescale * tf.exp(
+        tf.to_float(tf.range(num_timescales)) * -log_timescale_increment)
+    scaled_time = tf.expand_dims(position, 1) * tf.expand_dims(inv_timescales, 0)
+    signal = tf.concat([tf.sin(scaled_time), tf.cos(scaled_time)], axis=1)
+    return signal
+
+
 class AttentionStack(tf.layers.Layer):
     """Transformer encoder stack.
     The encoder stack is made up of N identical layers. Each layer is composed
@@ -191,6 +218,7 @@ class AttentionStack(tf.layers.Layer):
     def __init__(self, num_hidden_layers, hidden_size, num_heads, filter_size, dropout):
         super(AttentionStack, self).__init__()
         self.layers = []
+        self.hidden_size = hidden_size
         for _ in range(num_hidden_layers):
             # Create sublayers for each layer.
             self_attention_layer = SelfAttention(hidden_size, num_heads, dropout)
@@ -217,6 +245,7 @@ class AttentionStack(tf.layers.Layer):
             float32 tensor with shape [batch_size, input_length, hidden_size]
         """
         encoder_inputs = self.input_dense_layer(encoder_inputs)
+        encoder_inputs += get_position_encoding(encoder_inputs.shape[1], self.hidden_size)
         for n, layer in enumerate(self.layers):
             # Run inputs through the sublayers.
             self_attention_layer = layer[0]

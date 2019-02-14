@@ -96,6 +96,12 @@ def main(_):
     # filtering or smoothing
     smoothing = FLAGS.smoothing
 
+    # how fast the model transfers from filtering to smoothing
+    smoothing_perc_factor = FLAGS.smoothing_perc_factor
+
+    # whether use smoothing for inference or leaning
+    smooth_to_learn = FLAGS.smooth_to_learn
+
     # if f and q use residual
     use_residual = FLAGS.use_residual
 
@@ -110,9 +116,6 @@ def main(_):
 
     # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
     use_stop_gradient = FLAGS.use_stop_gradient
-
-    # how fast the model transfers from filtering to smoothing
-    smoothing_perc_factor = FLAGS.smoothing_perc_factor
 
     # whether use birdectional RNN to get X0 and encode observation
     get_X0_w_bRNN = FLAGS.get_X0_w_bRNN
@@ -324,6 +327,7 @@ def main(_):
                     attention_encoder=attention_encoder,
                     smoothing=smoothing,
                     smoothing_perc=smoothing_perc,
+                    smooth_to_learn=smooth_to_learn,
                     use_stop_gradient=use_stop_gradient,
                     use_input=use_input,
                     name="log_ZSMC_train")

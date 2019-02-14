@@ -16,6 +16,7 @@ class SMC:
                  use_input=False,
                  smoothing=False,
                  smoothing_perc=1.0,
+                 smooth_to_learn=False,
                  name="log_ZSMC"):
 
         self.q0 = q0
@@ -48,6 +49,10 @@ class SMC:
 
         self.smoothing = smoothing
         self.smoothing_perc = smoothing_perc
+        self.smooth_to_learn = smooth_to_learn
+        if not self.smooth_to_learn:
+            self.smoothing_perc = 1
+
         self.name = name
 
     def get_log_ZSMC(self, obs, hidden, Input, q_cov=1):
@@ -170,7 +175,10 @@ class SMC:
 
             if self.smoothing:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
-                log_ZSMC = self.compute_log_ZSMC(reweighted_log_Ws)
+                if self.smooth_to_learn:
+                    log_ZSMC = self.compute_log_ZSMC(reweighted_log_Ws)
+                else:
+                    log_ZSMC = self.compute_log_ZSMC(log_Ws)
 
                 Xs = []
                 for t in range(time):
@@ -186,18 +194,12 @@ class SMC:
                 Xs = X_ancestors
                 log = []
 
-            Xs = tf.stack(Xs)
-            log_Ws = tf.stack(log_Ws)
-            qs = tf.stack(qs)
-            fs = tf.stack(fs)
-            gs = tf.stack(gs)
-
             # (batch_size, time, n_particles, Dx)
-            Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")
-            log_Ws = tf.transpose(log_Ws, perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
-            qs = tf.transpose(qs, perm=[2, 0, 1], name="qs")                # (batch_size, time, n_particles)
-            fs = tf.transpose(fs, perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
-            gs = tf.transpose(gs, perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
+            Xs = tf.transpose(tf.stack(Xs), perm=[2, 0, 1, 3], name="Xs")
+            log_Ws = tf.transpose(tf.stack(log_Ws), perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
+            qs = tf.transpose(tf.stack(qs), perm=[2, 0, 1], name="qs")                # (batch_size, time, n_particles)
+            fs = tf.transpose(tf.stack(fs), perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
+            gs = tf.transpose(tf.stack(gs), perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
 
         return log_ZSMC, [Xs, X_ancestors, log_Ws, fs, gs, qs] + log
 
