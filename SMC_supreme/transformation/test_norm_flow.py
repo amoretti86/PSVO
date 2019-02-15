@@ -4,7 +4,7 @@
 import numpy as np
 import tensorflow as tf
 
-from norm_flow import MultiLayerPlanarFlow
+from norm_flow import MultiLayerPlanarFlow, CondNormFlow
 
 def test_planar_flow():
     """Tester function for planar flow on tensor."""
@@ -41,5 +41,37 @@ def test_planar_flow():
     # check the shape of output log-det-jacobian
     assert(pp_.shape == (n_flow, n_sample))
 
+def test_conditional_flow():
+    """Tester function for conditional normalizing flow."""
+
+    # Dimensionality of the condition variable.
+    in_dim = 10
+    out_dim = 2
+    num_layer = 4
+    mlp_hidden_units = [20, 20]
+
+    num_flow = 5
+    sample_per_flow = 100
+
+    with tf.Graph().as_default():
+        cnf = CondNormFlow(
+            in_dim=in_dim, out_dim=out_dim, num_layer=num_layer,
+            mlp_hidden_units=mlp_hidden_units,
+            non_linearity=tf.nn.softplus)
+        
+        inp = tf.constant(np.random.rand(num_flow, in_dim))
+
+        samp = cnf.sample_log_prob(
+                sample_size=sample_per_flow, input_tensor=inp)
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            y_, pp_ = sess.run(samp)
+
+    msg = "The output of the flow has incorrect shape."
+    assert y_.shape == (num_flow, sample_per_flow, out_dim), msg
+    msg = "Log probability of outpus has incorrect shape."
+    assert pp_.shape == (num_flow, sample_per_flow), msg
+
 if __name__ == "__main__":
     test_planar_flow()
+    test_conditional_flow()

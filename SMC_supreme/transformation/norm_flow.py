@@ -463,7 +463,8 @@ class MultiLayerPlanarFlow(NormalizingFlow):
 
 class CondNormFlow(object):
 
-    def __init__(self, in_dim, out_dim, num_layer, mlp_hidden_units):
+    def __init__(self, in_dim, out_dim, num_layer, mlp_hidden_units,
+            non_linearity=tf.tanh):
         """Initializes the conditional distribution.
 
         params:
@@ -477,17 +478,20 @@ class CondNormFlow(object):
             Number of layers for the normalizing flow.
         mlp_hidden_units: list of int
             Hidden units per layer of the MLP respectively.
+        non_linearity: tf.Operator
+            Non-linearity for the planar flow.
         """
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.num_nf_layer = num_layer
+        self.nf_non_linearity = non_linearity
         # MLP that indexes into the parameters of the normalizing flow.
         nf_param_dim = (self.out_dim * 2 + 1) * self.num_nf_layer
         self.nf_param_mlp = MultiLayerPerceptron(
                 in_dim=self.in_dim, out_dim=nf_param_dim,
                 hidden_units=mlp_hidden_units)
 
-    def sample_log_prob(self, sample_shape, input_tensor):
+    def sample_log_prob(self, sample_size, input_tensor):
         """Samples from the conditional distribtion conditioned on given input.
 
         params:
@@ -497,10 +501,29 @@ class CondNormFlow(object):
         input_tensor: tf.Tensor
             Shape of the input should be (?, in_dim).
         """
-        assert(len(input_tensor.shape) == 2, "Input tensor not correct size")
-        assert(input_tensor.shape[1].value == self.in_dim)
+        # Total number of parallel normalizing flows that are applied.
+        n_flow = input_tensor.shape[0].value
 
-        loc, scale = tf.zeros(self.out_dim), tf.ones(self.out_dim)
+        assert len(input_tensor.shape) == 2, "Input tensor not correct size"
+        assert input_tensor.shape[1].value == self.in_dim, "Incorrect input dim."
+
+        dtype = input_tensor.dtype
+        loc = tf.zeros(self.out_dim, dtype=dtype)
+        scale = tf.ones(self.out_dim, dtype=dtype)
         base = tf.contrib.distributions.MultivariateNormalDiag(
-                loc=loc, scale=scale)
+                loc=loc, scale_diag=scale)
 
+        base_sample = base.sample([n_flow, sample_size])
+        base_log_prob = base.log_prob(base_sample) 
+        # Get mlp outupt that indexes into the normalizing flow layers.
+        gov_param = tf.reshape(
+                self.nf_param_mlp.operator(input_tensor),
+                MultiLayerPlanarFlow.get_param_shape(
+                    num_layer=self.num_nf_layer, dim=self.out_dim,
+                    n_flow=n_flow))
+        flow = MultiLayerPlanarFlow(
+                dim=self.out_dim, num_layer=self.num_nf_layer, n_flow=n_flow,
+                non_linearity=self.nf_non_linearity, gov_param=gov_param)
+        sample = flow.operator(base_sample)
+        log_prob = base_log_prob - flow.log_det_jacobian(base_sample)
+        return sample, log_prob
