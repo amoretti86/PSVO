@@ -345,8 +345,8 @@ class trainer:
                                                self.smoothing_perc: np.ones(self.saving_num)},
                                               average=False)
 
-                    epoch_dict = {"R_square_train": R_square_train[-1],
-                                  "R_square_test": R_square_test[-1],
+                    epoch_dict = {"R_square_train": R_square_train,
+                                  "R_square_test": R_square_test,
                                   "Xs_val": Xs_val,
                                   "y_hat_val": y_hat_val}
 

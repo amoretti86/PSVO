@@ -290,7 +290,7 @@ def main(_):
                                 name="g_tran")
 
     # distributions
-    q0_dist = tf_mvn(q0_tran, None, sigma_init=q0_sigma_init, sigma_min=q0_sigma_min, name="q0_dist")
+    q0_dist = tf_mvn(q0_tran, x_0_val, sigma_init=q0_sigma_init, sigma_min=q0_sigma_min, name="q0_dist")
     q1_dist = tf_mvn(q1_tran, x_0_val, sigma_init=q1_sigma_init, sigma_min=q1_sigma_min, name="q1_dist")
 
     if use_2_q:
