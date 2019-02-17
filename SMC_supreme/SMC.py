@@ -161,8 +161,11 @@ class SMC:
                 if t == time - 1:
                     break
 
-                resample_idx = self.get_resample_idx(log_W, t)
-                X_ancestor = tf.gather_nd(X, resample_idx)                    # (n_particles, batch_size, Dx)
+                if n_particles > 1:
+                    resample_idx = self.get_resample_idx(log_W, t)
+                    X_ancestor = tf.gather_nd(X, resample_idx)                    # (n_particles, batch_size, Dx)
+                else:
+                    X_ancestor = X
                 X_prev = X
 
                 # collect X after rather than before resampling
