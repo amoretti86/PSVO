@@ -57,7 +57,7 @@ def test_conditional_flow():
         cnf = CondNormFlow(
             in_dim=in_dim, out_dim=out_dim, num_layer=num_layer,
             mlp_hidden_units=mlp_hidden_units,
-            non_linearity=tf.nn.softplus)
+            non_linearity=tf.nn.softplus, reparam_base=True)
         
         inp = tf.constant(np.random.rand(num_flow, in_dim))
 
@@ -71,6 +71,26 @@ def test_conditional_flow():
     assert y_.shape == (num_flow, sample_per_flow, out_dim), msg
     msg = "Log probability of outpus has incorrect shape."
     assert pp_.shape == (num_flow, sample_per_flow), msg
+
+    with tf.Graph().as_default():
+        cnf = CondNormFlow(
+            in_dim=in_dim, out_dim=out_dim, num_layer=num_layer,
+            mlp_hidden_units=mlp_hidden_units,
+            non_linearity=tf.nn.softplus, reparam_base=False)
+        
+        inp = tf.constant(np.random.rand(num_flow, in_dim))
+
+        samp = cnf.sample_log_prob(
+                sample_size=sample_per_flow, input_tensor=inp)
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            y_, pp_ = sess.run(samp)
+
+    msg = "The output of the flow has incorrect shape."
+    assert y_.shape == (num_flow, sample_per_flow, out_dim), msg
+    msg = "Log probability of outpus has incorrect shape."
+    assert pp_.shape == (num_flow, sample_per_flow), msg
+
 
 if __name__ == "__main__":
     test_planar_flow()

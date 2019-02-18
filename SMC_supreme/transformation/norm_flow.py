@@ -464,7 +464,7 @@ class MultiLayerPlanarFlow(NormalizingFlow):
 class CondNormFlow(object):
 
     def __init__(self, in_dim, out_dim, num_layer, mlp_hidden_units,
-            non_linearity=tf.tanh):
+            non_linearity=tf.tanh, reparam_base=True):
         """Initializes the conditional distribution.
 
         params:
@@ -480,11 +480,23 @@ class CondNormFlow(object):
             Hidden units per layer of the MLP respectively.
         non_linearity: tf.Operator
             Non-linearity for the planar flow.
+        reparam_base: boolean
+            If True, the base distribution's mean and scale is conditioned
+            on the input. Otherwise, isotropic gaussian is used as base
+            noise distribution.
         """
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.num_nf_layer = num_layer
         self.nf_non_linearity = non_linearity
+        self.reparam_base = reparam_base
+        # MLP that indexes into the location and scale of the base distribution
+        # of the noise that is transformed with the normalizing flow.
+        if self.reparam_base:
+            base_param_dim = 2 * self.out_dim
+            self.base_param_mlp = MultiLayerPerceptron(
+                    in_dim=self.in_dim, out_dim=base_param_dim,
+                    hidden_units=mlp_hidden_units)
         # MLP that indexes into the parameters of the normalizing flow.
         nf_param_dim = (self.out_dim * 2 + 1) * self.num_nf_layer
         self.nf_param_mlp = MultiLayerPerceptron(
@@ -510,17 +522,32 @@ class CondNormFlow(object):
         dtype = input_tensor.dtype
         loc = tf.zeros(self.out_dim, dtype=dtype)
         scale = tf.ones(self.out_dim, dtype=dtype)
+        if self.reparam_base:
+            # Get concatenated loc and scale from their corresponding MLP.
+            loc_scale = self.base_param_mlp.operator(input_tensor)
+            loc = tf.slice(loc_scale, [0, 0], [-1, self.out_dim])
+            scale = tf.nn.softplus(
+                    tf.slice(loc_scale, [0, self.out_dim], [-1, self.out_dim]))
+
         base = tf.contrib.distributions.MultivariateNormalDiag(
                 loc=loc, scale_diag=scale)
 
-        base_sample = base.sample([n_flow, sample_size])
-        base_log_prob = base.log_prob(base_sample) 
+        if self.reparam_base:
+            base_sample = base.sample(sample_size)
+            base_log_prob = base.log_prob(base_sample)
+            base_sample = tf.transpose(base_sample, perm=[1, 0, 2])
+            base_log_prob = tf.transpose(base_log_prob, perm=[1, 0])
+        else:
+            base_sample = base.sample([n_flow, sample_size])
+            base_log_prob = base.log_prob(base_sample)
+
         # Get mlp outupt that indexes into the normalizing flow layers.
+        # First reshape and then transpose is to keep correctcly index
+        # from each examples output into its corresponding normalizing flow.
         gov_param = tf.reshape(
                 self.nf_param_mlp.operator(input_tensor),
-                MultiLayerPlanarFlow.get_param_shape(
-                    num_layer=self.num_nf_layer, dim=self.out_dim,
-                    n_flow=n_flow))
+                [n_flow, self.num_nf_layer, self.out_dim * 2 + 1])
+        gov_param = tf.transpose(gov_param, perm=[1, 0, 2])
         flow = MultiLayerPlanarFlow(
                 dim=self.out_dim, num_layer=self.num_nf_layer, n_flow=n_flow,
                 non_linearity=self.nf_non_linearity, gov_param=gov_param)
