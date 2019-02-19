@@ -23,7 +23,7 @@ n_particles = 64
 
 batch_size = 1
 lr = 1e-3
-epoch = 3
+epoch = 300
 seed = 0
 
 # --------------------- data set parameters --------------------- #
@@ -37,9 +37,9 @@ datadict = "datadict"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
-time = 3
-n_train = 2 * batch_size
-n_test = 2 * batch_size
+time = 200
+n_train = 200 * batch_size
+n_test = 40 * batch_size
 
 # --------------------- model parameters --------------------- #
 # Feed-Forward Network (FFN)
