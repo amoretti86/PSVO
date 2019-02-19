@@ -60,40 +60,39 @@ def main(_):
     n_test = FLAGS.n_test
 
     # --------------------- model parameters --------------------- #
-    # network architectures
-    q_train_layers = [int(x) for x in FLAGS.q_train_layers.split(",")]
-    f_train_layers = [int(x) for x in FLAGS.f_train_layers.split(",")]
-    g_train_layers = [int(x) for x in FLAGS.g_train_layers.split(",")]
-    q2_train_layers = [int(x) for x in FLAGS.q2_train_layers.split(",")]
+    # Feed-Forward Network (FFN) architectures
+    q0_layers = [int(x) for x in FLAGS.q0_layers.split(",")]
+    q1_layers = [int(x) for x in FLAGS.q1_layers.split(",")]
+    q2_layers = [int(x) for x in FLAGS.q2_layers.split(",")]
+    f_layers = [int(x) for x in FLAGS.f_layers.split(",")]
+    g_layers = [int(x) for x in FLAGS.g_layers.split(",")]
 
-    q_sigma_init, q_sigma_min = FLAGS.q_sigma_init, FLAGS.q_sigma_min
+    q0_sigma_init, q0_sigma_min = FLAGS.q0_sigma_init, FLAGS.q0_sigma_min
+    q1_sigma_init, q1_sigma_min = FLAGS.q1_sigma_init, FLAGS.q1_sigma_min
+    q2_sigma_init, q2_sigma_min = FLAGS.q2_sigma_init, FLAGS.q2_sigma_min
     f_sigma_init, f_sigma_min = FLAGS.f_sigma_init, FLAGS.f_sigma_min
     g_sigma_init, g_sigma_min = FLAGS.f_sigma_init, FLAGS.g_sigma_min
-    q2_sigma_init, q2_sigma_min = FLAGS.q2_sigma_init, FLAGS.q2_sigma_min
 
-    lstm_Dh = FLAGS.lstm_Dh
-    X0_layers = [int(x) for x in FLAGS.X0_layers.split(",")]
+    # bidirectional RNN
+    y_smoother_Dhs = [int(x) for x in FLAGS.y_smoother_Dhs.split(",")]
+    X0_smoother_Dhs = [int(x) for x in FLAGS.X0_smoother_Dhs.split(",")]
 
+    # Self-Attention encoder
     num_hidden_layers = FLAGS.num_hidden_layers
     num_heads = FLAGS.num_heads
     hidden_size = FLAGS.hidden_size
     filter_size = FLAGS.filter_size
     dropout_rate = FLAGS.dropout_rate
 
+    # --------------------- FFN flags --------------------- #
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
 
     # should q use true_X to sample? (useful for debugging)
     q_uses_true_X = FLAGS.q_uses_true_X
 
-    # stop training early if validation set does not improve
-    maxNumberNoImprovement = FLAGS.maxNumberNoImprovement
-
     # if x0 is learnable
     x_0_learnable = FLAGS.x_0_learnable
-
-    # filtering or smoothing
-    smoothing = FLAGS.smoothing
 
     # if f and q use residual
     use_residual = FLAGS.use_residual
@@ -107,19 +106,42 @@ def main(_):
     #          q_uses_true_X as False
     use_2_q = FLAGS.use_2_q
 
-    # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
-    use_stop_gradient = FLAGS.use_stop_gradient
+    # whether use input in q and f
+    use_input = FLAGS.use_input
+
+    # --------------------- FFBS flags --------------------- #
+
+    # filtering or smoothing
+    FFBS = FLAGS.FFBS
 
     # how fast the model transfers from filtering to smoothing
     smoothing_perc_factor = FLAGS.smoothing_perc_factor
 
-    # whether use birdectional RNN to get X0 and encode observation
-    get_X0_w_bRNN = FLAGS.get_X0_w_bRNN
-    smooth_y_w_bRNN = FLAGS.smooth_y_w_bRNN
+    # whether use smoothing for inference or leaning
+    FFBS_to_learn = FLAGS.FFBS_to_learn
+
+    # --------------------- smoother flags --------------------- #
+
+    # whether smooth observations with birdectional RNNs (bRNN) or self-attention encoders
+    smooth_obs = FLAGS.smooth_obs
+
+    # whether use bRNN or self-attention encoders to get X0 and encode observation
     use_RNN = FLAGS.use_RNN
 
-    # whether use input in q and f
-    use_input = FLAGS.use_input
+    # whether use a separate RNN for getting X0
+    X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
+
+    # whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn or tf.nn.bidirectional_dynamic_rnn
+    # check https://stackoverflow.com/a/50552539 for differences between them
+    use_stack_rnn = FLAGS.use_stack_rnn
+
+    # --------------------- training flags --------------------- #
+
+    # stop training early if validation set does not improve
+    maxNumberNoImprovement = FLAGS.maxNumberNoImprovement
+
+    # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
+    use_stop_gradient = FLAGS.use_stop_gradient
 
     # --------------------- printing and data saving params --------------------- #
     print_freq = FLAGS.print_freq
@@ -214,17 +236,18 @@ def main(_):
         n_test = obs_test.shape[0]
         time = obs_train.shape[1]
 
-        if "Xtrue" in data:
-            hidden_train = data["Xtrue"][:n_train]
-            hidden_test = data["Xtrue"][n_train:]
-        elif "Xtrain" in data and "Xtest" in data:
-            hidden_train = data["Xtrain"]
-            hidden_test = data["Xtest"]
-        else:
-            if (x_0_learnable is False) or (q_uses_true_X is True):
-                raise ValueError("Cannot find the keys for hidden_train and hidden_test in the data file")
+        if not q_uses_true_X and x_0_learnable:
             hidden_train = np.zeros((n_train, time, Dx))
             hidden_test = np.zeros((n_test, time, Dx))
+        else:
+            if "Xtrue" in data:
+                hidden_train = data["Xtrue"][:n_train]
+                hidden_test = data["Xtrue"][n_train:]
+            elif "Xtrain" in data and "Xtest" in data:
+                hidden_train = data["Xtrain"]
+                hidden_test = data["Xtest"]
+            else:
+                raise ValueError("Cannot find the keys for hidden_train and hidden_test in the data file")
 
         if use_input and "Itrain" in data and "Itest" in data:
             input_train = data["Itrain"]
@@ -256,57 +279,65 @@ def main(_):
     smoothing_perc = tf.placeholder(tf.float32, name="smoothing_perc")
 
     # transformations
-    # f_train_tran = MLP_transformation(f_train_layers, Dx, name="f_train_tran")
-    q_train_tran = MLP_transformation(q_train_layers, Dx,
-                                      use_residual=use_residual and not q_takes_y,
-                                      output_cov=output_cov,
-                                      name="q_train_tran")
-    g_train_tran = MLP_transformation(g_train_layers, Dy,
-                                      use_residual=False,
-                                      output_cov=output_cov,
-                                      name="g_train_tran")
+    q0_tran = MLP_transformation(q0_layers, Dx,
+                                 use_residual=False,
+                                 output_cov=output_cov,
+                                 name="q0_tran")
+    q1_tran = MLP_transformation(q1_layers, Dx,
+                                 use_residual=use_residual and not q_takes_y,
+                                 output_cov=output_cov,
+                                 name="q1_tran")
     if use_2_q:
-        q2_train_tran = MLP_transformation(q2_train_layers, Dx,
-                                           use_residual=False,
-                                           output_cov=output_cov,
-                                           name="q2_train_tran")
+        q2_tran = MLP_transformation(q2_layers, Dx,
+                                     use_residual=False,
+                                     output_cov=output_cov,
+                                     name="q2_tran")
     else:
-        q2_train_tran = None
+        q2_tran = None
 
     if use_bootstrap:
-        f_train_tran = q_train_tran
+        f_tran = q1_tran
     else:
-        f_train_tran = MLP_transformation(f_train_layers, Dx,
-                                          use_residual=use_residual,
-                                          output_cov=output_cov,
-                                          name="f_train_tran")
+        f_tran = MLP_transformation(f_layers, Dx,
+                                    use_residual=use_residual,
+                                    output_cov=output_cov,
+                                    name="f_tran")
 
-    q_train_dist = tf_mvn(q_train_tran, x_0_val, sigma_init=q_sigma_init, sigma_min=q_sigma_min, name="q_train_dist")
-    g_train_dist = tf_mvn(g_train_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_train_dist")
+    g_tran = MLP_transformation(g_layers, Dy,
+                                use_residual=False,
+                                output_cov=output_cov,
+                                name="g_tran")
+
+    # distributions
+    q0_dist = tf_mvn(q0_tran, x_0_val, sigma_init=q0_sigma_init, sigma_min=q0_sigma_min, name="q0_dist")
+    q1_dist = tf_mvn(q1_tran, x_0_val, sigma_init=q1_sigma_init, sigma_min=q1_sigma_min, name="q1_dist")
 
     if use_2_q:
-        q2_train_dist = tf_mvn(q2_train_tran,
-                               x_0_val,
-                               sigma_init=q2_sigma_init,
-                               sigma_min=q2_sigma_min,
-                               name="q2_train_dist")
+        q2_dist = tf_mvn(q2_tran, x_0_val, sigma_init=q2_sigma_init, sigma_min=q2_sigma_min, name="q2_dist")
     else:
-        q2_train_dist = None
+        q2_dist = None
 
     if use_bootstrap:
-        f_train_dist = q_train_dist
+        f_dist = q1_dist
     else:
-        f_train_dist = tf_mvn(f_train_tran,
-                              x_0_val,
-                              sigma_init=f_sigma_init,
-                              sigma_min=f_sigma_min,
-                              name="f_train_dist")
+        f_dist = tf_mvn(f_tran, x_0_val, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_dist")
 
-    if get_X0_w_bRNN or smooth_y_w_bRNN:
+    g_dist = tf_mvn(g_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_dist")
+
+    if smooth_obs:
         if use_RNN:
-            forward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="forward_RNN")
-            backward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="backward_RNN")
-            bRNN = (forward_RNN, backward_RNN)
+            y_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_f_{}".format(i))
+                            for i, Dh in enumerate(y_smoother_Dhs)]
+            y_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_b_{}".format(i))
+                            for i, Dh in enumerate(y_smoother_Dhs)]
+            if X0_use_separate_RNN:
+                X0_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_f_{}".format(i))
+                                 for i, Dh in enumerate(X0_smoother_Dhs)]
+                X0_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_b_{}".format(i))
+                                 for i, Dh in enumerate(X0_smoother_Dhs)]
+            else:
+                X0_smoother_f = X0_smoother_b = None
+            bRNN = (y_smoother_f, y_smoother_b, X0_smoother_f, X0_smoother_b)
             attention_encoder = None
         else:
             assert hidden_size % (num_heads * Dy) == 0
@@ -315,17 +346,16 @@ def main(_):
     else:
         bRNN = attention_encoder = None
 
-    SMC_train = SMC(q_train_dist, f_train_dist, g_train_dist,
+    SMC_train = SMC(q0_dist, q1_dist, q2_dist, f_dist, g_dist,
                     n_particles,
-                    q2_train_dist,
                     q_uses_true_X=q_uses_true_X,
                     bRNN=bRNN,
-                    get_X0_w_bRNN=get_X0_w_bRNN,
-                    smooth_y_w_bRNN=smooth_y_w_bRNN,
-                    X0_layers=X0_layers,
                     attention_encoder=attention_encoder,
-                    smoothing=smoothing,
+                    X0_use_separate_RNN=X0_use_separate_RNN,
+                    use_stack_rnn=use_stack_rnn,
+                    FFBS=FFBS,
                     smoothing_perc=smoothing_perc,
+                    FFBS_to_learn=FFBS_to_learn,
                     use_stop_gradient=use_stop_gradient,
                     use_input=use_input,
                     name="log_ZSMC_train")
