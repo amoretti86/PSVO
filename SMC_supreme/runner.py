@@ -236,17 +236,18 @@ def main(_):
         n_test = obs_test.shape[0]
         time = obs_train.shape[1]
 
-        if "Xtrue" in data:
-            hidden_train = data["Xtrue"][:n_train]
-            hidden_test = data["Xtrue"][n_train:]
-        elif "Xtrain" in data and "Xtest" in data:
-            hidden_train = data["Xtrain"]
-            hidden_test = data["Xtest"]
-        else:
-            if (x_0_learnable is False) or (q_uses_true_X is True):
-                raise ValueError("Cannot find the keys for hidden_train and hidden_test in the data file")
+        if not q_uses_true_X and x_0_learnable:
             hidden_train = np.zeros((n_train, time, Dx))
             hidden_test = np.zeros((n_test, time, Dx))
+        else:
+            if "Xtrue" in data:
+                hidden_train = data["Xtrue"][:n_train]
+                hidden_test = data["Xtrue"][n_train:]
+            elif "Xtrain" in data and "Xtest" in data:
+                hidden_train = data["Xtrain"]
+                hidden_test = data["Xtest"]
+            else:
+                raise ValueError("Cannot find the keys for hidden_train and hidden_test in the data file")
 
         if use_input and "Itrain" in data and "Itest" in data:
             input_train = data["Itrain"]
