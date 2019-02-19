@@ -21,10 +21,11 @@ if __name__ == "__main__":
     # --------------------- training hyperparameters --------------------- #
     params_dict["Dx"] = [3]
     params_dict["Dy"] = [1]
+    params_dict["Di"] = [1]
     params_dict["n_particles"] = [500]
 
     params_dict["batch_size"] = [1]
-    params_dict["lr"] = [1e-3, 3e-4]
+    params_dict["lr"] = [1e-3]
     params_dict["epoch"] = [300]
     params_dict["seed"] = [0]
 
@@ -43,55 +44,72 @@ if __name__ == "__main__":
     params_dict["n_test"] = [40]
 
     # --------------------- model parameters --------------------- #
-    # Define encoder and decoder network architectures
-    params_dict["q_train_layers"] = [[50]]
-    params_dict["q2_train_layers"] = [[50]]
-    params_dict["f_train_layers"] = [[50]]
-    params_dict["g_train_layers"] = [[50]]
+    # Feed-Forward Network (FFN)
+    params_dict["q0_layers"] = [[64]]
+    params_dict["q1_layers"] = [[64]]
+    params_dict["q2_layers"] = [[64]]
+    params_dict["f_layers"] = [[64]]
+    params_dict["g_layers"] = [[64]]
 
-    params_dict["q_sigma_init"] = [5]
+    params_dict["q0_sigma_init"] = [5]
+    params_dict["q1_sigma_init"] = [5]
     params_dict["q2_sigma_init"] = [5]
     params_dict["f_sigma_init"] = [5]
     params_dict["g_sigma_init"] = [5]
-    params_dict["q_sigma_min"] = [1]
+
+    params_dict["q0_sigma_min"] = [1]
+    params_dict["q1_sigma_min"] = [1]
     params_dict["q2_sigma_min"] = [1]
     params_dict["f_sigma_min"] = [1]
     params_dict["g_sigma_min"] = [1]
 
-    # do q and f use the same network?
+    # bidirectional RNN
+    params_dict["y_smoother_Dhs"] = [[16, 16]]
+    params_dict["X0_smoother_Dhs"] = [[16, 16]]
+
+    # Self-Attention encoder
+    params_dict["num_hidden_layers"] = [4]
+    params_dict["num_heads"] = [4]
+    params_dict["hidden_size"] = [16]
+    params_dict["filter_size"] = [16]
+    params_dict["dropout_rate"] = [0.1]
+
+    # --------------------- FFN flags --------------------- #
     params_dict["use_bootstrap"] = [True]
-
-    # if q takes y_t as input
-    # if is_bootstrap, q_takes_y will be overwritten as False
-    params_dict["q_takes_y"] = [False]
-
-    # should q use true_X to sample? (useful for debugging)
+    params_dict["x_0_learnable"] = [True]
     params_dict["q_uses_true_X"] = [False]
-
-    # term to weight the added contribution of the MSE to the cost
-    params_dict["loss_beta"] = [0.0]
-
-    # stop training early if validation set does not improve
-    params_dict["maxNumberNoImprovement"] = [5]
-
-    params_dict["x_0_learnable"] = [True, False]
-    params_dict["smoothing"] = [False]
     params_dict["use_residual"] = [False]
+    params_dict["use_2_q"] = [True]
     params_dict["output_cov"] = [False]
-    params_dict["use_2_q"] = [False]
+    params_dict["use_input"] = [False]
+
+    # --------------------- FFBS flags --------------------- #
+    params_dict["FFBS"] = [False]
+    params_dict["smoothing_perc_factor"] = [0]
+    params_dict["FFBS_to_learn"] = [False]
+
+    # --------------------- smoother flags --------------------- #
+    params_dict["smooth_obs"] = [True]
+    params_dict["use_RNN"] = [True]
+    params_dict["X0_use_separate_RNN"] = [True]
+    params_dict["use_stack_rnn"] = [True]
+
+    # --------------------- training flags --------------------- #
+    # stop training early if validation set does not improve
+    params_dict["maxNumberNoImprovement"] = [200]
+    params_dict["use_stop_gradient"] = [False]
 
     # --------------------- printing and data saving params --------------------- #
-    params_dict["print_freq"] = [5]
+    params_dict["print_freq"] = [1]
 
     params_dict["store_res"] = [True]
-    # params_dict["rslt_dir_name"] = "lorenz_1D"
     params_dict["MSE_steps"] = [10]
 
     # how many trajectories to draw in quiver plot
-    params_dict["quiver_traj_num"] = [5]
+    params_dict["quiver_traj_num"] = [30]
     params_dict["lattice_shape"] = [[10, 10, 3]]  # [25, 25] or [10, 10, 3]
 
-    params_dict["saving_num"] = [10]
+    params_dict["saving_num"] = [30]
 
     params_dict["save_tensorboard"] = [False]
     params_dict["save_model"] = [False]
@@ -112,7 +130,14 @@ if __name__ == "__main__":
             args += "--{0}={1} ".format(param_name, param_val)
 
         # some ad hoc way to define rslt_dir_name, feel free to delete/comment out it
-        args += "--rslt_dir_name {0}".format("/".join(arg_dict["datadir"].split("/")[-3:]))
+        rslt_dir_name = "fhn/"
+        rslt_dir_name += arg_dict["datadir"].split("/")[-2]
+        if arg_dict["smooth_obs"]:
+            rslt_dir_name += "/" + ("RNN" if arg_dict["use_RNN"] else "attention")
+        else:
+            rslt_dir_name += "/" + ("FFBS" if arg_dict["FFBS"] else "filtering")
+
+        args += "--rslt_dir_name={0}".format(rslt_dir_name)
 
         # create shell script
         with open(sh_name, "w") as f:
@@ -127,4 +152,4 @@ if __name__ == "__main__":
 
         # execute the shell script
         subprocess.Popen("qsub {0}".format(sh_name), shell=True)
-        time.sleep(0.25)
+        time.sleep(2)

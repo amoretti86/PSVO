@@ -8,15 +8,14 @@ class SMC:
                  n_particles,
                  q_uses_true_X=False,
                  bRNN=None,
-                 get_X0_w_bRNN=False,
-                 smooth_y_w_bRNN=False,
-                 X0_layers=[],
                  attention_encoder=None,
+                 X0_use_separate_RNN=True,
+                 use_stack_rnn=False,
+                 FFBS=False,
+                 smoothing_perc=1.0,
+                 FFBS_to_learn=False,
                  use_stop_gradient=False,
                  use_input=False,
-                 smoothing=False,
-                 smoothing_perc=1.0,
-                 smooth_to_learn=False,
                  name="log_ZSMC"):
 
         self.q0 = q0
@@ -29,28 +28,33 @@ class SMC:
         self.q_uses_true_X = q_uses_true_X
 
         if (bRNN or attention_encoder) is not None:
+            self.smooth_obs = True
+            self.X0_use_separate_RNN = X0_use_separate_RNN
+            self.use_stack_rnn = use_stack_rnn
 
             assert not (bRNN is not None and attention_encoder is not None)
 
             if bRNN is not None:
-                self.forward_RNN, self.backward_RNN = bRNN
+                self.y_smoother_f, self.y_smoother_b, self.X0_smoother_f, self.X0_smoother_b = bRNN
                 self.attention_encoder = None
+                if not use_stack_rnn:
+                    self.y_smoother_f = tf.nn.rnn_cell.MultiRNNCell(self.y_smoother_f)
+                    self.y_smoother_b = tf.nn.rnn_cell.MultiRNNCell(self.y_smoother_b)
+                    if X0_use_separate_RNN:
+                        self.X0_smoother_f = tf.nn.rnn_cell.MultiRNNCell(self.X0_smoother_f)
+                        self.X0_smoother_b = tf.nn.rnn_cell.MultiRNNCell(self.X0_smoother_b)
             if attention_encoder is not None:
                 self.attention_encoder = attention_encoder
-
-            self.get_X0_w_bRNN = get_X0_w_bRNN
-            self.smooth_y_w_bRNN = smooth_y_w_bRNN
-            self.X0_layers = X0_layers
         else:
-            self.get_X0_w_bRNN = self.smooth_y_w_bRNN = False
+            self.smooth_obs = False
 
         self.use_stop_gradient = use_stop_gradient
         self.use_input = use_input
 
-        self.smoothing = smoothing
+        self.FFBS = FFBS
         self.smoothing_perc = smoothing_perc
-        self.smooth_to_learn = smooth_to_learn
-        if not self.smooth_to_learn:
+        self.FFBS_to_learn = FFBS_to_learn
+        if not self.FFBS_to_learn:
             self.smoothing_perc = 1
 
         self.name = name
@@ -83,10 +87,10 @@ class SMC:
             X_prev = None
             resample_idx = None
 
-            if self.smooth_y_w_bRNN or self.get_X0_w_bRNN:
-                X_ancestor, encoded_obs = self.encode_y(obs)
+            if self.smooth_obs:
+                X_ancestor, smoothed_obs = self._smooth_obs(obs)
             else:
-                encoded_obs = tf.unstack(obs, axis=1)
+                smoothed_obs = tf.unstack(obs, axis=1)
 
             for t in range(0, time):
                 if t == 0:
@@ -97,8 +101,9 @@ class SMC:
                 if self.use_input:
                     if t == 0:
                         if X_ancestor is None:
-                            X_ancestor = self.q1.output_0
-                        q_f_t_feed = tf.concat([X_ancestor, Input[:, 0, :]], axis=-1)
+                            q_f_t_feed = Input[:, 0, :]
+                        else:
+                            q_f_t_feed = tf.concat([X_ancestor, Input[:, 0, :]], axis=-1)
                     else:
                         Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
                         q_f_t_feed = tf.concat([X_ancestor, Input_t_expanded], axis=-1)
@@ -121,14 +126,14 @@ class SMC:
                     else:
                         if t == 0:
                             X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q0, self.q2,
-                                                                                    q_f_t_feed, encoded_obs[t],
+                                                                                    q_f_t_feed, smoothed_obs[t],
                                                                                     sample_size)
                         else:
                             X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q1, self.q2,
-                                                                                    q_f_t_feed, encoded_obs[t],
+                                                                                    q_f_t_feed, smoothed_obs[t],
                                                                                     sample_size)
 
-                if self.smoothing and t != 0:
+                if self.FFBS and t != 0:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
 
                     if self.use_input:
@@ -176,9 +181,9 @@ class SMC:
             X_prevs.append(X_prev)
             X_ancestors.append(X_ancestor)
 
-            if self.smoothing:
+            if self.FFBS:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
-                if self.smooth_to_learn:
+                if self.FFBS_to_learn:
                     log_ZSMC = self.compute_log_ZSMC(reweighted_log_Ws)
                 else:
                     log_ZSMC = self.compute_log_ZSMC(log_Ws)
@@ -321,33 +326,47 @@ class SMC:
 
         return log_ZSMC
 
-    def encode_y(self, obs):
+    def _smooth_obs(self, obs):
 
-        with tf.variable_scope("encode_y"):
+        with tf.variable_scope("smooth_obs"):
             if self.attention_encoder is None:
-                f_obs_list = tf.unstack(obs, axis=1)
-                b_obs_list = list(reversed(f_obs_list))
 
-                f_outputs, f_last_state = tf.nn.static_rnn(self.forward_RNN, f_obs_list, dtype=tf.float32)
-                b_outputs, b_last_state = tf.nn.static_rnn(self.backward_RNN, b_obs_list, dtype=tf.float32)
+                if self.use_stack_rnn:
+                    outputs, state_fw, state_bw = \
+                        tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                                       self.y_smoother_b,
+                                                                       obs,
+                                                                       dtype=tf.float32)
+                else:
+                    outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                                                    self.y_smoother_b,
+                                                                                    obs,
+                                                                                    dtype=tf.float32)
+                smoothed_obs = tf.concat(outputs, axis=-1)
 
-                encoded_X0 = tf.concat(list(f_last_state) + list(b_last_state), axis=-1)
-                encoded_obs_list = [tf.concat((f_output, b_output), axis=-1)
-                                    for f_output, b_output in zip(f_outputs, b_outputs)]
+                if self.X0_use_separate_RNN:
+                    if self.use_stack_rnn:
+                        outputs, state_fw, state_bw = \
+                            tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.X0_smoother_f,
+                                                                           self.X0_smoother_b,
+                                                                           obs,
+                                                                           dtype=tf.float32)
+                    else:
+                        outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.X0_smoother_f,
+                                                                                        self.X0_smoother_b,
+                                                                                        obs,
+                                                                                        dtype=tf.float32)
+
+                smoothed_X0 = tf.concat([tf.concat(state, axis=-1) for state in state_fw + state_bw], axis=-1)
+
             else:
-                encoded_obs = self.attention_encoder(obs)
-                encoded_obs_list = tf.unstack(encoded_obs, axis=1)
-                encoded_X0 = encoded_obs_list[0]
+                smoothed_obs = self.attention_encoder(obs)
+                smoothed_obs_list = tf.unstack(smoothed_obs, axis=1)
+                smoothed_X0 = smoothed_obs_list[0]
 
-            if self.get_X0_w_bRNN:
-                X0 = encoded_X0
-            else:
-                X0 = None
+            smoothed_obs_list = tf.unstack(smoothed_obs, axis=1)
 
-            if not self.smooth_y_w_bRNN:
-                encoded_obs_list = tf.unstack(obs, axis=1)
-
-        return X0, encoded_obs_list
+        return smoothed_X0, smoothed_obs_list
 
     def n_step_MSE(self, n_steps, hidden, obs, Input):
         # Compute MSE_k for k = 0, ..., n_steps

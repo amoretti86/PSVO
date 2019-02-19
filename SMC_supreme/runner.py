@@ -60,7 +60,7 @@ def main(_):
     n_test = FLAGS.n_test
 
     # --------------------- model parameters --------------------- #
-    # network architectures
+    # Feed-Forward Network (FFN) architectures
     q0_layers = [int(x) for x in FLAGS.q0_layers.split(",")]
     q1_layers = [int(x) for x in FLAGS.q1_layers.split(",")]
     q2_layers = [int(x) for x in FLAGS.q2_layers.split(",")]
@@ -73,34 +73,26 @@ def main(_):
     f_sigma_init, f_sigma_min = FLAGS.f_sigma_init, FLAGS.f_sigma_min
     g_sigma_init, g_sigma_min = FLAGS.f_sigma_init, FLAGS.g_sigma_min
 
-    lstm_Dh = FLAGS.lstm_Dh
+    # bidirectional RNN
+    y_smoother_Dhs = [int(x) for x in FLAGS.y_smoother_Dhs.split(",")]
+    X0_smoother_Dhs = [int(x) for x in FLAGS.X0_smoother_Dhs.split(",")]
 
+    # Self-Attention encoder
     num_hidden_layers = FLAGS.num_hidden_layers
     num_heads = FLAGS.num_heads
     hidden_size = FLAGS.hidden_size
     filter_size = FLAGS.filter_size
     dropout_rate = FLAGS.dropout_rate
 
+    # --------------------- FFN flags --------------------- #
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
 
     # should q use true_X to sample? (useful for debugging)
     q_uses_true_X = FLAGS.q_uses_true_X
 
-    # stop training early if validation set does not improve
-    maxNumberNoImprovement = FLAGS.maxNumberNoImprovement
-
     # if x0 is learnable
     x_0_learnable = FLAGS.x_0_learnable
-
-    # filtering or smoothing
-    smoothing = FLAGS.smoothing
-
-    # how fast the model transfers from filtering to smoothing
-    smoothing_perc_factor = FLAGS.smoothing_perc_factor
-
-    # whether use smoothing for inference or leaning
-    smooth_to_learn = FLAGS.smooth_to_learn
 
     # if f and q use residual
     use_residual = FLAGS.use_residual
@@ -114,16 +106,42 @@ def main(_):
     #          q_uses_true_X as False
     use_2_q = FLAGS.use_2_q
 
-    # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
-    use_stop_gradient = FLAGS.use_stop_gradient
-
-    # whether use birdectional RNN to get X0 and encode observation
-    get_X0_w_bRNN = FLAGS.get_X0_w_bRNN
-    smooth_y_w_bRNN = FLAGS.smooth_y_w_bRNN
-    use_RNN = FLAGS.use_RNN
-
     # whether use input in q and f
     use_input = FLAGS.use_input
+
+    # --------------------- FFBS flags --------------------- #
+
+    # filtering or smoothing
+    FFBS = FLAGS.FFBS
+
+    # how fast the model transfers from filtering to smoothing
+    smoothing_perc_factor = FLAGS.smoothing_perc_factor
+
+    # whether use smoothing for inference or leaning
+    FFBS_to_learn = FLAGS.FFBS_to_learn
+
+    # --------------------- smoother flags --------------------- #
+
+    # whether smooth observations with birdectional RNNs (bRNN) or self-attention encoders
+    smooth_obs = FLAGS.smooth_obs
+
+    # whether use bRNN or self-attention encoders to get X0 and encode observation
+    use_RNN = FLAGS.use_RNN
+
+    # whether use a separate RNN for getting X0
+    X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
+
+    # whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn or tf.nn.bidirectional_dynamic_rnn
+    # check https://stackoverflow.com/a/50552539 for differences between them
+    use_stack_rnn = FLAGS.use_stack_rnn
+
+    # --------------------- training flags --------------------- #
+
+    # stop training early if validation set does not improve
+    maxNumberNoImprovement = FLAGS.maxNumberNoImprovement
+
+    # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
+    use_stop_gradient = FLAGS.use_stop_gradient
 
     # --------------------- printing and data saving params --------------------- #
     print_freq = FLAGS.print_freq
@@ -305,11 +323,20 @@ def main(_):
 
     g_dist = tf_mvn(g_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_dist")
 
-    if get_X0_w_bRNN or smooth_y_w_bRNN:
+    if smooth_obs:
         if use_RNN:
-            forward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="forward_RNN")
-            backward_RNN = tf.contrib.rnn.LSTMBlockCell(lstm_Dh, name="backward_RNN")
-            bRNN = (forward_RNN, backward_RNN)
+            y_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_f_{}".format(i))
+                            for i, Dh in enumerate(y_smoother_Dhs)]
+            y_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_b_{}".format(i))
+                            for i, Dh in enumerate(y_smoother_Dhs)]
+            if X0_use_separate_RNN:
+                X0_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_f_{}".format(i))
+                                 for i, Dh in enumerate(X0_smoother_Dhs)]
+                X0_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_b_{}".format(i))
+                                 for i, Dh in enumerate(X0_smoother_Dhs)]
+            else:
+                X0_smoother_f = X0_smoother_b = None
+            bRNN = (y_smoother_f, y_smoother_b, X0_smoother_f, X0_smoother_b)
             attention_encoder = None
         else:
             assert hidden_size % (num_heads * Dy) == 0
@@ -322,12 +349,12 @@ def main(_):
                     n_particles,
                     q_uses_true_X=q_uses_true_X,
                     bRNN=bRNN,
-                    get_X0_w_bRNN=get_X0_w_bRNN,
-                    smooth_y_w_bRNN=smooth_y_w_bRNN,
                     attention_encoder=attention_encoder,
-                    smoothing=smoothing,
+                    X0_use_separate_RNN=X0_use_separate_RNN,
+                    use_stack_rnn=use_stack_rnn,
+                    FFBS=FFBS,
                     smoothing_perc=smoothing_perc,
-                    smooth_to_learn=smooth_to_learn,
+                    FFBS_to_learn=FFBS_to_learn,
                     use_stop_gradient=use_stop_gradient,
                     use_input=use_input,
                     name="log_ZSMC_train")
