@@ -91,14 +91,14 @@ def main(_):
     # should q use true_X to sample? (useful for debugging)
     q_uses_true_X = FLAGS.q_uses_true_X
 
-    # if x0 is learnable
-    x_0_learnable = FLAGS.x_0_learnable
-
     # if f and q use residual
     use_residual = FLAGS.use_residual
 
     # if q, f and g networks also output covariance (sigma)
     output_cov = FLAGS.output_cov
+
+    # if the networks only output diagonal value of cov matrix
+    diag_cov = FLAGS.diag_cov
 
     # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
     # if True, use_bootstrap will be overwritten as True
@@ -138,7 +138,16 @@ def main(_):
     # --------------------- training flags --------------------- #
 
     # stop training early if validation set does not improve
-    maxNumberNoImprovement = FLAGS.maxNumberNoImprovement
+    early_stop_patience = FLAGS.early_stop_patience
+
+    # reduce learning rate when testing loss doesn't improve for some time
+    lr_reduce_patience = FLAGS.lr_reduce_patience
+
+    # the factor to reduce lr, new_lr = old_lr * lr_reduce_factor
+    lr_reduce_factor = FLAGS.lr_reduce_factor
+
+    # minimum lr
+    min_lr = FLAGS.min_lr
 
     # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
     use_stop_gradient = FLAGS.use_stop_gradient
@@ -180,6 +189,7 @@ def main(_):
     lattice_shape.append(Dx)
 
     # ============================================= dataset part ============================================= #
+    # generate data from simulation
     if generateTrainingData:
 
         # integrate differential equations to simulate the FHN or Lorenz systems
@@ -214,8 +224,8 @@ def main(_):
         input_test = np.zeros((n_test, time, Di))
         print("finished creating dataset")
 
+    # load data from file
     else:
-        # load data
         with open(datadir + datadict, "rb") as handle:
             if isPython2:
                 data = pickle.load(handle, encoding="latin1")
@@ -236,7 +246,7 @@ def main(_):
         n_test = obs_test.shape[0]
         time = obs_train.shape[1]
 
-        if not q_uses_true_X and x_0_learnable:
+        if not q_uses_true_X:
             hidden_train = np.zeros((n_train, time, Dx))
             hidden_test = np.zeros((n_test, time, Dx))
         else:
@@ -265,13 +275,6 @@ def main(_):
 
     # ============================================== model part ============================================== #
     # placeholders
-    if x_0_learnable:
-        x_0 = tf.placeholder(tf.int32, shape=(batch_size), name="x_0")
-        all_x_0 = tf.Variable(np.zeros((n_train + n_test, Dx)), dtype=tf.float32, name="all_x_0")
-        x_0_val = tf.gather(all_x_0, x_0, name="x_0_val")
-    else:
-        x_0 = tf.placeholder(tf.float32, shape=(batch_size, Dx), name="x_0")
-        x_0_val = tf.identity(x_0, name="x_0_val")
     obs = tf.placeholder(tf.float32, shape=(batch_size, time, Dy), name="obs")
     hidden = tf.placeholder(tf.float32, shape=(batch_size, time, Dx), name="hidden")
     Input = tf.placeholder(tf.float32, shape=(batch_size, time, Di), name="Input")
@@ -282,15 +285,18 @@ def main(_):
     q0_tran = MLP_transformation(q0_layers, Dx,
                                  use_residual=False,
                                  output_cov=output_cov,
+                                 diag_cov=diag_cov,
                                  name="q0_tran")
     q1_tran = MLP_transformation(q1_layers, Dx,
                                  use_residual=use_residual and not q_takes_y,
                                  output_cov=output_cov,
+                                 diag_cov=diag_cov,
                                  name="q1_tran")
     if use_2_q:
         q2_tran = MLP_transformation(q2_layers, Dx,
                                      use_residual=False,
                                      output_cov=output_cov,
+                                     diag_cov=diag_cov,
                                      name="q2_tran")
     else:
         q2_tran = None
@@ -301,29 +307,32 @@ def main(_):
         f_tran = MLP_transformation(f_layers, Dx,
                                     use_residual=use_residual,
                                     output_cov=output_cov,
+                                    diag_cov=diag_cov,
                                     name="f_tran")
 
     g_tran = MLP_transformation(g_layers, Dy,
                                 use_residual=False,
                                 output_cov=output_cov,
+                                diag_cov=diag_cov,
                                 name="g_tran")
 
     # distributions
-    q0_dist = tf_mvn(q0_tran, x_0_val, sigma_init=q0_sigma_init, sigma_min=q0_sigma_min, name="q0_dist")
-    q1_dist = tf_mvn(q1_tran, x_0_val, sigma_init=q1_sigma_init, sigma_min=q1_sigma_min, name="q1_dist")
+    q0_dist = tf_mvn(q0_tran, sigma_init=q0_sigma_init, sigma_min=q0_sigma_min, name="q0_dist")
+    q1_dist = tf_mvn(q1_tran, sigma_init=q1_sigma_init, sigma_min=q1_sigma_min, name="q1_dist")
 
     if use_2_q:
-        q2_dist = tf_mvn(q2_tran, x_0_val, sigma_init=q2_sigma_init, sigma_min=q2_sigma_min, name="q2_dist")
+        q2_dist = tf_mvn(q2_tran, sigma_init=q2_sigma_init, sigma_min=q2_sigma_min, name="q2_dist")
     else:
         q2_dist = None
 
     if use_bootstrap:
         f_dist = q1_dist
     else:
-        f_dist = tf_mvn(f_tran, x_0_val, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_dist")
+        f_dist = tf_mvn(f_tran, sigma_init=f_sigma_init, sigma_min=f_sigma_min, name="f_dist")
 
-    g_dist = tf_mvn(g_tran, None, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_dist")
+    g_dist = tf_mvn(g_tran, sigma_init=g_sigma_init, sigma_min=g_sigma_min, name="g_dist")
 
+    # smoothers
     if smooth_obs:
         if use_RNN:
             y_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_f_{}".format(i))
@@ -346,6 +355,7 @@ def main(_):
     else:
         bRNN = attention_encoder = None
 
+    # SMC class to calculate loss
     SMC_train = SMC(q0_dist, q1_dist, q2_dist, f_dist, g_dist,
                     n_particles,
                     q_uses_true_X=q_uses_true_X,
@@ -361,6 +371,7 @@ def main(_):
                     name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
+    # create dir to store results
     if store_res:
         Experiment_params = {"np": n_particles,
                              "t": time,
@@ -390,13 +401,11 @@ def main(_):
                         n_particles, time,
                         batch_size, lr, epoch,
                         MSE_steps,
-                        maxNumberNoImprovement,
-                        x_0_learnable,
-                        smoothing_perc_factor,
-                        dropout_rate)
+                        smoothing_perc_factor)
 
+    mytrainer.training_params(early_stop_patience, lr_reduce_factor, lr_reduce_patience, min_lr, dropout_rate)
     mytrainer.set_SMC(SMC_train)
-    mytrainer.set_placeholders(x_0, obs, hidden, Input, dropout, smoothing_perc)
+    mytrainer.set_placeholders(obs, hidden, Input, dropout, smoothing_perc)
 
     if store_res:
         mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num, save_tensorboard, save_model)
@@ -407,43 +416,31 @@ def main(_):
         elif Dx == 3:
             mytrainer.draw_quiver_during_training = True
 
-    losses, tensors = mytrainer.train(obs_train, obs_test,
-                                      hidden_train, hidden_test,
-                                      input_train, input_test,
-                                      print_freq)
+    history, log = mytrainer.train(obs_train, obs_test,
+                                   hidden_train, hidden_test,
+                                   input_train, input_test,
+                                   print_freq)
 
     # ======================================= another data saving part ======================================= #
-    # _, R_square_trains, R_square_tests = losses
     if store_res:
-        log_ZSMC_trains, log_ZSMC_tests, \
-            MSE_trains, MSE_tests, \
-            R_square_trains, R_square_tests = losses
-        log_train, ys_hat = tensors
-
-        Xs = log_train[0]
-        if x_0_learnable:
-            x_0_feed = n_train + np.arange(n_test)
-        else:
-            x_0_feed = hidden_test[:, 0]
+        Xs, y_hat = log["Xs"], log["y_hat"]
 
         Xs_val = mytrainer.evaluate(Xs, {obs: obs_test[0:saving_num],
-                                         x_0: x_0_feed[0:saving_num],
                                          hidden: hidden_test[0:saving_num],
                                          Input: input_test[0:saving_num],
                                          dropout: np.zeros(saving_num),
                                          smoothing_perc: np.ones(saving_num)})
-        ys_hat_val = mytrainer.evaluate(ys_hat, {obs: obs_test[0:saving_num],
-                                                 x_0: x_0_feed[0:saving_num],
-                                                 hidden: hidden_test[0:saving_num],
-                                                 Input: input_test[0:saving_num],
-                                                 dropout: np.zeros(saving_num),
-                                                 smoothing_perc: np.ones(saving_num)})
+        y_hat_val = mytrainer.evaluate(y_hat, {obs: obs_test[0:saving_num],
+                                               hidden: hidden_test[0:saving_num],
+                                               Input: input_test[0:saving_num],
+                                               dropout: np.zeros(saving_num),
+                                               smoothing_perc: np.ones(saving_num)})
 
         print("finish evaluating training results")
 
         plot_training_data(RLT_DIR, hidden_train, obs_train, saving_num=saving_num)
         plot_learning_results(RLT_DIR, Xs_val, hidden_test, saving_num=saving_num)
-        plot_y_hat(RLT_DIR, ys_hat_val, obs_test, saving_num=saving_num)
+        plot_y_hat(RLT_DIR, y_hat_val, obs_test, saving_num=saving_num)
 
         if Dx == 2:
             plot_fhn_results(RLT_DIR, Xs_val)
@@ -451,13 +448,7 @@ def main(_):
         if Dx == 3:
             plot_lorenz_results(RLT_DIR, Xs_val)
 
-        loss_dict = {"log_ZSMC_trains": log_ZSMC_trains,
-                     "log_ZSMC_tests": log_ZSMC_tests,
-                     "MSE_trains": MSE_trains,
-                     "MSE_tests": MSE_tests,
-                     "R_square_trains": R_square_trains,
-                     "R_square_tests": R_square_tests}
-        data_dict = {"loss": loss_dict}
+        data_dict = {"history": history}
 
         if generateTrainingData:
             data_dict["true_model_dict"] = true_model_dict
@@ -468,13 +459,13 @@ def main(_):
         testing_data_dict = {"hidden_test": hidden_test[0:saving_num],
                              "obs_test": obs_test[0:saving_num]}
         learned_model_dict = {"Xs_val": Xs_val,
-                              "ys_hat_val": ys_hat_val}
+                              "y_hat_val": y_hat_val}
         data_dict["testing_data_dict"] = testing_data_dict
         data_dict["learned_model_dict"] = learned_model_dict
 
         with open(RLT_DIR + "data.p", "wb") as f:
             pickle.dump(data_dict, f)
 
-        plot_MSEs(RLT_DIR, MSE_trains, MSE_tests, print_freq)
-        plot_R_square(RLT_DIR, R_square_trains, R_square_tests, print_freq)
-        plot_log_ZSMC(RLT_DIR, log_ZSMC_trains, log_ZSMC_tests, print_freq)
+        plot_MSEs(RLT_DIR, history["MSE_trains"], history["MSE_tests"], print_freq)
+        plot_R_square(RLT_DIR, history["R_square_trains"], history["R_square_tests"], print_freq)
+        plot_log_ZSMC(RLT_DIR, history["log_ZSMC_trains"], history["log_ZSMC_tests"], print_freq)

@@ -1,9 +1,11 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
 import os
+import numpy as np
 
 from runner import main
 
+np.warnings.filterwarnings('ignore')
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # to avoid lots of log about the device
 
 print("the code is written in:")
@@ -22,18 +24,18 @@ Di = 1
 n_particles = 64
 
 batch_size = 1
-lr = 1e-3
+lr = 2e-3
 epoch = 300
 seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = True
+generateTrainingData = False
 
 # if reading data from file
-datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
+datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/allen/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
-datadict = "datadict"
+datadict = "Allen_wI"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
@@ -43,21 +45,21 @@ n_test = 40 * batch_size
 
 # --------------------- model parameters --------------------- #
 # Feed-Forward Network (FFN)
-q0_layers = [64]        # q(x_1|y_1) or q(x_1|y_1:T)
-q1_layers = [64]        # q(x_t|x_{t-1})
-q2_layers = [64]        # q(x_t|y_t) or q(x_t|y_1:T)
-f_layers = [64]
-g_layers = [64]
+q0_layers = [32, 32]        # q(x_1|y_1) or q(x_1|y_1:T)
+q1_layers = [32, 32]        # q(x_t|x_{t-1})
+q2_layers = [32, 32]        # q(x_t|y_t) or q(x_t|y_1:T)
+f_layers = [32, 32]
+g_layers = [32, 32]
 
-q0_sigma_init, q0_sigma_min = 5, 1
-q1_sigma_init, q1_sigma_min = 5, 1
-q2_sigma_init, q2_sigma_min = 5, 1
-f_sigma_init, f_sigma_min = 5, 1
-g_sigma_init, g_sigma_min = 5, 1
+q0_sigma_init, q0_sigma_min = 5, 0.2
+q1_sigma_init, q1_sigma_min = 5, 0.2
+q2_sigma_init, q2_sigma_min = 5, 0.2
+f_sigma_init, f_sigma_min = 5, 0.2
+g_sigma_init, g_sigma_min = 5, 0.2
 
 # bidirectional RNN
-y_smoother_Dhs = [16, 16]
-X0_smoother_Dhs = [16, 16]
+y_smoother_Dhs = [32]
+X0_smoother_Dhs = [32]
 
 # Self-Attention encoder
 num_hidden_layers = 4
@@ -85,6 +87,9 @@ use_2_q = True
 
 # if q, f and g networks also output covariance (sigma)
 output_cov = False
+
+# if q, f and g networks also output covariance (sigma)
+diag_cov = True
 
 # if x0 is learnable or takes ground truth
 x_0_learnable = True
@@ -123,14 +128,23 @@ use_stack_rnn = True
 use_stop_gradient = False
 
 # stop training early if validation set does not improve
-maxNumberNoImprovement = 200
+early_stop_patience = 200
+
+# reduce learning rate when testing loss doesn't improve for some time
+lr_reduce_patience = 20
+
+# the factor to reduce lr, new_lr = old_lr * lr_reduce_factor
+lr_reduce_factor = 1 / np.sqrt(2)
+
+# minimum lr
+min_lr = lr / 50
 
 # --------------------- printing and data saving params --------------------- #
-print_freq = 1
+print_freq = 5
 
 store_res = True
-rslt_dir_name = "lorenz_1D"
-MSE_steps = 10
+rslt_dir_name = "Allen_wI"
+MSE_steps = 30
 
 # how many trajectories to draw in quiver plot
 quiver_traj_num = min(30, n_train, n_test)
@@ -232,6 +246,7 @@ flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t
                                          "q_takes_y as False, "
                                          "q_uses_true_X as False")
 flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
+flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
 flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
 flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "whether x0 is learnable or takes ground truth")
 
@@ -254,8 +269,16 @@ flags.DEFINE_boolean("use_stack_rnn", use_stack_rnn, "whether use tf.contrib.rnn
 
 # --------------------- training flags --------------------- #
 
-flags.DEFINE_integer("maxNumberNoImprovement", maxNumberNoImprovement,
+flags.DEFINE_integer("early_stop_patience", early_stop_patience,
                      "stop training early if validation set does not improve for certain epochs")
+
+flags.DEFINE_integer("lr_reduce_patience", lr_reduce_patience,
+                     "educe learning rate when testing loss doesn't improve for some time")
+flags.DEFINE_float("lr_reduce_factor", lr_reduce_factor,
+                   "the factor to reduce learning rate, new_lr = old_lr * lr_reduce_factor")
+flags.DEFINE_float("min_lr", min_lr,
+                   "minimum learning rate")
+
 flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "whether use tf.stop_gradient "
                                                              "when resampling and reweighting weights during smoothing")
 

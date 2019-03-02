@@ -61,18 +61,20 @@ class SMC:
 
     def get_log_ZSMC(self, obs, hidden, Input, q_cov=1):
         """
+        Get log_ZSMC from obs y_1:T
         Input:
             obs.shape = (batch_size, time, Dy)
+            hidden.shape = (batch_size, time, Dz)
+            Input.shape = (batch_size, time, Di)
         Output:
             log_ZSMC: shape = scalar
             log: stuff to debug
         """
         with tf.variable_scope(self.name):
             batch_size, time, Dy = obs.get_shape().as_list()
-            batch_size, Dx = self.q1.output_0.get_shape().as_list()
             n_particles = self.n_particles
 
-            self.n_particles, self.batch_size, self.time, self.Dx, self.Dy = n_particles, batch_size, time, Dx, Dy
+            self.n_particles, self.batch_size, self.time, self.Dy = n_particles, batch_size, time, Dy
 
             X_prevs = []
             X_ancestors = []
@@ -91,6 +93,7 @@ class SMC:
                 X_ancestor, smoothed_obs = self._smooth_obs(obs)
             else:
                 smoothed_obs = tf.unstack(obs, axis=1)
+                X_ancestor = smoothed_obs[0]
 
             for t in range(0, time):
                 if t == 0:
@@ -111,6 +114,7 @@ class SMC:
                     q_f_t_feed = X_ancestor
 
                 if self.q_uses_true_X:
+                    Dx = hidden.get_shape().as_list()[-1]
                     mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov * tf.eye(Dx),
                                                                name="q_{}_mvn".format(t))
                     X = mvn.sample((n_particles))
@@ -181,6 +185,7 @@ class SMC:
             X_prevs.append(X_prev)
             X_ancestors.append(X_ancestor)
 
+            reweighted_log_Ws = None
             if self.FFBS:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
                 if self.FFBS_to_learn:
@@ -200,16 +205,42 @@ class SMC:
             else:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
                 Xs = X_ancestors
-                log = []
+
+            q_grads = []
+            f_grads = []
+            g_grads = []
+            for q, f, g in zip(qs, fs, gs):
+                q_grad, f_grad, g_grad = tf.gradients(log_ZSMC, [q, f, g])
+                q_grads.append(q_grad)
+                f_grads.append(f_grad)
+                g_grads.append(g_grad)
 
             # (batch_size, time, n_particles, Dx)
             Xs = tf.transpose(tf.stack(Xs), perm=[2, 0, 1, 3], name="Xs")
-            log_Ws = tf.transpose(tf.stack(log_Ws), perm=[2, 0, 1], name="log_Ws")    # (batch_size, time, n_particles)
-            qs = tf.transpose(tf.stack(qs), perm=[2, 0, 1], name="qs")                # (batch_size, time, n_particles)
-            fs = tf.transpose(tf.stack(fs), perm=[2, 0, 1], name="fs")                # (batch_size, time, n_particles)
-            gs = tf.transpose(tf.stack(gs), perm=[2, 0, 1], name="gs")                # (batch_size, time, n_particles)
+            X_prevs = tf.transpose(tf.stack(X_prevs), perm=[2, 0, 1, 3], name="X_prev")
+            X_ancestors = tf.transpose(tf.stack(X_ancestors), perm=[2, 0, 1, 3], name="X_ancestors")
 
-        return log_ZSMC, [Xs, X_ancestors, log_Ws, fs, gs, qs] + log
+            log_Ws = tf.transpose(tf.stack(log_Ws), perm=[2, 0, 1], name="log_Ws")     # (batch_size, time, n_particles)
+            qs = tf.transpose(tf.stack(qs), perm=[2, 0, 1], name="qs")                 # (batch_size, time, n_particles)
+            fs = tf.transpose(tf.stack(fs), perm=[2, 0, 1], name="fs")                 # (batch_size, time, n_particles)
+            gs = tf.transpose(tf.stack(gs), perm=[2, 0, 1], name="gs")                 # (batch_size, time, n_particles)
+            q_grads = tf.transpose(tf.stack(q_grads), perm=[2, 0, 1], name="q_grads")  # (batch_size, time, n_particles)
+            f_grads = tf.transpose(tf.stack(f_grads), perm=[2, 0, 1], name="f_grads")  # (batch_size, time, n_particles)
+            g_grads = tf.transpose(tf.stack(g_grads), perm=[2, 0, 1], name="g_grads")  # (batch_size, time, n_particles)
+
+            log = {"Xs": Xs,
+                   "X_prevs": X_prevs,
+                   "X_ancestors": X_ancestors,
+                   "log_Ws": log_Ws,
+                   "reweighted_log_Ws": reweighted_log_Ws,
+                   "qs": qs,
+                   "fs": fs,
+                   "gs": gs,
+                   "q_grads": q_grads,
+                   "f_grads": f_grads,
+                   "g_grads": g_grads}
+
+        return log_ZSMC, log
 
     def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size):
         d1_mvn = dist1.get_mvn(d1_input)
@@ -263,6 +294,7 @@ class SMC:
         return X, q_t_log_prob, f_t_log_prob
 
     def get_resample_idx(self, log_W, t):
+        # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
         n_particles, batch_size = self.n_particles, self.batch_size
 
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0), name="log_W_max")
@@ -293,6 +325,7 @@ class SMC:
         return resample_idx_NxBx2
 
     def reweight_log_Ws(self, log_Ws, all_fs):
+        # reweight weight of each particle (w_t^k) according to FFBS formula
         time = len(log_Ws)
         reweighted_log_Ws = ["placeholder"] * time
 
@@ -315,7 +348,7 @@ class SMC:
 
     @staticmethod
     def compute_log_ZSMC(log_Ws):
-        # log_Ws (list)
+        # log_Ws: list of log_W for t = 1, ..., T
         # compute loss
         log_Ws = tf.stack(log_Ws)
         time, n_particles, batch_size = log_Ws.get_shape().as_list()
@@ -327,6 +360,7 @@ class SMC:
         return log_ZSMC
 
     def _smooth_obs(self, obs):
+        # smooth obs with bidirectional RNN or attention mechanism
 
         with tf.variable_scope("smooth_obs"):
             if self.attention_encoder is None:
@@ -370,7 +404,8 @@ class SMC:
 
     def n_step_MSE(self, n_steps, hidden, obs, Input):
         # Compute MSE_k for k = 0, ..., n_steps
-        batch_size, time, _, Dx = hidden.shape.as_list()
+        # Intermediate step to calculate k-step R^2
+        batch_size, time, _, _ = hidden.shape.as_list()
         _, _, Dy = obs.shape.as_list()
         _, _, Di = Input.shape.as_list()
         assert n_steps < time, "n_steps = {} >= time".format(n_steps)
@@ -425,6 +460,7 @@ class SMC:
             return MSE_ks, y_means, y_vars, y_hat_N_BxTxDy
 
     def get_nextX(self, X):
+        # only used for drawing 2D quiver plot
         if self.use_input:
             return None
         with tf.variable_scope(self.name):

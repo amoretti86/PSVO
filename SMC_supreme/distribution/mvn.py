@@ -61,10 +61,16 @@ class tf_mvn(distribution):
                                                  validate_args=True,
                                                  allow_nan_stats=False)
             else:
-                sigma = tf.diag(sigma_con) + 0.1 * tf.matmul(sigma, sigma, transpose_b=True)
-                mvn = tfd.MultivariateNormalFullCovariance(mu, sigma,
-                                                           validate_args=True,
-                                                           allow_nan_stats=False)
+                if len(sigma.shape.as_list()) == len(mu.shape.as_list()):
+                    sigma = sigma_con + sigma
+                    mvn = tfd.MultivariateNormalDiag(mu, sigma,
+                                                     validate_args=True,
+                                                     allow_nan_stats=False)
+                else:
+                    sigma = tf.diag(sigma_con) + 0.1 * sigma
+                    mvn = tfd.MultivariateNormalFullCovariance(mu, sigma,
+                                                               validate_args=True,
+                                                               allow_nan_stats=False)
 
             return mvn
 

@@ -20,10 +20,7 @@ class trainer:
                  n_particles, time,
                  batch_size, lr, epoch,
                  MSE_steps,
-                 maxNumberNoImprovement,
-                 x_0_learnable,
-                 smoothing_perc_factor,
-                 dropout_rate):
+                 smoothing_perc_factor):
         self.Dx = Dx
         self.Dy = Dy
 
@@ -39,13 +36,19 @@ class trainer:
         self.store_res = False
         self.draw_quiver_during_training = False
 
-        self.maxNumberNoImprovement = maxNumberNoImprovement
-        self.bestCost = -np.inf
-        self.costUpdate = 0
-
-        self.x_0_learnable = x_0_learnable
-
         self.smoothing_perc_factor = smoothing_perc_factor
+
+    def training_params(self, early_stop_patience, lr_reduce_factor, lr_reduce_patience, min_lr, dropout_rate):
+        self.early_stop_patience = early_stop_patience
+        self.bestCost = 0
+        self.early_stop_count = 0
+
+        self.lr_reduce_factor = lr_reduce_factor
+        self.lr_reduce_patience = lr_reduce_patience
+        self.min_lr = min_lr
+        self.lr_reduce_count = 0
+
+        # dropout only used when training attention mechanism
         self.dropout_rate = dropout_rate
 
     def set_rslt_saving(self, RLT_DIR, save_freq, saving_num, save_tensorboard=False, save_model=False):
@@ -65,8 +68,7 @@ class trainer:
     def set_SMC(self, SMC_train):
         self.SMC_train = SMC_train
 
-    def set_placeholders(self, x_0, obs, hidden, Input, dropout, smoothing_perc):
-        self.x_0 = x_0
+    def set_placeholders(self, obs, hidden, Input, dropout, smoothing_perc):
         self.obs = obs
         self.hidden = hidden
         self.Input = Input
@@ -133,15 +135,8 @@ class trainer:
 
         for i in range(0, n_batches, batch_size):
 
-            if self.x_0_learnable:
-                offset = self.n_train if is_test else 0
-                x_0_feed = np.arange(i, i + batch_size) + offset
-            else:
-                x_0_feed = hidden_set[i:i + batch_size, 0]
-
             batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
                                                                       {self.obs: obs_set[i:i + batch_size],
-                                                                       self.x_0: x_0_feed,
                                                                        self.hidden: hidden_set[i:i + batch_size],
                                                                        self.Input: input_set[i:i + batch_size],
                                                                        self.dropout: np.zeros(batch_size),
@@ -182,18 +177,20 @@ class trainer:
               hidden_train, hidden_test,
               input_train, input_test,
               print_freq):
-        self.n_train = n_train = len(obs_train)
-        self.n_test = n_test = len(obs_test)
 
         log_ZSMC, log = self.SMC_train.get_log_ZSMC(self.obs, self.hidden, self.Input)
 
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
-        Xs = log[0]
+        Xs = log["Xs"]
         MSE_ks, y_means, y_vars, y_hat = self.SMC_train.n_step_MSE(self.MSE_steps, Xs, self.obs, self.Input)
 
+        # used to compare signal-to-noise ratio of gradient for different number of paricles
+        q_grads, f_grads, g_grads = log["q_grads"], log["f_grads"], log["g_grads"]
+
         with tf.variable_scope("train"):
-            train_op = tf.train.AdamOptimizer(self.lr).minimize(-log_ZSMC)
+            lr = tf.placeholder(tf.float32, name="lr")
+            train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC)
 
         init = tf.global_variables_initializer()
 
@@ -212,23 +209,12 @@ class trainer:
         print("initializing variables...")
         self.sess.run(init)
 
+        # unused tensorboard stuff
         if self.store_res and self.save_tensorboard:
             self.writer.add_graph(self.sess.graph)
 
-        # print("trainable_variables:")
-        # for tnsr in tf.trainable_variables():
-        #     print("\t", tnsr)
-
-        if self.x_0_learnable:
-            x_0_feed_train = np.arange(n_train)
-            x_0_feed_test = n_train + np.arange(n_test)
-        else:
-            x_0_feed_train = hidden_train[:, 0]
-            x_0_feed_test = hidden_test[:, 0]
-
         log_ZSMC_train = self.evaluate(log_ZSMC,
                                        {self.obs: obs_train,
-                                        self.x_0: x_0_feed_train,
                                         self.hidden: hidden_train,
                                         self.Input: input_train,
                                         self.dropout: np.zeros(len(obs_train)),
@@ -236,7 +222,6 @@ class trainer:
                                        average=True)
         log_ZSMC_test = self.evaluate(log_ZSMC,
                                       {self.obs: obs_test,
-                                       self.x_0: x_0_feed_test,
                                        self.hidden: hidden_test,
                                        self.Input: input_test,
                                        self.dropout: np.zeros(len(obs_test)),
@@ -272,31 +257,26 @@ class trainer:
 
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
             for j in range(0, len(obs_train), self.batch_size):
-                if self.x_0_learnable:
-                    x_0_feed = np.arange(j, j + self.batch_size)
-                else:
-                    x_0_feed = hidden_train[j:j + self.batch_size, 0]
                 self.sess.run(train_op,
                               feed_dict={self.obs: obs_train[j:j + self.batch_size],
-                                         self.x_0: x_0_feed,
                                          self.hidden: hidden_train[j:j + self.batch_size],
                                          self.Input: input_train[j:j + self.batch_size],
                                          self.dropout: np.ones(self.batch_size) * self.dropout_rate,
-                                         self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch})
+                                         self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch,
+                                         lr: self.lr})
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:
-                log_ZSMC_train = self.evaluate(log_ZSMC,
-                                               {self.obs: obs_train,
-                                                self.x_0: x_0_feed_train,
-                                                self.hidden: hidden_train,
-                                                self.Input: input_train,
-                                                self.dropout: np.zeros(len(obs_train)),
-                                                self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
-                                               average=True)
+                log_ZSMC_train, q_grads_val, f_grads_val, g_grads_val = \
+                    self.evaluate([log_ZSMC, q_grads, f_grads, g_grads],
+                                  {self.obs: obs_train,
+                                   self.hidden: hidden_train,
+                                   self.Input: input_train,
+                                   self.dropout: np.zeros(len(obs_train)),
+                                   self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
+                                  average=True)
                 log_ZSMC_test = self.evaluate(log_ZSMC,
                                               {self.obs: obs_test,
-                                               self.x_0: x_0_feed_test,
                                                self.hidden: hidden_test,
                                                self.Input: input_test,
                                                self.dropout: np.zeros(len(obs_test)),
@@ -310,14 +290,17 @@ class trainer:
                                                                  hidden_test, obs_test, input_test,
                                                                  is_test=True)
 
-                print("iter {:>3}, train log_ZSMC: {:>7.3f}, valid log_ZSMC: {:>7.3f}"
-                      .format(i + 1, log_ZSMC_train, log_ZSMC_test))
+                print()
+                print("iter", i + 1)
+                print("Train log_ZSMC: {:>7.3f}, valid log_ZSMC: {:>7.3f}"
+                      .format(log_ZSMC_train, log_ZSMC_test))
 
                 print("Train, Valid k-step Rsq:\n", R_square_train, "\n", R_square_test)
 
                 if not math.isfinite(log_ZSMC_train):
                     break
 
+                # store useful data
                 if self.store_res:
                     log_ZSMC_trains.append(log_ZSMC_train)
                     log_ZSMC_tests.append(log_ZSMC_test)
@@ -328,27 +311,21 @@ class trainer:
 
                     plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
-                    Xs_val = self.evaluate(Xs,
-                                           {self.obs: obs_test[0:self.saving_num],
-                                            self.x_0: x_0_feed_test[0:self.saving_num],
-                                            self.hidden: hidden_test[0:self.saving_num],
-                                            self.Input: input_test[0:self.saving_num],
-                                            self.dropout: np.zeros(self.saving_num),
-                                            self.smoothing_perc: np.ones(self.saving_num)},
-                                           average=False)
-                    y_hat_val = self.evaluate(y_hat,
-                                              {self.obs: obs_test[0:self.saving_num],
-                                               self.x_0: x_0_feed_test[0:self.saving_num],
-                                               self.hidden: hidden_test[0:self.saving_num],
-                                               self.Input: input_test[0:self.saving_num],
-                                               self.dropout: np.zeros(self.saving_num),
-                                               self.smoothing_perc: np.ones(self.saving_num)},
-                                              average=False)
+                    evaluate_feed_dict = {self.obs: obs_test[0:self.saving_num],
+                                          self.hidden: hidden_test[0:self.saving_num],
+                                          self.Input: input_test[0:self.saving_num],
+                                          self.dropout: np.zeros(self.saving_num),
+                                          self.smoothing_perc: np.ones(self.saving_num)}
+                    Xs_val = self.evaluate(Xs, evaluate_feed_dict, average=False)
+                    y_hat_val = self.evaluate(y_hat, evaluate_feed_dict, average=False)
 
                     epoch_dict = {"R_square_train": R_square_train,
                                   "R_square_test": R_square_test,
                                   "Xs_val": Xs_val,
-                                  "y_hat_val": y_hat_val}
+                                  "y_hat_val": y_hat_val,
+                                  "q_grads": q_grads_val,
+                                  "f_grads": f_grads_val,
+                                  "g_grads": g_grads_val}
 
                     if not os.path.exists(self.epoch_data_DIR):
                         os.makedirs(self.epoch_data_DIR)
@@ -361,19 +338,25 @@ class trainer:
                     elif self.Dx == 3:
                         self.draw_3D_quiver_plot(Xs_val, i + 1)
 
-                # determine whether should stop training
+                # determine whether should decrease lr or even stop training
                 cost = np.array(log_ZSMC_tests)
                 if self.bestCost != np.argmax(cost):
-                    self.costUpdate = 0
+                    self.early_stop_count = 0
+                    self.lr_reduce_count = 0
                     self.bestCost = np.argmax(cost)
 
-                print("best valid cost on iter:", self.bestCost * print_freq)
+                print("best valid cost on iter: {}\n".format(self.bestCost * print_freq))
 
                 if self.bestCost < np.int((i + 1) / print_freq):
-                    self.costUpdate += 1
-                    if self.costUpdate > self.maxNumberNoImprovement:
+                    self.early_stop_count += 1
+                    if self.early_stop_count > self.maxNumberNoImprovement:
                         print("valid cost not improving. stopping training...")
                         break
+
+                    self.lr_reduce_count += 1
+                    if self.lr_reduce_count * print_freq >= self.lr_reduce_patience:
+                        self.lr_reduce_count = 0
+                        self.lr = max(self.lr * self.lr_reduce_factor, self.min_lr)
 
             if self.store_res and self.save_model and (i + 1) % self.save_freq == 0:
                 if not os.path.exists(self.RLT_DIR + "model/"):
@@ -385,14 +368,15 @@ class trainer:
 
         print("finished training...")
 
-        losses = None
-        if self.store_res:
-            losses = [log_ZSMC_trains, log_ZSMC_tests,
-                      MSE_trains, MSE_tests,
-                      R_square_trains, R_square_tests]
-        tensors = [log, y_hat]
+        history = {"log_ZSMC_trains": log_ZSMC_trains,
+                   "log_ZSMC_tests": log_ZSMC_tests,
+                   "MSE_trains": MSE_trains,
+                   "MSE_tests": MSE_tests,
+                   "R_square_trains": R_square_trains,
+                   "R_square_tests": R_square_tests}
+        log["y_hat"] = y_hat
 
-        return losses, tensors
+        return history, log
 
     def close_session(self):
         self.sess.close()
