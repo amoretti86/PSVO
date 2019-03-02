@@ -35,7 +35,7 @@ generateTrainingData = False
 # if reading data from file
 datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/allen/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
-datadict = "Allen_wI"
+datadict = "datadict"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
@@ -51,11 +51,11 @@ q2_layers = [32, 32]        # q(x_t|y_t) or q(x_t|y_1:T)
 f_layers = [32, 32]
 g_layers = [32, 32]
 
-q0_sigma_init, q0_sigma_min = 5, 0.2
-q1_sigma_init, q1_sigma_min = 5, 0.2
-q2_sigma_init, q2_sigma_min = 5, 0.2
-f_sigma_init, f_sigma_min = 5, 0.2
-g_sigma_init, g_sigma_min = 5, 0.2
+q0_sigma_init, q0_sigma_min = 5, 1
+q1_sigma_init, q1_sigma_min = 5, 1
+q2_sigma_init, q2_sigma_min = 5, 1
+f_sigma_init, f_sigma_min = 5, 1
+g_sigma_init, g_sigma_min = 5, 1
 
 # bidirectional RNN
 y_smoother_Dhs = [32]

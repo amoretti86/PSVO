@@ -267,14 +267,13 @@ class trainer:
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:
-                log_ZSMC_train, q_grads_val, f_grads_val, g_grads_val = \
-                    self.evaluate([log_ZSMC, q_grads, f_grads, g_grads],
-                                  {self.obs: obs_train,
-                                   self.hidden: hidden_train,
-                                   self.Input: input_train,
-                                   self.dropout: np.zeros(len(obs_train)),
-                                   self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
-                                  average=True)
+                q_grads_val = self.evaluate(log_ZSMC,
+                                            {self.obs: obs_train,
+                                             self.hidden: hidden_train,
+                                             self.Input: input_train,
+                                             self.dropout: np.zeros(len(obs_train)),
+                                             self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
+                                            average=True)
                 log_ZSMC_test = self.evaluate(log_ZSMC,
                                               {self.obs: obs_test,
                                                self.hidden: hidden_test,
@@ -311,6 +310,14 @@ class trainer:
 
                     plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
+                    q_grads_val, f_grads_val, g_grads_val = \
+                        self.evaluate([q_grads, f_grads, g_grads],
+                                      {self.obs: obs_train[0:self.saving_num],
+                                       self.hidden: hidden_train[0:self.saving_num],
+                                       self.Input: input_train[0:self.saving_num],
+                                       self.dropout: np.zeros(self.saving_num),
+                                       self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch},
+                                      average=False)
                     evaluate_feed_dict = {self.obs: obs_test[0:self.saving_num],
                                           self.hidden: hidden_test[0:self.saving_num],
                                           self.Input: input_test[0:self.saving_num],
