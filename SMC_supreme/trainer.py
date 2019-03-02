@@ -356,7 +356,7 @@ class trainer:
 
                 if self.bestCost < np.int((i + 1) / print_freq):
                     self.early_stop_count += 1
-                    if self.early_stop_count > self.maxNumberNoImprovement:
+                    if self.early_stop_count > self.early_stop_patience:
                         print("valid cost not improving. stopping training...")
                         break
 
@@ -364,6 +364,7 @@ class trainer:
                     if self.lr_reduce_count * print_freq >= self.lr_reduce_patience:
                         self.lr_reduce_count = 0
                         self.lr = max(self.lr * self.lr_reduce_factor, self.min_lr)
+                        print("valid cost not improving. reduce learning rate to {}".format(self.lr))
 
             if self.store_res and self.save_model and (i + 1) % self.save_freq == 0:
                 if not os.path.exists(self.RLT_DIR + "model/"):
