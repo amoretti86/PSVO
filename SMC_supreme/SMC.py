@@ -151,10 +151,10 @@ class SMC:
 
                     f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(t))
 
-                elif self.q2 is None:
+                elif self.f != self.q1 and t != 0:
                     f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(t))
                 else:
-                    # if q uses 2 networks, f_t_log_prob is already calculated above
+                    # if f and q1 share the same network, f_t_log_prob is already calculated in self.sample_from_2_dist
                     pass
 
                 g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_{}_log_prob".format(t))

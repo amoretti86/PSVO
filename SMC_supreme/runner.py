@@ -172,10 +172,7 @@ def main(_):
     # ============================================ parameter part ends ============================================ #
 
     if use_2_q:
-        use_bootstrap = True
         q_uses_true_X = False
-    if use_bootstrap:
-        q_takes_y = False
 
     MSE_steps = min(MSE_steps, time - 1)
     quiver_traj_num = min(quiver_traj_num, n_train, n_test)
@@ -288,7 +285,7 @@ def main(_):
                                  diag_cov=diag_cov,
                                  name="q0_tran")
     q1_tran = MLP_transformation(q1_layers, Dx,
-                                 use_residual=use_residual and not q_takes_y,
+                                 use_residual=use_residual,
                                  output_cov=output_cov,
                                  diag_cov=diag_cov,
                                  name="q1_tran")
