@@ -40,8 +40,9 @@ class MLP_transformation(transformation):
                     cov = fully_connected(hidden, self.Dout,
                                           weights_initializer=xavier_initializer(uniform=False),
                                           biases_initializer=tf.constant_initializer(0.6),
-                                          activation_fn=tf.nn.softplus,
+                                          activation_fn=None,
                                           reuse=tf.AUTO_REUSE, scope="output_cov")
+                    cov = tf.exp(cov + 1e-6)  # to resolve numerical issues
                 else:
                     cov = fully_connected(hidden, self.Dout**2,
                                           weights_initializer=xavier_initializer(uniform=False),
@@ -49,13 +50,7 @@ class MLP_transformation(transformation):
                                           activation_fn=tf.nn.softplus,
                                           reuse=tf.AUTO_REUSE, scope="output_cov")
                     batch_size = hidden.shape.as_list()[:-1]
-                    cov = tf.reshape(cov, batch_size + [self.Dout, self.Dout])
-
-                    # make sure cov matrix is symmetric
-                    perm = list(range(len(cov.shape)))
-                    perm[-2], perm[-1] = perm[-1], perm[-2]
-                    cov = (cov + tf.transpose(cov, perm=perm)) / 2
-
-                cov += 1e-6  # to resolve numerical issues
+                    cov = tf.reshape(cov, batch_size + [self.Dout, self.Dout]) + 1e-6
+                    cov = tf.matmul(cov, cov, transpose_b=True)
 
         return mu, cov
