@@ -8,12 +8,14 @@ class MLP_transformation(transformation):
     def __init__(self, Dhs, Dout,
                  use_residual=False,
                  output_cov=False,
+                 diag_cov=True,
                  name="MLP_transformation"):
         self.Dhs = Dhs
         self.Dout = Dout
         self.name = name
         self.use_residual = use_residual
         self.output_cov = output_cov
+        self.diag_cov = diag_cov
 
     def transform(self, Input):
         with tf.variable_scope(self.name):
@@ -34,13 +36,21 @@ class MLP_transformation(transformation):
 
             cov = None
             if self.output_cov:
-                cov = fully_connected(hidden, self.Dout**2,
-                                      weights_initializer=xavier_initializer(uniform=False),
-                                      biases_initializer=tf.constant_initializer(0.6),
-                                      activation_fn=tf.nn.softplus,
-                                      reuse=tf.AUTO_REUSE, scope="output_cov")
-                batch_size = hidden.shape.as_list()[:-1]
-                cov = tf.reshape(cov, batch_size + [self.Dout, self.Dout])
-                cov += 1e-6  # to resolve numerical issues
+                if self.diag_cov:
+                    cov = fully_connected(hidden, self.Dout,
+                                          weights_initializer=xavier_initializer(uniform=False),
+                                          biases_initializer=tf.constant_initializer(0.6),
+                                          activation_fn=None,
+                                          reuse=tf.AUTO_REUSE, scope="output_cov")
+                    cov = tf.exp(cov + 1e-6)  # to resolve numerical issues
+                else:
+                    cov = fully_connected(hidden, self.Dout**2,
+                                          weights_initializer=xavier_initializer(uniform=False),
+                                          biases_initializer=tf.constant_initializer(0.6),
+                                          activation_fn=tf.nn.softplus,
+                                          reuse=tf.AUTO_REUSE, scope="output_cov")
+                    batch_size = hidden.shape.as_list()[:-1]
+                    cov = tf.reshape(cov, batch_size + [self.Dout, self.Dout]) + 1e-6
+                    cov = tf.matmul(cov, cov, transpose_b=True)
 
         return mu, cov
