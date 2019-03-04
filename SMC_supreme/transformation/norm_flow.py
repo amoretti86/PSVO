@@ -503,7 +503,7 @@ class CondNormFlow(object):
                 in_dim=self.in_dim, out_dim=nf_param_dim,
                 hidden_units=mlp_hidden_units)
 
-    def sample_log_prob(self, sample_size, input_tensor):
+    def sample_log_prob(self, input_tensor, sample_size, name=None):
         """Samples from the conditional distribtion conditioned on given input.
 
         params:
