@@ -205,14 +205,6 @@ class SMC:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
                 Xs = X_ancestors
 
-            q_grads = []
-            f_grads = []
-            g_grads = []
-            for q, f, g in zip(qs, fs, gs):
-                q_grad, f_grad, g_grad = tf.gradients(log_ZSMC, [q, f, g])
-                q_grads.append(q_grad)
-                f_grads.append(f_grad)
-                g_grads.append(g_grad)
 
             # (batch_size, time, n_particles, Dx)
             Xs = tf.transpose(tf.stack(Xs), perm=[2, 0, 1, 3], name="Xs")
@@ -223,9 +215,6 @@ class SMC:
             qs = tf.transpose(tf.stack(qs), perm=[2, 0, 1], name="qs")                 # (batch_size, time, n_particles)
             fs = tf.transpose(tf.stack(fs), perm=[2, 0, 1], name="fs")                 # (batch_size, time, n_particles)
             gs = tf.transpose(tf.stack(gs), perm=[2, 0, 1], name="gs")                 # (batch_size, time, n_particles)
-            q_grads = tf.transpose(tf.stack(q_grads), perm=[2, 0, 1], name="q_grads")  # (batch_size, time, n_particles)
-            f_grads = tf.transpose(tf.stack(f_grads), perm=[2, 0, 1], name="f_grads")  # (batch_size, time, n_particles)
-            g_grads = tf.transpose(tf.stack(g_grads), perm=[2, 0, 1], name="g_grads")  # (batch_size, time, n_particles)
 
             log = {"Xs": Xs,
                    "X_prevs": X_prevs,
@@ -234,10 +223,7 @@ class SMC:
                    "reweighted_log_Ws": reweighted_log_Ws,
                    "qs": qs,
                    "fs": fs,
-                   "gs": gs,
-                   "q_grads": q_grads,
-                   "f_grads": f_grads,
-                   "g_grads": g_grads}
+                   "gs": gs}
 
         return log_ZSMC, log
 

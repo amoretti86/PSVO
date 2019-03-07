@@ -30,7 +30,7 @@ seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = False
+generateTrainingData = True
 
 # if reading data from file
 datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/allen/"
@@ -141,7 +141,7 @@ print_freq = 5
 #   gradients for SNR
 save_trajectory = True
 save_y_hat = True
-save_gradient = True
+save_gradient = False
 
 # dir to save all results
 rslt_dir_name = "Allen_wI"

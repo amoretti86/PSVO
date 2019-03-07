@@ -342,6 +342,12 @@ class trainer:
 
                     plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
+                    evaluate_feed_dict = {self.obs: obs_test[0:self.saving_num],
+                                          self.hidden: hidden_test[0:self.saving_num],
+                                          self.Input: input_test[0:self.saving_num],
+                                          self.dropout: np.zeros(self.saving_num),
+                                          self.smoothing_perc: np.ones(self.saving_num)}
+
                     if not os.path.exists(self.epoch_data_DIR):
                         os.makedirs(self.epoch_data_DIR)
                     metric_dict = {"log_ZSMC_train": log_ZSMC_train,
