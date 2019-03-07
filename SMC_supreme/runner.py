@@ -77,13 +77,6 @@ def main(_):
     y_smoother_Dhs = [int(x) for x in FLAGS.y_smoother_Dhs.split(",")]
     X0_smoother_Dhs = [int(x) for x in FLAGS.X0_smoother_Dhs.split(",")]
 
-    # Self-Attention encoder
-    num_hidden_layers = FLAGS.num_hidden_layers
-    num_heads = FLAGS.num_heads
-    hidden_size = FLAGS.hidden_size
-    filter_size = FLAGS.filter_size
-    dropout_rate = FLAGS.dropout_rate
-
     # --------------------- FFN flags --------------------- #
     # do q and f use the same network?
     use_bootstrap = FLAGS.use_bootstrap
@@ -109,6 +102,9 @@ def main(_):
     # whether use input in q and f
     use_input = FLAGS.use_input
 
+    # dropout rate for FFN
+    dropout_rate = FLAGS.dropout_rate
+
     # --------------------- FFBS flags --------------------- #
 
     # filtering or smoothing
@@ -124,9 +120,6 @@ def main(_):
 
     # whether smooth observations with birdectional RNNs (bRNN) or self-attention encoders
     smooth_obs = FLAGS.smooth_obs
-
-    # whether use bRNN or self-attention encoders to get X0 and encode observation
-    use_RNN = FLAGS.use_RNN
 
     # whether use a separate RNN for getting X0
     X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
@@ -153,21 +146,36 @@ def main(_):
     use_stop_gradient = FLAGS.use_stop_gradient
 
     # --------------------- printing and data saving params --------------------- #
+
+    # frequency to evaluate testing loss & other metrics and save results
     print_freq = FLAGS.print_freq
 
-    store_res = FLAGS.store_res
+    # whether to save the followings during training
+    #   hidden trajectories
+    #   k-step y-hat
+    #   gradients for SNR
+    save_trajectory = FLAGS.save_trajectory
+    save_y_hat = FLAGS.save_y_hat
+    save_gradient = FLAGS.save_gradient
+
+    # dir to save all results
     rslt_dir_name = FLAGS.rslt_dir_name
+
+    # number of steps to predict y-hat and calculate R_square
     MSE_steps = FLAGS.MSE_steps
 
-    # how many trajectories to draw in quiver plot
-    quiver_traj_num = FLAGS.quiver_traj_num
+    # lattice shape [# of rows, # of columns] to draw arrows in quiver plot
     lattice_shape = [int(x) for x in FLAGS.lattice_shape.split(",")]
 
+    # number of testing data used to save hidden trajectories, y-hat, gradient and etc
+    # will be clipped by number of testing data
     saving_num = FLAGS.saving_num
 
+    # whether to save tensorboard
     save_tensorboard = FLAGS.save_tensorboard
+
+    # whether to save model
     save_model = FLAGS.save_model
-    save_freq = FLAGS.save_freq
 
     # ============================================ parameter part ends ============================================ #
 
@@ -175,7 +183,6 @@ def main(_):
         q_uses_true_X = False
 
     MSE_steps = min(MSE_steps, time - 1)
-    quiver_traj_num = min(quiver_traj_num, n_train, n_test)
     saving_num = min(saving_num, n_train, n_test)
 
     tf.set_random_seed(seed)
@@ -263,8 +270,7 @@ def main(_):
             input_train = np.zeros((n_train, time, Di))
             input_test = np.zeros((n_test, time, Di))
 
-        # reliminate quiver_traj_num and saving_num to avoid they > n_train or n_test
-        quiver_traj_num = min(quiver_traj_num, n_train, n_test)
+        # clip saving_num to avoid it > n_train or n_test
         saving_num = min(saving_num, n_train, n_test)
         MSE_steps = min(MSE_steps, time - 1)
 
@@ -283,17 +289,20 @@ def main(_):
                                  use_residual=False,
                                  output_cov=output_cov,
                                  diag_cov=diag_cov,
+                                 dropout_rate=dropout_rate,
                                  name="q0_tran")
     q1_tran = MLP_transformation(q1_layers, Dx,
                                  use_residual=use_residual,
                                  output_cov=output_cov,
                                  diag_cov=diag_cov,
+                                 dropout_rate=dropout_rate,
                                  name="q1_tran")
     if use_2_q:
         q2_tran = MLP_transformation(q2_layers, Dx,
                                      use_residual=False,
                                      output_cov=output_cov,
                                      diag_cov=diag_cov,
+                                     dropout_rate=dropout_rate,
                                      name="q2_tran")
     else:
         q2_tran = None
@@ -305,12 +314,14 @@ def main(_):
                                     use_residual=use_residual,
                                     output_cov=output_cov,
                                     diag_cov=diag_cov,
+                                    dropout_rate=dropout_rate,
                                     name="f_tran")
 
     g_tran = MLP_transformation(g_layers, Dy,
                                 use_residual=False,
                                 output_cov=output_cov,
                                 diag_cov=diag_cov,
+                                dropout_rate=dropout_rate,
                                 name="g_tran")
 
     # distributions
@@ -331,33 +342,26 @@ def main(_):
 
     # smoothers
     if smooth_obs:
-        if use_RNN:
-            y_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_f_{}".format(i))
-                            for i, Dh in enumerate(y_smoother_Dhs)]
-            y_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_b_{}".format(i))
-                            for i, Dh in enumerate(y_smoother_Dhs)]
-            if X0_use_separate_RNN:
-                X0_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_f_{}".format(i))
-                                 for i, Dh in enumerate(X0_smoother_Dhs)]
-                X0_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_b_{}".format(i))
-                                 for i, Dh in enumerate(X0_smoother_Dhs)]
-            else:
-                X0_smoother_f = X0_smoother_b = None
-            bRNN = (y_smoother_f, y_smoother_b, X0_smoother_f, X0_smoother_b)
-            attention_encoder = None
+        y_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_f_{}".format(i))
+                        for i, Dh in enumerate(y_smoother_Dhs)]
+        y_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_b_{}".format(i))
+                        for i, Dh in enumerate(y_smoother_Dhs)]
+        if X0_use_separate_RNN:
+            X0_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_f_{}".format(i))
+                             for i, Dh in enumerate(X0_smoother_Dhs)]
+            X0_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="X0_smoother_b_{}".format(i))
+                             for i, Dh in enumerate(X0_smoother_Dhs)]
         else:
-            assert hidden_size % (num_heads * Dy) == 0
-            attention_encoder = AttentionStack(num_hidden_layers, hidden_size, num_heads, filter_size, dropout)
-            bRNN = None
+            X0_smoother_f = X0_smoother_b = None
+        bRNN = (y_smoother_f, y_smoother_b, X0_smoother_f, X0_smoother_b)
     else:
-        bRNN = attention_encoder = None
+        bRNN = None
 
     # SMC class to calculate loss
     SMC_train = SMC(q0_dist, q1_dist, q2_dist, f_dist, g_dist,
                     n_particles,
                     q_uses_true_X=q_uses_true_X,
                     bRNN=bRNN,
-                    attention_encoder=attention_encoder,
                     X0_use_separate_RNN=X0_use_separate_RNN,
                     use_stack_rnn=use_stack_rnn,
                     FFBS=FFBS,
@@ -368,30 +372,29 @@ def main(_):
                     name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
-    # create dir to store results
-    if store_res:
-        Experiment_params = {"np": n_particles,
-                             "t": time,
-                             "bs": batch_size,
-                             "lr": lr,
-                             "epoch": epoch,
-                             "seed": seed,
-                             "rslt_dir_name": rslt_dir_name}
+    # create dir to save results
+    Experiment_params = {"np": n_particles,
+                         "t": time,
+                         "bs": batch_size,
+                         "lr": lr,
+                         "epoch": epoch,
+                         "seed": seed,
+                         "rslt_dir_name": rslt_dir_name}
 
-        params_dict = {}
-        params_list = sorted([param for param in dir(FLAGS) if param
-                              not in ['h', 'help', 'helpfull', 'helpshort']])
+    params_dict = {}
+    params_list = sorted([param for param in dir(FLAGS) if param
+                          not in ['h', 'help', 'helpfull', 'helpshort']])
 
-        print("Experiment_params:")
-        for param in params_list:
-            params_dict[param] = str(getattr(FLAGS, param))
-            print("\t" + param + ": " + str(getattr(FLAGS, param)))
+    print("Experiment_params:")
+    for param in params_list:
+        params_dict[param] = str(getattr(FLAGS, param))
+        print("\t" + param + ": " + str(getattr(FLAGS, param)))
 
-        RLT_DIR = create_RLT_DIR(Experiment_params)
-        print("RLT_DIR:", RLT_DIR)
+    RLT_DIR = create_RLT_DIR(Experiment_params)
+    print("RLT_DIR:", RLT_DIR)
 
-        with open(RLT_DIR + "param.json", "w") as f:
-            json.dump(params_dict, f, indent=4, cls=NumpyEncoder)
+    with open(RLT_DIR + "param.json", "w") as f:
+        json.dump(params_dict, f, indent=4, cls=NumpyEncoder)
 
     # ============================================= training part ============================================ #
     mytrainer = trainer(Dx, Dy,
@@ -404,14 +407,14 @@ def main(_):
     mytrainer.set_SMC(SMC_train)
     mytrainer.set_placeholders(obs, hidden, Input, dropout, smoothing_perc)
 
-    if store_res:
-        mytrainer.set_rslt_saving(RLT_DIR, save_freq, saving_num, save_tensorboard, save_model)
-        if Dx == 2:
-            lattice = tf.placeholder(tf.float32, shape=lattice_shape, name="lattice")
-            nextX = SMC_train.get_nextX(lattice)
-            mytrainer.set_quiver_arg(nextX, lattice, quiver_traj_num, lattice_shape)
-        elif Dx == 3:
-            mytrainer.draw_quiver_during_training = True
+    mytrainer.set_epoch_data_saving(RLT_DIR, saving_num, save_trajectory, save_y_hat, save_gradient)
+    mytrainer.set_model_saving(save_tensorboard, save_model)
+    if Dx == 2:
+        lattice = tf.placeholder(tf.float32, shape=lattice_shape, name="lattice")
+        nextX = SMC_train.get_nextX(lattice)
+        mytrainer.set_quiver_arg(nextX, lattice, lattice_shape)
+    elif Dx == 3:
+        mytrainer.draw_quiver_during_training = True
 
     history, log = mytrainer.train(obs_train, obs_test,
                                    hidden_train, hidden_test,
@@ -419,50 +422,48 @@ def main(_):
                                    print_freq)
 
     # ======================================= another data saving part ======================================= #
-    if store_res:
-        Xs, y_hat = log["Xs"], log["y_hat"]
+    Xs, y_hat = log["Xs"], log["y_hat"]
 
-        Xs_val = mytrainer.evaluate(Xs, {obs: obs_test[0:saving_num],
-                                         hidden: hidden_test[0:saving_num],
-                                         Input: input_test[0:saving_num],
-                                         dropout: np.zeros(saving_num),
-                                         smoothing_perc: np.ones(saving_num)})
-        y_hat_val = mytrainer.evaluate(y_hat, {obs: obs_test[0:saving_num],
-                                               hidden: hidden_test[0:saving_num],
-                                               Input: input_test[0:saving_num],
-                                               dropout: np.zeros(saving_num),
-                                               smoothing_perc: np.ones(saving_num)})
+    Xs_val = mytrainer.evaluate(Xs, {obs: obs_test[0:saving_num],
+                                     hidden: hidden_test[0:saving_num],
+                                     Input: input_test[0:saving_num],
+                                     dropout: np.zeros(saving_num),
+                                     smoothing_perc: np.ones(saving_num)})
+    y_hat_val = mytrainer.evaluate(y_hat, {obs: obs_test[0:saving_num],
+                                           hidden: hidden_test[0:saving_num],
+                                           Input: input_test[0:saving_num],
+                                           dropout: np.zeros(saving_num),
+                                           smoothing_perc: np.ones(saving_num)})
 
-        print("finish evaluating training results")
+    print("finish evaluating training results")
 
-        plot_training_data(RLT_DIR, hidden_train, obs_train, saving_num=saving_num)
-        plot_learning_results(RLT_DIR, Xs_val, hidden_test, saving_num=saving_num)
-        plot_y_hat(RLT_DIR, y_hat_val, obs_test, saving_num=saving_num)
+    plot_training_data(RLT_DIR, hidden_train, obs_train, saving_num=saving_num)
+    plot_y_hat(RLT_DIR, y_hat_val, obs_test, saving_num=saving_num)
 
-        if Dx == 2:
-            plot_fhn_results(RLT_DIR, Xs_val)
+    if Dx == 2:
+        plot_fhn_results(RLT_DIR, Xs_val)
 
-        if Dx == 3:
-            plot_lorenz_results(RLT_DIR, Xs_val)
+    if Dx == 3:
+        plot_lorenz_results(RLT_DIR, Xs_val)
 
-        data_dict = {"history": history}
+    data_dict = {"history": history}
 
-        if generateTrainingData:
-            data_dict["true_model_dict"] = true_model_dict
+    if generateTrainingData:
+        data_dict["true_model_dict"] = true_model_dict
 
-        with open(RLT_DIR + "data.json", "w") as f:
-            json.dump(data_dict, f, indent=4, cls=NumpyEncoder)
+    with open(RLT_DIR + "data.json", "w") as f:
+        json.dump(data_dict, f, indent=4, cls=NumpyEncoder)
 
-        testing_data_dict = {"hidden_test": hidden_test[0:saving_num],
-                             "obs_test": obs_test[0:saving_num]}
-        learned_model_dict = {"Xs_val": Xs_val,
-                              "y_hat_val": y_hat_val}
-        data_dict["testing_data_dict"] = testing_data_dict
-        data_dict["learned_model_dict"] = learned_model_dict
+    testing_data_dict = {"hidden_test": hidden_test[0:saving_num],
+                         "obs_test": obs_test[0:saving_num]}
+    learned_model_dict = {"Xs_val": Xs_val,
+                          "y_hat_val": y_hat_val}
+    data_dict["testing_data_dict"] = testing_data_dict
+    data_dict["learned_model_dict"] = learned_model_dict
 
-        with open(RLT_DIR + "data.p", "wb") as f:
-            pickle.dump(data_dict, f)
+    with open(RLT_DIR + "data.p", "wb") as f:
+        pickle.dump(data_dict, f)
 
-        plot_MSEs(RLT_DIR, history["MSE_trains"], history["MSE_tests"], print_freq)
-        plot_R_square(RLT_DIR, history["R_square_trains"], history["R_square_tests"], print_freq)
-        plot_log_ZSMC(RLT_DIR, history["log_ZSMC_trains"], history["log_ZSMC_tests"], print_freq)
+    plot_MSEs(RLT_DIR, history["MSE_trains"], history["MSE_tests"], print_freq)
+    plot_R_square(RLT_DIR, history["R_square_trains"], history["R_square_tests"], print_freq)
+    plot_log_ZSMC(RLT_DIR, history["log_ZSMC_trains"], history["log_ZSMC_tests"], print_freq)

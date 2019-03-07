@@ -33,7 +33,7 @@ class trainer:
 
         self.MSE_steps = MSE_steps
 
-        self.store_res = False
+        self.save_res = False
         self.draw_quiver_during_training = False
 
         self.smoothing_perc_factor = smoothing_perc_factor
@@ -51,22 +51,26 @@ class trainer:
         # dropout only used when training attention mechanism
         self.dropout_rate = dropout_rate
 
-    def set_rslt_saving(self, RLT_DIR, save_freq, saving_num, save_tensorboard=False, save_model=False):
-        self.store_res = True
+    def set_epoch_data_saving(self, RLT_DIR, saving_num, save_trajectory, save_y_hat, save_gradient):
+        self.save_res = True
         self.RLT_DIR = RLT_DIR
-        self.save_freq = save_freq
         self.saving_num = saving_num
-        self.save_tensorboard = save_tensorboard
-        self.save_model = save_model
-        if save_tensorboard:
-            self.writer = tf.summary.FileWriter(RLT_DIR)
+        self.save_trajectory = save_trajectory
+        self.save_y_hat = save_y_hat
+        self.save_gradient = save_gradient
 
         epoch_data_DIR = self.RLT_DIR.split("/")
         epoch_data_DIR.insert(epoch_data_DIR.index("rslts") + 1, "epoch_data")
         self.epoch_data_DIR = "/".join(epoch_data_DIR)
 
-    def set_SMC(self, SMC_train):
-        self.SMC_train = SMC_train
+    def set_model_saving(self, save_tensorboard=False, save_model=False):
+        self.save_tensorboard = save_tensorboard
+        self.save_model = save_model
+        if save_tensorboard:
+            self.writer = tf.summary.FileWriter(self.RLT_DIR)
+
+    def set_SMC(self, SMC):
+        self.SMC = SMC
 
     def set_placeholders(self, obs, hidden, Input, dropout, smoothing_perc):
         self.obs = obs
@@ -75,17 +79,16 @@ class trainer:
         self.dropout = dropout
         self.smoothing_perc = smoothing_perc
 
-    def set_quiver_arg(self, nextX, lattice, quiver_traj_num, lattice_shape):
+    def set_quiver_arg(self, nextX, lattice, lattice_shape):
         self.nextX = nextX
         self.lattice = lattice
-        self.quiver_traj_num = quiver_traj_num
         self.lattice_shape = lattice_shape
         self.draw_quiver_during_training = True
 
     def evaluate(self, fetches, feed_dict_w_batches={}, average=False):
         """
         fetches: a single tensor or list of tensor to evaluate
-        feed_dict: {placeholder:input of multiple batches}
+        feed_dict_w_batches: {placeholder:input of multiple batches}
         """
         if not feed_dict_w_batches:
             return self.sess.run(fetches)
@@ -123,7 +126,7 @@ class trainer:
 
         return res
 
-    def evaluate_R_square(self, MSE_ks, y_means, y_vars, hidden_set, obs_set, input_set, is_test=False):
+    def evaluate_R_square(self, MSE_ks, y_means, y_vars, hidden_set, obs_set, input_set):
         n_steps = y_means.shape.as_list()[0] - 1
         Dy = y_means.shape.as_list()[1]
         batch_size = self.batch_size
@@ -172,30 +175,62 @@ class trainer:
 
         return mean_MSE_ks, R_square
 
+    def set_up_gradient(self, loss):
+        res_dict = {}
+        SMC = self.SMC
+        q0 = SMC.q0.transformation
+        q1 = SMC.q1.transformation
+        g = SMC.g.transformation
+        q2 = None if self.SMC.q2 is None else SMC.q2.transformation         # If not using 2q network, q2 == None
+        f = None if self.SMC.f == self.SMC.q1 else SMC.f.transformation     # If using bootstrap, f == q1
+
+        for MLP_trans in [q0, q1, q2, f, g]:
+            if MLP_trans is None:
+                continue
+
+            variables_dict = MLP_trans.get_variables()
+            variable_names = list(variables_dict.keys())
+            variables = list(variables_dict.values())
+            gradients = [tf.gradients(loss, variable) for variable in variables]
+
+            res_dict[MLP_trans.name] = dict(zip(variable_names, gradients))
+
+        self.gradients_dict = res_dict
+
+    def evaluate_gradients(self, feed_dict):
+        res_dict = {}
+        for MLP_name, MLP_gradients_dict in self.gradients_dict.items():
+            variable_names = list(MLP_gradients_dict.keys())
+            gradients = list(MLP_gradients_dict.values())
+            gradients_val = [self.evaluate(gradient, feed_dict, average=True) for gradient in gradients]
+
+            res_dict[MLP_name] = dict(zip(variable_names, gradients_val))
+
+        return res_dict
+
     def train(self,
               obs_train, obs_test,
               hidden_train, hidden_test,
               input_train, input_test,
               print_freq):
 
-        log_ZSMC, log = self.SMC_train.get_log_ZSMC(self.obs, self.hidden, self.Input)
+        log_ZSMC, log = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input)
 
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
         Xs = log["Xs"]
-        MSE_ks, y_means, y_vars, y_hat = self.SMC_train.n_step_MSE(self.MSE_steps, Xs, self.obs, self.Input)
+        MSE_ks, y_means, y_vars, y_hat = self.SMC.n_step_MSE(self.MSE_steps, Xs, self.obs, self.Input)
 
         # used to compare signal-to-noise ratio of gradient for different number of paricles
-        q_grads, f_grads, g_grads = log["q_grads"], log["f_grads"], log["g_grads"]
+        self.set_up_gradient(log_ZSMC)
 
         with tf.variable_scope("train"):
             lr = tf.placeholder(tf.float32, name="lr")
             train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC)
 
-
         init = tf.global_variables_initializer()
 
-        if self.store_res:
+        if self.save_res:
             saver = tf.train.Saver(max_to_keep=1)
 
             log_ZSMC_trains = []
@@ -211,35 +246,33 @@ class trainer:
         self.sess.run(init)
 
         # unused tensorboard stuff
-        if self.store_res and self.save_tensorboard:
+        if self.save_res and self.save_tensorboard:
             self.writer.add_graph(self.sess.graph)
 
         log_ZSMC_train = self.evaluate(log_ZSMC,
-                                       {self.obs: obs_train,
-                                        self.hidden: hidden_train,
-                                        self.Input: input_train,
-                                        self.dropout: np.zeros(len(obs_train)),
+                                       {self.obs:            obs_train,
+                                        self.hidden:         hidden_train,
+                                        self.Input:          input_train,
+                                        self.dropout:        np.zeros(len(obs_train)),
                                         self.smoothing_perc: np.zeros(len(obs_train))},
                                        average=True)
         log_ZSMC_test = self.evaluate(log_ZSMC,
-                                      {self.obs: obs_test,
-                                       self.hidden: hidden_test,
-                                       self.Input: input_test,
-                                       self.dropout: np.zeros(len(obs_test)),
+                                      {self.obs:            obs_test,
+                                       self.hidden:         hidden_test,
+                                       self.Input:          input_test,
+                                       self.dropout:        np.zeros(len(obs_test)),
                                        self.smoothing_perc: np.zeros(len(obs_test))},
                                       average=True)
 
         MSE_train, R_square_train = self.evaluate_R_square(MSE_ks, y_means, y_vars,
-                                                           hidden_train, obs_train, input_train,
-                                                           is_test=False)
+                                                           hidden_train, obs_train, input_train)
         MSE_test, R_square_test = self.evaluate_R_square(MSE_ks, y_means, y_vars,
-                                                         hidden_test, obs_test, input_test,
-                                                         is_test=True)
+                                                         hidden_test, obs_test, input_test)
 
         print("iter {:>3}, train log_ZSMC: {:>7.3f}, test log_ZSMC: {:>7.3f}"
               .format(0, log_ZSMC_train, log_ZSMC_test))
 
-        if self.store_res:
+        if self.save_res:
             log_ZSMC_trains.append(log_ZSMC_train)
             log_ZSMC_tests.append(log_ZSMC_test)
             MSE_trains.append(MSE_train)
@@ -259,36 +292,34 @@ class trainer:
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
             for j in range(0, len(obs_train), self.batch_size):
                 self.sess.run(train_op,
-                              feed_dict={self.obs: obs_train[j:j + self.batch_size],
-                                         self.hidden: hidden_train[j:j + self.batch_size],
-                                         self.Input: input_train[j:j + self.batch_size],
-                                         self.dropout: np.ones(self.batch_size) * self.dropout_rate,
+                              feed_dict={self.obs:            obs_train[j:j + self.batch_size],
+                                         self.hidden:         hidden_train[j:j + self.batch_size],
+                                         self.Input:          input_train[j:j + self.batch_size],
+                                         self.dropout:        np.ones(self.batch_size) * self.dropout_rate,
                                          self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch,
-                                         lr: self.lr})
+                                         lr:                  self.lr})
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:
                 log_ZSMC_train = self.evaluate(log_ZSMC,
-                                            {self.obs: obs_train,
-                                             self.hidden: hidden_train,
-                                             self.Input: input_train,
-                                             self.dropout: np.zeros(len(obs_train)),
-                                             self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
-                                            average=True)
+                                               {self.obs:            obs_train,
+                                                self.hidden:         hidden_train,
+                                                self.Input:          input_train,
+                                                self.dropout:        np.zeros(len(obs_train)),
+                                                self.smoothing_perc: np.ones(len(obs_train)) * smoothing_perc_epoch},
+                                               average=True)
                 log_ZSMC_test = self.evaluate(log_ZSMC,
-                                              {self.obs: obs_test,
-                                               self.hidden: hidden_test,
-                                               self.Input: input_test,
-                                               self.dropout: np.zeros(len(obs_test)),
+                                              {self.obs:            obs_test,
+                                               self.hidden:         hidden_test,
+                                               self.Input:          input_test,
+                                               self.dropout:        np.zeros(len(obs_test)),
                                                self.smoothing_perc: np.ones(len(obs_test)) * smoothing_perc_epoch},
                                               average=True)
 
                 MSE_train, R_square_train = self.evaluate_R_square(MSE_ks, y_means, y_vars,
-                                                                   hidden_train, obs_train, input_train,
-                                                                   is_test=False)
+                                                                   hidden_train, obs_train, input_train)
                 MSE_test, R_square_test = self.evaluate_R_square(MSE_ks, y_means, y_vars,
-                                                                 hidden_test, obs_test, input_test,
-                                                                 is_test=True)
+                                                                 hidden_test, obs_test, input_test)
 
                 print()
                 print("iter", i + 1)
@@ -300,8 +331,8 @@ class trainer:
                 if not math.isfinite(log_ZSMC_train):
                     break
 
-                # store useful data
-                if self.store_res:
+                # save useful data
+                if self.save_res:
                     log_ZSMC_trains.append(log_ZSMC_train)
                     log_ZSMC_tests.append(log_ZSMC_test)
                     MSE_trains.append(MSE_train)
@@ -311,34 +342,58 @@ class trainer:
 
                     plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
-                    q_grads_val, f_grads_val, g_grads_val = \
-                        self.evaluate([q_grads, f_grads, g_grads],
-                                      {self.obs: obs_train[0:self.saving_num],
-                                       self.hidden: hidden_train[0:self.saving_num],
-                                       self.Input: input_train[0:self.saving_num],
-                                       self.dropout: np.zeros(self.saving_num),
-                                       self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch},
-                                      average=False)
-                    evaluate_feed_dict = {self.obs: obs_test[0:self.saving_num],
-                                          self.hidden: hidden_test[0:self.saving_num],
-                                          self.Input: input_test[0:self.saving_num],
-                                          self.dropout: np.zeros(self.saving_num),
-                                          self.smoothing_perc: np.ones(self.saving_num)}
-                    Xs_val = self.evaluate(Xs, evaluate_feed_dict, average=False)
-                    y_hat_val = self.evaluate(y_hat, evaluate_feed_dict, average=False)
-
-                    epoch_dict = {"R_square_train": R_square_train,
-                                  "R_square_test": R_square_test,
-                                  "Xs_val": Xs_val,
-                                  "y_hat_val": y_hat_val,
-                                  "q_grads": q_grads_val,
-                                  "f_grads": f_grads_val,
-                                  "g_grads": g_grads_val}
-
                     if not os.path.exists(self.epoch_data_DIR):
                         os.makedirs(self.epoch_data_DIR)
-                    with open(self.epoch_data_DIR + "epoch_{}.p".format(i + 1), "wb") as f:
-                        pickle.dump(epoch_dict, f)
+                    metric_dict = {"log_ZSMC_train": log_ZSMC_train,
+                                   "log_ZSMC_test":  log_ZSMC_test,
+                                   "R_square_train": R_square_train,
+                                   "R_square_test":  R_square_test}
+                    with open(self.epoch_data_DIR + "metric_{}.p".format(i + 1), "wb") as f:
+                        pickle.dump(metric_dict, f)
+                    if self.save_gradient:
+
+                        # an ad-hoc and naive way to determine whether the fhn experiment is near convergence
+                        # please tell me if you have any other ideas
+                        have_surpassed_minus_365 = False
+                        have_surpassed_minus_220 = False
+
+                        # if loss gets > -365, save gradients for 20 epochs
+                        if not have_surpassed_minus_365 and log_ZSMC_test > -365:
+                            have_surpassed_minus_365 = True
+                            save_count_down = 20
+                        # if loss gets > -220, save gradients for 20 epochs
+                        if not have_surpassed_minus_220 and log_ZSMC_test > -220:
+                            have_surpassed_minus_220 = True
+                            save_count_down = 20
+
+                        if save_count_down:
+                            save_count_down -= 1
+                            gradients_feed_dict = {self.obs:            obs_train[0:self.saving_num],
+                                                   self.hidden:         hidden_train[0:self.saving_num],
+                                                   self.Input:          input_train[0:self.saving_num],
+                                                   self.dropout:        np.zeros(self.saving_num),
+                                                   self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch}
+                            gradients_val_dict = self.evaluate_gradients(gradients_feed_dict)
+                            gradient_dict = {"gradients_val_dict": gradients_val_dict}
+                            with open(self.epoch_data_DIR + "gradient_{}.p".format(i + 1), "wb") as f:
+                                pickle.dump(gradient_dict, f)
+
+                    evaluate_feed_dict = {self.obs:             obs_test[0:self.saving_num],
+                                          self.hidden:          hidden_test[0:self.saving_num],
+                                          self.Input:           input_test[0:self.saving_num],
+                                          self.dropout:         np.zeros(self.saving_num),
+                                          self.smoothing_perc:  np.ones(self.saving_num)}
+                    if self.save_trajectory:
+                        Xs_val = self.evaluate(Xs, evaluate_feed_dict, average=False)
+                        trajectory_dict = {"Xs": Xs_val}
+                        with open(self.epoch_data_DIR + "trajectory_{}.p".format(i + 1), "wb") as f:
+                            pickle.dump(trajectory_dict, f)
+
+                    if self.save_y_hat:
+                        y_hat_val = self.evaluate(y_hat, evaluate_feed_dict, average=False)
+                        y_hat_dict = {"y_hat": y_hat_val}
+                        with open(self.epoch_data_DIR + "y_hat_{}.p".format(i + 1), "wb") as f:
+                            pickle.dump(y_hat_dict, f)
 
                 if self.draw_quiver_during_training:
                     if self.Dx == 2:
@@ -367,17 +422,17 @@ class trainer:
                         self.lr = max(self.lr * self.lr_reduce_factor, self.min_lr)
                         print("valid cost not improving. reduce learning rate to {}".format(self.lr))
 
-            if self.store_res and self.save_model and (i + 1) % self.save_freq == 0:
-                if not os.path.exists(self.RLT_DIR + "model/"):
-                    os.makedirs(self.RLT_DIR + "model/")
-                saver.save(self.sess, self.RLT_DIR + "model/model_epoch", global_step=i + 1)
+                if self.save_model:
+                    if not os.path.exists(self.RLT_DIR + "model/"):
+                        os.makedirs(self.RLT_DIR + "model/")
+                    saver.save(self.sess, self.RLT_DIR + "model/model_epoch", global_step=i + 1)
 
             end = time.time()
             print("epoch {:<4} took {:.3f} seconds".format(i + 1, end - start))
 
         print("finished training...")
 
-        history = {"log_ZSMC_trains": log_ZSMC_trains,
+        metrics = {"log_ZSMC_trains": log_ZSMC_trains,
                    "log_ZSMC_tests": log_ZSMC_tests,
                    "MSE_trains": MSE_trains,
                    "MSE_tests": MSE_tests,
@@ -385,7 +440,7 @@ class trainer:
                    "R_square_tests": R_square_tests}
         log["y_hat"] = y_hat
 
-        return history, log
+        return metrics, log
 
     def close_session(self):
         self.sess.close()
@@ -395,7 +450,7 @@ class trainer:
         X_trajs = np.mean(Xs_val, axis=2)
 
         plt.figure()
-        for X_traj in X_trajs[0:self.quiver_traj_num]:
+        for X_traj in X_trajs[0:self.saving_num]:
             plt.plot(X_traj[:, 0], X_traj[:, 1])
             plt.scatter(X_traj[0, 0], X_traj[0, 1])
         plt.title("quiver")

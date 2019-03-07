@@ -1,6 +1,5 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
-from tensorflow.contrib.layers import fully_connected, xavier_initializer
 
 
 class SMC:
