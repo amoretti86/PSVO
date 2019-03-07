@@ -185,14 +185,10 @@ class trainer:
         Xs = log["Xs"]
         MSE_ks, y_means, y_vars, y_hat = self.SMC_train.n_step_MSE(self.MSE_steps, Xs, self.obs, self.Input)
 
-        # used to compare signal-to-noise ratio of gradient for different number of paricles
-        q_grads, f_grads, g_grads = log["q_grads"], log["f_grads"], log["g_grads"]
-
         with tf.variable_scope("train"):
             lr = tf.placeholder(tf.float32, name="lr")
             train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC)
-
-
+            
         init = tf.global_variables_initializer()
 
         if self.store_res:
@@ -311,14 +307,6 @@ class trainer:
 
                     plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
-                    q_grads_val, f_grads_val, g_grads_val = \
-                        self.evaluate([q_grads, f_grads, g_grads],
-                                      {self.obs: obs_train[0:self.saving_num],
-                                       self.hidden: hidden_train[0:self.saving_num],
-                                       self.Input: input_train[0:self.saving_num],
-                                       self.dropout: np.zeros(self.saving_num),
-                                       self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch},
-                                      average=False)
                     evaluate_feed_dict = {self.obs: obs_test[0:self.saving_num],
                                           self.hidden: hidden_test[0:self.saving_num],
                                           self.Input: input_test[0:self.saving_num],
@@ -330,10 +318,7 @@ class trainer:
                     epoch_dict = {"R_square_train": R_square_train,
                                   "R_square_test": R_square_test,
                                   "Xs_val": Xs_val,
-                                  "y_hat_val": y_hat_val,
-                                  "q_grads": q_grads_val,
-                                  "f_grads": f_grads_val,
-                                  "g_grads": g_grads_val}
+                                  "y_hat_val": y_hat_val}
 
                     if not os.path.exists(self.epoch_data_DIR):
                         os.makedirs(self.epoch_data_DIR)
