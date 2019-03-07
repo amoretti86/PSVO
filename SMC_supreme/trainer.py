@@ -192,6 +192,7 @@ class trainer:
             lr = tf.placeholder(tf.float32, name="lr")
             train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC)
 
+
         init = tf.global_variables_initializer()
 
         if self.store_res:
@@ -267,7 +268,7 @@ class trainer:
 
             # print training and testing loss
             if (i + 1) % print_freq == 0:
-                q_grads_val = self.evaluate(log_ZSMC,
+                log_ZSMC_train = self.evaluate(log_ZSMC,
                                             {self.obs: obs_train,
                                              self.hidden: hidden_train,
                                              self.Input: input_train,
