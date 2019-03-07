@@ -62,7 +62,7 @@ class tf_mvn(distribution):
                                                  allow_nan_stats=False)
             else:
                 if len(sigma.shape.as_list()) == len(mu.shape.as_list()):
-                    sigma = sigma_con + sigma
+                    sigma = sigma_con + 0.1 * sigma
                     mvn = tfd.MultivariateNormalDiag(mu, sigma,
                                                      validate_args=True,
                                                      allow_nan_stats=False)

@@ -70,8 +70,9 @@ dropout_rate = 0.1
 
 # --------------------- FFN flags --------------------- #
 
-# do q and f use the same network?
-use_bootstrap = True
+# if q1 and f share the same network
+# (ATTENTION: even if use_2_q == True, f and q1 can still use different networks)
+use_bootstrap = False
 
 # should q use true_X to sample? (useful for debugging)
 q_uses_true_X = False
@@ -80,9 +81,7 @@ q_uses_true_X = False
 use_residual = False
 
 # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
-# if True, use_bootstrap will be overwritten as True
-#          q_takes_y as False
-#          q_uses_true_X as False
+# if True, q_uses_true_X will be overwritten as False
 use_2_q = True
 
 # if q, f and g networks also output covariance (sigma)
@@ -237,14 +236,13 @@ flags.DEFINE_integer("filter_size", filter_size, "filter size for the feed-forwa
 flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for attention encoder during training")
 
 # --------------------- FFN flags --------------------- #
-
-flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether use f and q1 are the same")
+flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether q1 and f share the same network, "
+                                                     "(ATTENTION: even if use_2_q == True, "
+                                                     "f and q1 can still use different networks)")
 flags.DEFINE_boolean("q_uses_true_X", q_uses_true_X, "whether q1 uses true hidden states to sample")
 flags.DEFINE_boolean("use_residual", use_residual, "whether f and q use residual network")
 flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t), "
-                                         "if True, use_bootstrap will be overwritten as True, "
-                                         "q_takes_y as False, "
-                                         "q_uses_true_X as False")
+                                         "if True, q_uses_true_X will be overwritten as False")
 flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
 flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
 flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
