@@ -217,42 +217,6 @@ class trainer:
 
         return res_dict
 
-    def compute_gradient(self, loss, feed_dict):
-        # set up gradient nodes
-        gradients_dict = {}
-        SMC = self.SMC
-        q0 = SMC.q0.transformation
-        q1 = SMC.q1.transformation
-        g = SMC.g.transformation
-        q2 = None if self.SMC.q2 is None else SMC.q2.transformation         # If not using 2q network, q2 == None
-        f = None if self.SMC.f == self.SMC.q1 else SMC.f.transformation     # If using bootstrap, f == q1
-
-        for MLP_trans in [q0, q1, q2, f, g]:
-            if MLP_trans is None:
-                continue
-
-            variables_dict = MLP_trans.get_variables()
-            variable_names = list(variables_dict.keys())
-            variables = list(variables_dict.values())
-            gradients = [tf.gradients(loss, variable) for variable in variables]
-
-            gradients_dict[MLP_trans.name] = dict(zip(variable_names, gradients))
-
-        # evaluate gradient value
-        list_of_gradients_val_dict = []
-        for i in SNR_SAMPLE_NUM:
-            gradients_val_dict = {}
-            for MLP_name, MLP_gradients_dict in gradients_dict.items():
-                variable_names = list(MLP_gradients_dict.keys())
-                gradients = list(MLP_gradients_dict.values())
-                gradients_val = [self.evaluate(gradient, feed_dict, average=True) for gradient in gradients]
-
-                gradients_val_dict[MLP_name] = dict(zip(variable_names, gradients_val))
-
-            list_of_gradients_val_dict.append(gradients_val_dict)
-
-        return list_of_gradients_val_dict
-
     def train(self,
               obs_train, obs_test,
               hidden_train, hidden_test,
