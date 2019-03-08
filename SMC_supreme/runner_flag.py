@@ -30,7 +30,7 @@ seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = False
+generateTrainingData = True
 
 # if reading data from file
 datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/allen/"
@@ -61,18 +61,11 @@ g_sigma_init, g_sigma_min = 5, 1
 y_smoother_Dhs = [32]
 X0_smoother_Dhs = [32]
 
-# Self-Attention encoder
-num_hidden_layers = 4
-num_heads = 4
-hidden_size = 4 * num_heads * Dy
-filter_size = hidden_size
-dropout_rate = 0.1
-
 # --------------------- FFN flags --------------------- #
 
 # if q1 and f share the same network
 # (ATTENTION: even if use_2_q == True, f and q1 can still use different networks)
-use_bootstrap = False
+use_bootstrap = True
 
 # should q use true_X to sample? (useful for debugging)
 q_uses_true_X = False
@@ -88,13 +81,16 @@ use_2_q = True
 output_cov = False
 
 # if q, f and g networks also output covariance (sigma)
-diag_cov = True
+diag_cov = False
 
 # if x0 is learnable or takes ground truth
 x_0_learnable = True
 
 # whether use input in q and f
 use_input = False
+
+# dropout rate for FFN
+dropout_rate = 0.2
 
 # --------------------- FFBS flags --------------------- #
 
@@ -110,9 +106,6 @@ FFBS_to_learn = False
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs (bRNN) or self-attention encoders
 smooth_obs = True
-
-# whether use bRNN or self-attention encoders to get X0 and encode observation
-use_RNN = True
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
@@ -139,21 +132,35 @@ lr_reduce_factor = 1 / np.sqrt(2)
 min_lr = lr / 50
 
 # --------------------- printing and data saving params --------------------- #
+# frequency to evaluate testing loss & other metrics and save results
 print_freq = 5
 
-store_res = True
+# whether to save the followings during training
+#   hidden trajectories
+#   k-step y-hat
+#   gradients for SNR
+save_trajectory = True
+save_y_hat = True
+save_gradient = False
+
+# dir to save all results
 rslt_dir_name = "Allen_wI"
+
+# number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
 
-# how many trajectories to draw in quiver plot
-quiver_traj_num = min(30, n_train, n_test)
-lattice_shape = [25, 25]  # [25, 25] or [10, 10, 3]
+# lattice shape [# of rows, # of columns] to draw arrows in quiver plot
+lattice_shape = [25, 25]
 
+# number of testing data used to save hidden trajectories, y-hat, gradient and etc
+# will be clipped by number of testing data
 saving_num = 30
 
+# whether to save tensorboard
 save_tensorboard = False
+
+# whether to save model
 save_model = False
-save_freq = 10
 
 q0_layers = ",".join([str(x) for x in q0_layers])
 q1_layers = ",".join([str(x) for x in q1_layers])
@@ -228,13 +235,6 @@ flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smo
 flags.DEFINE_string("X0_smoother_Dhs", X0_smoother_Dhs, "number of units for X0_smoother birdectional RNNs, "
                                                         "int seperated by comma")
 
-# Self-Attention encoder
-flags.DEFINE_integer("num_hidden_layers", num_hidden_layers, "number of encoder layers in attention encoder")
-flags.DEFINE_integer("num_heads", num_heads, "num of parallel heads in attention encoder")
-flags.DEFINE_integer("hidden_size", hidden_size, "hidden size for the self-attention layer in attention encoder")
-flags.DEFINE_integer("filter_size", filter_size, "filter size for the feed-forward networks in attention encoder")
-flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for attention encoder during training")
-
 # --------------------- FFN flags --------------------- #
 flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether q1 and f share the same network, "
                                                      "(ATTENTION: even if use_2_q == True, "
@@ -247,6 +247,7 @@ flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also
 flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
 flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
 flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "whether x0 is learnable or takes ground truth")
+flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for FFN")
 
 # --------------------- FFBS flags --------------------- #
 
@@ -260,7 +261,6 @@ flags.DEFINE_boolean("FFBS_to_learn", FFBS_to_learn, "whether use FFBS for leani
 
 flags.DEFINE_boolean("smooth_obs", smooth_obs, "whether smooth observations with birdectional RNNs "
                                                "or self-attention encoders")
-flags.DEFINE_boolean("use_RNN", use_RNN, "whether use RNN or attention to smooth")
 flags.DEFINE_boolean("X0_use_separate_RNN", X0_use_separate_RNN, "whether use a separate RNN for getting X0")
 flags.DEFINE_boolean("use_stack_rnn", use_stack_rnn, "whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn "
                                                      "or tf.nn.bidirectional_dynamic_rnn")
@@ -282,20 +282,24 @@ flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "whether use tf.sto
 
 # --------------------- printing and data saving params --------------------- #
 
-flags.DEFINE_integer("print_freq", print_freq, "frequency to print log during training")
-flags.DEFINE_boolean("store_res", store_res, "whether store results")
+flags.DEFINE_integer("print_freq", print_freq, "frequency to evaluate testing loss & other metrics and save results")
 
-flags.DEFINE_string("rslt_dir_name", rslt_dir_name, "name of the dir storing the results")
-flags.DEFINE_integer("MSE_steps", MSE_steps, "number of steps to predict MSE and R_square")
+flags.DEFINE_boolean("save_trajectory", save_trajectory, "whether to save hidden trajectories during training")
+flags.DEFINE_boolean("save_y_hat", save_y_hat, "whether to save k-step y-hat during training")
+flags.DEFINE_boolean("save_gradient", save_gradient, "whether to save gradients for SNR during training")
 
-flags.DEFINE_integer("quiver_traj_num", quiver_traj_num, "frequency to print log during training")
-flags.DEFINE_string("lattice_shape", lattice_shape, "frequency to print log during training")
+flags.DEFINE_string("rslt_dir_name", rslt_dir_name, "dir to save all results")
+flags.DEFINE_integer("MSE_steps", MSE_steps, "number of steps to predict y-hat and calculate R_square")
 
-flags.DEFINE_integer("saving_num", saving_num, "frequency to print log during training")
+flags.DEFINE_string("lattice_shape", lattice_shape, "lattice shape [# of rows, # of columns] "
+                                                    "to draw arrows in quiver plot")
 
-flags.DEFINE_boolean("save_tensorboard", save_tensorboard, "frequency to print log during training")
-flags.DEFINE_boolean("save_model", save_model, "frequency to print log during training")
-flags.DEFINE_integer("save_freq", save_freq, "frequency to print log during training")
+flags.DEFINE_integer("saving_num", saving_num, "number of testing data used to "
+                                               "save hidden trajectories, y-hat, gradient and etc, "
+                                               "will be clipped by number of testing data")
+
+flags.DEFINE_boolean("save_tensorboard", save_tensorboard, "whether to save tensorboard")
+flags.DEFINE_boolean("save_model", save_model, "whether to save model")
 
 FLAGS = flags.FLAGS
 

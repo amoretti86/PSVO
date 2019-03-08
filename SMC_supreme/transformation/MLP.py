@@ -1,5 +1,6 @@
 import tensorflow as tf
-from tensorflow.contrib.layers import fully_connected, xavier_initializer
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.initializers import Constant
 
 from transformation.base import transformation
 
@@ -8,49 +9,78 @@ class MLP_transformation(transformation):
     def __init__(self, Dhs, Dout,
                  use_residual=False,
                  output_cov=False,
-                 diag_cov=True,
+                 diag_cov=False,
+                 dropout_rate=0.2,
                  name="MLP_transformation"):
         self.Dhs = Dhs
         self.Dout = Dout
-        self.name = name
+
         self.use_residual = use_residual
         self.output_cov = output_cov
         self.diag_cov = diag_cov
+        self.dropout_rate = dropout_rate
+
+        self.name = name
+        self.init_FFN()
+
+    def init_FFN(self):
+        with tf.variable_scope(self.name):
+            self.hidden_layers = []
+            self.dropout_layers = []
+            for i, Dh in enumerate(self.Dhs):
+                self.hidden_layers.append(
+                    Dense(Dh,
+                          activation="relu",
+                          kernel_initializer="he_uniform",
+                          name="hidden_{}".format(i))
+                )
+                self.dropout_layers.append(
+                    Dropout(rate=self.dropout_rate,
+                            name="dropout_{}".format(i))
+                )
+
+            self.mu_layer = Dense(self.Dout,
+                                  activation="linear",
+                                  kernel_initializer="he_uniform",
+                                  name="mu_layer")
+
+            if self.output_cov:
+                sigma_dim = self.Dout if self.diag_cov else self.Dout**2
+                self.sigma_layer = Dense(sigma_dim,
+                                         activation="linear",
+                                         kernel_initializer="he_uniform",
+                                         bias_initializer=Constant(1.0),
+                                         name="sigma_layer")
 
     def transform(self, Input):
         with tf.variable_scope(self.name):
-            hidden = tf.identity(Input, name="hidden_0")
-            for i, Dh in enumerate(self.Dhs):
-                hidden = fully_connected(hidden, Dh,
-                                         weights_initializer=xavier_initializer(uniform=False),
-                                         biases_initializer=tf.constant_initializer(0),
-                                         activation_fn=tf.nn.relu,
-                                         reuse=tf.AUTO_REUSE, scope="hidden_{}".format(i))
-            mu = fully_connected(hidden, self.Dout,
-                                 weights_initializer=xavier_initializer(uniform=False),
-                                 biases_initializer=tf.constant_initializer(0),
-                                 activation_fn=None,
-                                 reuse=tf.AUTO_REUSE, scope="output_mu")
-            if self.use_residual:
-                mu += Input
+            hidden = tf.identity(Input)
+            for hidden_layer, dropout_layer in zip(self.hidden_layers, self.dropout_layers):
+                hidden = hidden_layer(hidden)
+                hidden = dropout_layer(hidden)
+
+            mu = self.mu_layer(hidden)
 
             cov = None
             if self.output_cov:
+                cov = self.sigma_layer(hidden)
                 if self.diag_cov:
-                    cov = fully_connected(hidden, self.Dout,
-                                          weights_initializer=xavier_initializer(uniform=False),
-                                          biases_initializer=tf.constant_initializer(0.6),
-                                          activation_fn=None,
-                                          reuse=tf.AUTO_REUSE, scope="output_cov")
-                    cov = tf.exp(cov + 1e-6)  # to resolve numerical issues
+                    cov = tf.exp(cov) + 1e-6  # to resolve numerical issues
                 else:
-                    cov = fully_connected(hidden, self.Dout**2,
-                                          weights_initializer=xavier_initializer(uniform=False),
-                                          biases_initializer=tf.constant_initializer(0.6),
-                                          activation_fn=tf.nn.softplus,
-                                          reuse=tf.AUTO_REUSE, scope="output_cov")
                     batch_size = hidden.shape.as_list()[:-1]
                     cov = tf.reshape(cov, batch_size + [self.Dout, self.Dout]) + 1e-6
                     cov = tf.matmul(cov, cov, transpose_b=True)
 
         return mu, cov
+
+    def get_variables(self):
+        res_dict = {}
+
+        layers = self.hidden_layers + [self.mu_layer]
+        if self.output_cov:
+            layers += [self.sigma_layer]
+
+        for layer in layers:
+            res_dict[layer.name] = layer.variables
+
+        return res_dict
