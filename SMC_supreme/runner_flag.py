@@ -36,7 +36,7 @@ generateTrainingData = False
 datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/allen/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
-isPython2 = False
+isPython2 = True
 
 # time, n_train and n_test will be overwritten if loading data from the file
 time = 200
