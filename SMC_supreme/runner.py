@@ -434,7 +434,9 @@ def main(_):
                                            Input: input_test[0:saving_num],
                                            dropout: np.zeros(saving_num),
                                            smoothing_perc: np.ones(saving_num)})
-
+    Xs_val = Xs_val.reshape([-1] + list(Xs_val.shape[2:]))
+    y_hat_val = [step_y_hat_val.reshape([-1] + list(step_y_hat_val.shape[2:]))
+                 for step_y_hat_val in y_hat_val]
     print("finish evaluating training results")
 
     plot_training_data(RLT_DIR, hidden_train, obs_train, saving_num=saving_num)

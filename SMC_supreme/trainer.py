@@ -15,6 +15,7 @@ from rslts_saving.rslts_saving import plot_R_square_epoch
 
 SNR_SAMPLE_NUM = 100
 
+
 class trainer:
     def __init__(self,
                  Dx, Dy,
@@ -43,7 +44,7 @@ class trainer:
         # Only used for fhn data, and save_gradients = true
         self.have_surpassed_minus_365 = False
         self.have_surpassed_minus_220 = False
-        #self.have_surpassed_minus_750 = False
+        # self.have_surpassed_minus_750 = False
         self.save_count_down = -1
 
     def training_params(self, early_stop_patience, lr_reduce_factor, lr_reduce_patience, min_lr, dropout_rate):
@@ -116,13 +117,13 @@ class trainer:
         if isinstance(fetches, list):
             for i in range(len(fetches)):
                 if isinstance(fetches_list[0][i], np.ndarray):
-                    tmp = np.concatenate([x[i] for x in fetches_list])
+                    tmp = np.stack([x[i] for x in fetches_list])
                 else:
                     tmp = np.array([x[i] for x in fetches_list])
                 res.append(tmp)
         else:
             if isinstance(fetches_list[0], np.ndarray):
-                res = np.concatenate(fetches_list)
+                res = np.stack(fetches_list)
             else:
                 res = np.array(fetches_list)
 
@@ -184,7 +185,7 @@ class trainer:
         return mean_MSE_ks, R_square
 
     def set_up_gradient(self, loss):
-        res_dict = {}
+        trans_variables_dict = {}
         SMC = self.SMC
         q0 = SMC.q0.transformation
         q1 = SMC.q1.transformation
@@ -197,22 +198,22 @@ class trainer:
                 continue
 
             variables_dict = MLP_trans.get_variables()
-            variable_names = list(variables_dict.keys())
-            variables = list(variables_dict.values())
-            gradients = [tf.gradients(loss, variable) for variable in variables]
+            for key, val in variables_dict.items():
+                trans_variables_dict[MLP_trans.name + "/" + key] = val
 
-            res_dict[MLP_trans.name] = dict(zip(variable_names, gradients))
+        variable_names = list(trans_variables_dict.keys())
+        variables = list(trans_variables_dict.values())
+        gradients = tf.gradients(loss, variables)
 
-        self.gradients_dict = res_dict
+        self.gradients_dict = dict(zip(variable_names, gradients))
 
     def evaluate_gradients(self, feed_dict):
-        res_dict = {}
-        for MLP_name, MLP_gradients_dict in self.gradients_dict.items():
-            variable_names = list(MLP_gradients_dict.keys())
-            gradients = list(MLP_gradients_dict.values())
-            gradients_val = [self.evaluate(gradient, feed_dict, average=True) for gradient in gradients]
-
-            res_dict[MLP_name] = dict(zip(variable_names, gradients_val))
+        variable_names = list(self.gradients_dict.keys())
+        gradients = list(self.gradients_dict.values())
+        gradients_val_samples = [self.evaluate(gradients, feed_dict, average=True) for _ in range(SNR_SAMPLE_NUM)]
+        gradients_val = [np.stack([gradients_val_sample[i] for gradients_val_sample in gradients_val_samples])
+                         for i in range(len(gradients))]
+        res_dict = dict(zip(variable_names, gradients_val))
 
         return res_dict
 
@@ -402,10 +403,10 @@ class trainer:
                         # if loss gets > -365, save gradients for 20 epochs
 
                         # will delete later, used for test
-                        #if not self.have_surpassed_minus_750 and log_ZSMC_test > -1750:
-                         #   print("Surpassing -1750, collecting the gradients....\n")
-                          #  self.have_surpassed_minus_750 = True
-                           # self.save_count_down = 20
+                        # if not self.have_surpassed_minus_750 and log_ZSMC_test > -1750:
+                        #    print("Surpassing -1750, collecting the gradients....\n")
+                        #    self.have_surpassed_minus_750 = True
+                        #    self.save_count_down = 20
 
                         if not self.have_surpassed_minus_365 and log_ZSMC_test > -365:
                             self.have_surpassed_minus_365 = True
@@ -425,13 +426,10 @@ class trainer:
                                                    self.dropout:        np.zeros(self.saving_num),
                                                    self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch}
 
-                            list_of_gradients_val_dict = []
-                            for SNR_sample_i in range(SNR_SAMPLE_NUM):
-                                gradients_val_dict = self.evaluate_gradients(gradients_feed_dict)
-                                list_of_gradients_val_dict.append(gradients_val_dict)
+                            gradients_val_dict = self.evaluate_gradients(gradients_feed_dict)
 
                             with open(self.epoch_data_DIR + "gradient_{}.p".format(i + 1), "wb") as f:
-                                pickle.dump(list_of_gradients_val_dict, f)
+                                pickle.dump(gradients_val_dict, f)
 
                     # ------------ end of saving gradient ------------------
 
@@ -442,12 +440,15 @@ class trainer:
                                           self.smoothing_perc:  np.ones(self.saving_num)}
                     if self.save_trajectory:
                         Xs_val = self.evaluate(Xs, evaluate_feed_dict, average=False)
+                        Xs_val = Xs_val.reshape([-1] + list(Xs_val.shape[2:]))
                         trajectory_dict = {"Xs": Xs_val}
                         with open(self.epoch_data_DIR + "trajectory_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(trajectory_dict, f)
 
                     if self.save_y_hat:
                         y_hat_val = self.evaluate(y_hat, evaluate_feed_dict, average=False)
+                        y_hat_val = [step_y_hat_val.reshape([-1] + list(step_y_hat_val.shape[2:]))
+                                     for step_y_hat_val in y_hat_val]
                         y_hat_dict = {"y_hat": y_hat_val}
                         with open(self.epoch_data_DIR + "y_hat_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(y_hat_dict, f)

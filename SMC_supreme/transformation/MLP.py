@@ -81,6 +81,12 @@ class MLP_transformation(transformation):
             layers += [self.sigma_layer]
 
         for layer in layers:
-            res_dict[layer.name] = layer.variables
+            variable1, variable2 = layer.variables
+            if len(variable1.shape.as_list()) == 2:
+                weights, bias = variable1, variable2
+            else:
+                weights, bias = variable2, variable1
+            res_dict[layer.name + "/weights"] = weights
+            res_dict[layer.name + "/bias"] = bias
 
         return res_dict

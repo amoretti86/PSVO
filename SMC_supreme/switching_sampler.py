@@ -131,8 +131,8 @@ if __name__ == "__main__":
     a, b, c, I, dt = 1.0, 0.95, 0.05, 1.0, 0.15
     f_params1 = (a, b, c, I, dt)
 
-    a, b, c, I, dt = 1.0, 0.95, 0.05, 3.0, 0.15
-    f_params2 = (a, b, c, I, dt)
+    # a, b, c, I, dt = 1.0, 0.95, 0.05, 3.0, 0.15
+    # f_params2 = (a, b, c, I, dt)
 
     f_sample_cov = 0.0 * np.eye(Dx)
 
