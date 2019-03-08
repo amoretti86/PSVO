@@ -18,10 +18,10 @@ print("\t tensorflow_probability version:", tfp.__version__)
 
 
 # --------------------- training hyperparameters --------------------- #
-Dx = 3
+Dx = 2
 Dy = 1
 Di = 1
-n_particles = 64
+n_particles = 1
 
 batch_size = 1
 lr = 2e-3
@@ -30,10 +30,10 @@ seed = 0
 
 # --------------------- data set parameters --------------------- #
 # generate synthetic data?
-generateTrainingData = True
+generateTrainingData = False
 
 # if reading data from file
-datadir = "C:/Users/admin/Desktop/research/code/VISMC/data/allen/"
+datadir = "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
 isPython2 = True
@@ -45,11 +45,11 @@ n_test = 40 * batch_size
 
 # --------------------- model parameters --------------------- #
 # Feed-Forward Network (FFN)
-q0_layers = [32, 32]        # q(x_1|y_1) or q(x_1|y_1:T)
-q1_layers = [32, 32]        # q(x_t|x_{t-1})
-q2_layers = [32, 32]        # q(x_t|y_t) or q(x_t|y_1:T)
-f_layers = [32, 32]
-g_layers = [32, 32]
+q0_layers = [16]        # q(x_1|y_1) or q(x_1|y_1:T)
+q1_layers = [16]        # q(x_t|x_{t-1})
+q2_layers = [16]        # q(x_t|y_t) or q(x_t|y_1:T)
+f_layers = [16]
+g_layers = [16]
 
 q0_sigma_init, q0_sigma_min = 5, 1
 q1_sigma_init, q1_sigma_min = 5, 1
@@ -58,14 +58,14 @@ f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
 
 # bidirectional RNN
-y_smoother_Dhs = [32]
-X0_smoother_Dhs = [32]
+y_smoother_Dhs = [64]
+X0_smoother_Dhs = [64]
 
 # --------------------- FFN flags --------------------- #
 
 # if q1 and f share the same network
 # (ATTENTION: even if use_2_q == True, f and q1 can still use different networks)
-use_bootstrap = True
+use_bootstrap = False
 
 # should q use true_X to sample? (useful for debugging)
 q_uses_true_X = False
@@ -141,7 +141,7 @@ print_freq = 5
 #   gradients for SNR
 save_trajectory = True
 save_y_hat = True
-save_gradient = False
+save_gradient = True
 
 # dir to save all results
 rslt_dir_name = "Allen_wI"

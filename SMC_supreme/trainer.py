@@ -13,6 +13,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from rslts_saving.rslts_saving import plot_R_square_epoch
 
+SNR_SAMPLE_NUM = 100
 
 class trainer:
     def __init__(self,
@@ -37,6 +38,13 @@ class trainer:
         self.draw_quiver_during_training = False
 
         self.smoothing_perc_factor = smoothing_perc_factor
+
+        # Used for SNR calculations
+        # Only used for fhn data, and save_gradients = true
+        self.have_surpassed_minus_365 = False
+        self.have_surpassed_minus_220 = False
+        #self.have_surpassed_minus_750 = False
+        self.save_count_down = -1
 
     def training_params(self, early_stop_patience, lr_reduce_factor, lr_reduce_patience, min_lr, dropout_rate):
         self.early_stop_patience = early_stop_patience
@@ -181,8 +189,8 @@ class trainer:
         q0 = SMC.q0.transformation
         q1 = SMC.q1.transformation
         g = SMC.g.transformation
-        q2 = None if self.SMC.q2 is None else SMC.q2.transformation         # If not using 2q network, q2 == None
-        f = None if self.SMC.f == self.SMC.q1 else SMC.f.transformation     # If using bootstrap, f == q1
+        q2 = None if self.SMC.q2 is None else SMC.q2.transformation  # If not using 2q network, q2 == None
+        f = None if self.SMC.f == self.SMC.q1 else SMC.f.transformation  # If using bootstrap, f == q1
 
         for MLP_trans in [q0, q1, q2, f, g]:
             if MLP_trans is None:
@@ -207,6 +215,42 @@ class trainer:
             res_dict[MLP_name] = dict(zip(variable_names, gradients_val))
 
         return res_dict
+
+    def compute_gradient(self, loss, feed_dict):
+        # set up gradient nodes
+        gradients_dict = {}
+        SMC = self.SMC
+        q0 = SMC.q0.transformation
+        q1 = SMC.q1.transformation
+        g = SMC.g.transformation
+        q2 = None if self.SMC.q2 is None else SMC.q2.transformation         # If not using 2q network, q2 == None
+        f = None if self.SMC.f == self.SMC.q1 else SMC.f.transformation     # If using bootstrap, f == q1
+
+        for MLP_trans in [q0, q1, q2, f, g]:
+            if MLP_trans is None:
+                continue
+
+            variables_dict = MLP_trans.get_variables()
+            variable_names = list(variables_dict.keys())
+            variables = list(variables_dict.values())
+            gradients = [tf.gradients(loss, variable) for variable in variables]
+
+            gradients_dict[MLP_trans.name] = dict(zip(variable_names, gradients))
+
+        # evaluate gradient value
+        list_of_gradients_val_dict = []
+        for i in SNR_SAMPLE_NUM:
+            gradients_val_dict = {}
+            for MLP_name, MLP_gradients_dict in gradients_dict.items():
+                variable_names = list(MLP_gradients_dict.keys())
+                gradients = list(MLP_gradients_dict.values())
+                gradients_val = [self.evaluate(gradient, feed_dict, average=True) for gradient in gradients]
+
+                gradients_val_dict[MLP_name] = dict(zip(variable_names, gradients_val))
+
+            list_of_gradients_val_dict.append(gradients_val_dict)
+
+        return list_of_gradients_val_dict
 
     def train(self,
               obs_train, obs_test,
@@ -342,12 +386,6 @@ class trainer:
 
                     plot_R_square_epoch(self.RLT_DIR, R_square_trains[-1], R_square_tests[-1], i + 1)
 
-                    evaluate_feed_dict = {self.obs: obs_test[0:self.saving_num],
-                                          self.hidden: hidden_test[0:self.saving_num],
-                                          self.Input: input_test[0:self.saving_num],
-                                          self.dropout: np.zeros(self.saving_num),
-                                          self.smoothing_perc: np.ones(self.saving_num)}
-
                     if not os.path.exists(self.epoch_data_DIR):
                         os.makedirs(self.epoch_data_DIR)
                     metric_dict = {"log_ZSMC_train": log_ZSMC_train,
@@ -360,29 +398,42 @@ class trainer:
 
                         # an ad-hoc and naive way to determine whether the fhn experiment is near convergence
                         # please tell me if you have any other ideas
-                        have_surpassed_minus_365 = False
-                        have_surpassed_minus_220 = False
 
                         # if loss gets > -365, save gradients for 20 epochs
-                        if not have_surpassed_minus_365 and log_ZSMC_test > -365:
-                            have_surpassed_minus_365 = True
-                            save_count_down = 20
-                        # if loss gets > -220, save gradients for 20 epochs
-                        if not have_surpassed_minus_220 and log_ZSMC_test > -220:
-                            have_surpassed_minus_220 = True
-                            save_count_down = 20
 
-                        if save_count_down:
-                            save_count_down -= 1
+                        # will delete later, used for test
+                        #if not self.have_surpassed_minus_750 and log_ZSMC_test > -1750:
+                         #   print("Surpassing -1750, collecting the gradients....\n")
+                          #  self.have_surpassed_minus_750 = True
+                           # self.save_count_down = 20
+
+                        if not self.have_surpassed_minus_365 and log_ZSMC_test > -365:
+                            self.have_surpassed_minus_365 = True
+                            self.save_count_down = 20
+
+                        # if loss gets > -220, save gradients for 20 epochs
+                        if not self.have_surpassed_minus_220 and log_ZSMC_test > -220:
+                            self.have_surpassed_minus_220 = True
+                            self.save_count_down = 20
+
+                        if self.save_count_down > 0:
+                            self.save_count_down -= 1
+                            print("Count down: ", self.save_count_down)
                             gradients_feed_dict = {self.obs:            obs_train[0:self.saving_num],
                                                    self.hidden:         hidden_train[0:self.saving_num],
                                                    self.Input:          input_train[0:self.saving_num],
                                                    self.dropout:        np.zeros(self.saving_num),
                                                    self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch}
-                            gradients_val_dict = self.evaluate_gradients(gradients_feed_dict)
-                            gradient_dict = {"gradients_val_dict": gradients_val_dict}
+
+                            list_of_gradients_val_dict = []
+                            for SNR_sample_i in range(SNR_SAMPLE_NUM):
+                                gradients_val_dict = self.evaluate_gradients(gradients_feed_dict)
+                                list_of_gradients_val_dict.append(gradients_val_dict)
+
                             with open(self.epoch_data_DIR + "gradient_{}.p".format(i + 1), "wb") as f:
-                                pickle.dump(gradient_dict, f)
+                                pickle.dump(list_of_gradients_val_dict, f)
+
+                    # ------------ end of saving gradient ------------------
 
                     evaluate_feed_dict = {self.obs:             obs_test[0:self.saving_num],
                                           self.hidden:          hidden_test[0:self.saving_num],
