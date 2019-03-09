@@ -161,6 +161,8 @@ def main(_):
     # dir to save all results
     rslt_dir_name = FLAGS.rslt_dir_name
 
+    SNR_sample_num = FLAGS.SNR_sample_num
+
     # number of steps to predict y-hat and calculate R_square
     MSE_steps = FLAGS.MSE_steps
 
@@ -407,7 +409,7 @@ def main(_):
     mytrainer.set_SMC(SMC_train)
     mytrainer.set_placeholders(obs, hidden, Input, dropout, smoothing_perc)
 
-    mytrainer.set_epoch_data_saving(RLT_DIR, saving_num, save_trajectory, save_y_hat, save_gradient)
+    mytrainer.set_epoch_data_saving(RLT_DIR, save_trajectory, save_y_hat, save_gradient, saving_num, SNR_sample_num)
     mytrainer.set_model_saving(save_tensorboard, save_model)
     if Dx == 2:
         lattice = tf.placeholder(tf.float32, shape=lattice_shape, name="lattice")

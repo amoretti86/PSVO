@@ -60,13 +60,14 @@ class trainer:
         # dropout only used when training attention mechanism
         self.dropout_rate = dropout_rate
 
-    def set_epoch_data_saving(self, RLT_DIR, saving_num, save_trajectory, save_y_hat, save_gradient):
+    def set_epoch_data_saving(self, RLT_DIR, save_trajectory, save_y_hat, save_gradient, saving_num, SNR_sample_num):
         self.save_res = True
         self.RLT_DIR = RLT_DIR
-        self.saving_num = saving_num
         self.save_trajectory = save_trajectory
         self.save_y_hat = save_y_hat
         self.save_gradient = save_gradient
+        self.saving_num = saving_num
+        self.SNR_sample_num = SNR_sample_num
 
         epoch_data_DIR = self.RLT_DIR.split("/")
         epoch_data_DIR.insert(epoch_data_DIR.index("rslts") + 1, "epoch_data")
@@ -210,7 +211,7 @@ class trainer:
     def evaluate_gradients(self, feed_dict):
         variable_names = list(self.gradients_dict.keys())
         gradients = list(self.gradients_dict.values())
-        gradients_val_samples = [self.evaluate(gradients, feed_dict, average=True) for _ in range(SNR_SAMPLE_NUM)]
+        gradients_val_samples = [self.evaluate(gradients, feed_dict, average=True) for _ in range(self.SNR_sample_num)]
         gradients_val = [np.stack([gradients_val_sample[i] for gradients_val_sample in gradients_val_samples])
                          for i in range(len(gradients))]
         res_dict = dict(zip(variable_names, gradients_val))

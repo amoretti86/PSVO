@@ -143,6 +143,8 @@ save_trajectory = True
 save_y_hat = True
 save_gradient = True
 
+SNR_sample_num = 100
+
 # dir to save all results
 rslt_dir_name = "Allen_wI"
 
@@ -290,6 +292,7 @@ flags.DEFINE_boolean("save_gradient", save_gradient, "whether to save gradients 
 
 flags.DEFINE_string("rslt_dir_name", rslt_dir_name, "dir to save all results")
 flags.DEFINE_integer("MSE_steps", MSE_steps, "number of steps to predict y-hat and calculate R_square")
+flags.DEFINE_integer("SNR_sample_num", SNR_sample_num, "number of gradients to sample to calculate SNR")
 
 flags.DEFINE_string("lattice_shape", lattice_shape, "lattice shape [# of rows, # of columns] "
                                                     "to draw arrows in quiver plot")
