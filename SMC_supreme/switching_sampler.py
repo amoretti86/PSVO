@@ -156,30 +156,31 @@ if __name__ == "__main__":
 
     # Create train and test dataset
     hidden_train, obs_train, hidden_test, obs_test = \
-        create_dataset(n_train, n_test, time_list, Dx, Dy, f_sample_dist, g_sample_dist, f_params_list, lb=-2.5, ub=2.5)
+        create_dataset(n_train, n_test, time_list, Dx, Dy, f_sample_dist, g_sample_dist, f_params_list, lb=-5, ub=5)
     print("finished creating dataset")
 
     hidden_all = np.concatenate([hidden_train, hidden_test])
 
+    std = 0.1
     weights1 = np.random.randn(2, 10)
     bias1 = np.random.randn(10)
     obs_train = np.maximum(np.matmul(hidden_train, weights1) + bias1, 0)
     obs_test = np.maximum(np.matmul(hidden_test, weights1) + bias1, 0)
     weights2 = np.random.randn(10, 1)
     bias2 = np.random.randn(1)
-    obs_train = np.matmul(obs_train, weights2) + bias2 + np.random.randn() * np.sqrt(0.1)
-    obs_test = np.matmul(obs_test, weights2) + bias2 + np.random.randn() * np.sqrt(0.1)
+    obs_train = np.matmul(obs_train, weights2) + bias2 + np.random.randn() * np.sqrt(std)
+    obs_test = np.matmul(obs_test, weights2) + bias2 + np.random.randn() * np.sqrt(std)
 
     datadict["Xtrue"] = hidden_all
     datadict["Ytrain"] = obs_train
     datadict["Yvalid"] = obs_test
 
-    RLT_DIR = "../data/fhn/1D_NN_obs_0.1/"
+    RLT_DIR = "../data/fhn/1D_NN_obs_{}_lager_x0_range/".format(std)
     if not os.path.exists(RLT_DIR):
         os.makedirs(RLT_DIR)
 
     with open(RLT_DIR + "datadict", "wb") as f:
         pickle.dump(datadict, f)
 
-    plot_fhn_results(RLT_DIR, hidden_all[0:5])
-    plot_training_data(RLT_DIR, hidden_all[0:5], obs_train[0:5])
+    plot_fhn_results(RLT_DIR, hidden_all[0:10])
+    plot_training_data(RLT_DIR, hidden_all[0:10], obs_train[0:10])

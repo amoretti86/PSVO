@@ -142,6 +142,9 @@ def main(_):
     # minimum lr
     min_lr = FLAGS.min_lr
 
+    # The clipping ratio of gradient based on global L2 norm
+    clip_norm = FLAGS.clip_norm
+
     # whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
     use_stop_gradient = FLAGS.use_stop_gradient
 
@@ -405,7 +408,12 @@ def main(_):
                         MSE_steps,
                         smoothing_perc_factor)
 
-    mytrainer.training_params(early_stop_patience, lr_reduce_factor, lr_reduce_patience, min_lr, dropout_rate)
+    mytrainer.training_params(early_stop_patience,
+                              lr_reduce_factor,
+                              lr_reduce_patience,
+                              min_lr,
+                              dropout_rate,
+                              clip_norm)
     mytrainer.set_SMC(SMC_train)
     mytrainer.set_placeholders(obs, hidden, Input, dropout, smoothing_perc)
 

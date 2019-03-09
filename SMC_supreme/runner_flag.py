@@ -131,6 +131,9 @@ lr_reduce_factor = 1 / np.sqrt(2)
 # minimum lr
 min_lr = lr / 50
 
+# The clipping ratio of gradient based on global L2 norm
+clip_norm = 10.0
+
 # --------------------- printing and data saving params --------------------- #
 # frequency to evaluate testing loss & other metrics and save results
 print_freq = 5
@@ -141,7 +144,7 @@ print_freq = 5
 #   gradients for SNR
 save_trajectory = True
 save_y_hat = True
-save_gradient = True
+save_gradient = False
 
 SNR_sample_num = 100
 
@@ -276,8 +279,8 @@ flags.DEFINE_integer("lr_reduce_patience", lr_reduce_patience,
                      "educe learning rate when testing loss doesn't improve for some time")
 flags.DEFINE_float("lr_reduce_factor", lr_reduce_factor,
                    "the factor to reduce learning rate, new_lr = old_lr * lr_reduce_factor")
-flags.DEFINE_float("min_lr", min_lr,
-                   "minimum learning rate")
+flags.DEFINE_float("min_lr", min_lr, "minimum learning rate")
+flags.DEFINE_float("clip_norm", clip_norm, "The clipping ratio of gradient based on global L2 norm")
 
 flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "whether use tf.stop_gradient "
                                                              "when resampling and reweighting weights during smoothing")

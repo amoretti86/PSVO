@@ -47,7 +47,13 @@ class trainer:
         # self.have_surpassed_minus_750 = False
         self.save_count_down = -1
 
-    def training_params(self, early_stop_patience, lr_reduce_factor, lr_reduce_patience, min_lr, dropout_rate):
+    def training_params(self,
+                        early_stop_patience,
+                        lr_reduce_factor,
+                        lr_reduce_patience,
+                        min_lr,
+                        dropout_rate,
+                        clip_norm):
         self.early_stop_patience = early_stop_patience
         self.bestCost = 0
         self.early_stop_count = 0
@@ -56,6 +62,8 @@ class trainer:
         self.lr_reduce_patience = lr_reduce_patience
         self.min_lr = min_lr
         self.lr_reduce_count = 0
+
+        self.clip_norm = clip_norm
 
         # dropout only used when training attention mechanism
         self.dropout_rate = dropout_rate
@@ -236,7 +244,11 @@ class trainer:
 
         with tf.variable_scope("train"):
             lr = tf.placeholder(tf.float32, name="lr")
-            train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC)
+            # train_op = tf.train.AdamOptimizer(lr).minimize(-log_ZSMC)
+            optimizer = tf.train.AdamOptimizer(lr)
+            gradients, variables = zip(*optimizer.compute_gradients(-log_ZSMC))
+            gradients, _ = tf.clip_by_global_norm(gradients, self.clip_norm)
+            train_op = optimizer.apply_gradients(zip(gradients, variables))
 
         init = tf.global_variables_initializer()
 
