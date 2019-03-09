@@ -161,11 +161,20 @@ if __name__ == "__main__":
 
     hidden_all = np.concatenate([hidden_train, hidden_test])
 
+    weights1 = np.random.randn(2, 10)
+    bias1 = np.random.randn(10)
+    obs_train = np.maximum(np.matmul(hidden_train, weights1) + bias1, 0)
+    obs_test = np.maximum(np.matmul(hidden_test, weights1) + bias1, 0)
+    weights2 = np.random.randn(10, 1)
+    bias2 = np.random.randn(1)
+    obs_train = np.matmul(obs_train, weights2) + bias2 + np.random.randn() * np.sqrt(0.1)
+    obs_test = np.matmul(obs_test, weights2) + bias2 + np.random.randn() * np.sqrt(0.1)
+
     datadict["Xtrue"] = hidden_all
     datadict["Ytrain"] = obs_train
     datadict["Yvalid"] = obs_test
 
-    RLT_DIR = "../data/fhn/2D_obs/"
+    RLT_DIR = "../data/fhn/1D_NN_obs_0.1/"
     if not os.path.exists(RLT_DIR):
         os.makedirs(RLT_DIR)
 

@@ -402,9 +402,11 @@ class trainer:
                                           self.Input:           input_test[0:self.saving_num],
                                           self.dropout:         np.zeros(self.saving_num),
                                           self.smoothing_perc:  np.ones(self.saving_num)}
+
+                    Xs_val = self.evaluate(Xs, evaluate_feed_dict, average=False)
+                    Xs_val = Xs_val.reshape([-1] + list(Xs_val.shape[2:]))
+
                     if self.save_trajectory:
-                        Xs_val = self.evaluate(Xs, evaluate_feed_dict, average=False)
-                        Xs_val = Xs_val.reshape([-1] + list(Xs_val.shape[2:]))
                         trajectory_dict = {"Xs": Xs_val}
                         with open(self.epoch_data_DIR + "trajectory_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(trajectory_dict, f)
@@ -417,11 +419,11 @@ class trainer:
                         with open(self.epoch_data_DIR + "y_hat_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(y_hat_dict, f)
 
-                if self.draw_quiver_during_training:
-                    if self.Dx == 2:
-                        self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
-                    elif self.Dx == 3:
-                        self.draw_3D_quiver_plot(Xs_val, i + 1)
+                    if self.draw_quiver_during_training:
+                        if self.Dx == 2:
+                            self.draw_2D_quiver_plot(Xs_val, self.nextX, self.lattice, i + 1)
+                        elif self.Dx == 3:
+                            self.draw_3D_quiver_plot(Xs_val, i + 1)
 
                 # determine whether should decrease lr or even stop training
                 cost = np.array(log_ZSMC_tests)
