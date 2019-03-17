@@ -111,103 +111,6 @@ class trainer:
         elif self.Dx == 3:
             self.draw_quiver_during_training = True
 
-    def evaluate(self, fetches, feed_dict_w_batches={}, average=False, keepdims=False):
-        """
-        Evaluate fetches across multiple batches of feed_dict
-        fetches: a single tensor or list of tensor to evaluate
-        feed_dict_w_batches: {placeholder: input of multiple batches}
-        average: whether to average fetched values across batches
-        keepdims: if not averaging across batches, for N-d tensor in feteches, whether to keep
-            the dimension for different batches.
-        """
-        if not feed_dict_w_batches:
-            return self.sess.run(fetches)
-
-        n_batches = len(list(feed_dict_w_batches.values())[0])
-        assert n_batches >= self.batch_size
-
-        fetches_list = []
-        feed_dict = {}
-        for i in range(0, n_batches, self.batch_size):
-            for key, value in feed_dict_w_batches.items():
-                feed_dict[key] = value[i:i + self.batch_size]
-            fetches_val = self.sess.run(fetches, feed_dict=feed_dict)
-            fetches_list.append(fetches_val)
-
-        res = []
-        if isinstance(fetches, list):
-            for i in range(len(fetches)):
-                if isinstance(fetches_list[0][i], np.ndarray):
-                    if keepdims:
-                        tmp = np.stack([x[i] for x in fetches_list])
-                    else:
-                        tmp = np.concatenate([x[i] for x in fetches_list])
-                else:
-                    tmp = np.array([x[i] for x in fetches_list])
-                res.append(tmp)
-        else:
-            if isinstance(fetches_list[0], np.ndarray):
-                res = np.stack(fetches_list) if keepdims else np.concatenate(fetches_list)
-            else:
-                res = np.array(fetches_list)
-
-        if average:
-            if isinstance(res, list):
-                res = [np.mean(x, axis=0) for x in res]
-            else:
-                res = np.mean(res, axis=0)
-
-        return res
-
-    def evaluate_R_square(self, MSE_ks, y_means, y_vars, hidden_set, obs_set, input_set):
-        n_steps = y_means.shape.as_list()[0] - 1
-        Dy = y_means.shape.as_list()[1]
-        batch_size = self.batch_size
-        n_batches = hidden_set.shape[0]
-
-        combined_MSE_ks = np.zeros((n_steps + 1))             # combined MSE_ks across all batches
-        combined_y_means = np.zeros((n_steps + 1, Dy))        # combined y_means across all batches
-        combined_y_vars = np.zeros((n_steps + 1, Dy))         # combined y_vars across all batches
-
-        for i in range(0, n_batches, batch_size):
-
-            batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
-                                                                      {self.obs: obs_set[i:i + batch_size],
-                                                                       self.hidden: hidden_set[i:i + batch_size],
-                                                                       self.Input: input_set[i:i + batch_size],
-                                                                       self.dropout: np.zeros(batch_size),
-                                                                       self.smoothing_perc: np.ones(batch_size)})
-            # batch_MSE_ks.shape = (n_steps + 1)
-            # batch_y_means.shape = (n_steps + 1, Dy)
-            # batch_y_vars.shape = (n_steps + 1, Dy)
-
-            # update combined_MSE_ks just by summing them across all batches
-            combined_MSE_ks += batch_MSE_ks
-
-            # update combined y_means and combined y_vars according to:
-            # https://stats.stackexchange.com/questions/55999/is-it-possible-to-find-the-combined-standard-deviation
-            Tmks = np.arange(self.time - n_steps, self.time + 1, 1)  # [time - n_steps, time - n_steps + 1, ..., time]
-            Tmks = Tmks[-1:None:-1]                                  # [time, ..., time - n_steps + 1, time - n_steps]
-            TmkxDy = np.tile(Tmks, (Dy, 1)).T                        # (n_steps + 1, Dy)
-
-            # for k = 0, ..., n_steps,
-            # its n1 = (time - k) * i, n2 = (time - k) * batch_size respectively
-            n1 = TmkxDy * i                                     # (n_steps + 1, Dy)
-            n2 = TmkxDy * batch_size                            # (n_steps + 1, Dy)
-
-            combined_y_means_new = (n1 * combined_y_means + n2 * batch_y_means) / (n1 + n2)
-            combined_y_vars = combined_y_vars + batch_y_vars + \
-                n1 * (combined_y_means - combined_y_means_new)**2 + \
-                n2 * (batch_y_means - combined_y_means_new)**2
-
-            combined_y_means = combined_y_means_new
-
-        combined_y_vars = np.mean(combined_y_vars, axis=1)
-        R_square = 1 - combined_MSE_ks / combined_y_vars
-        mean_MSE_ks = combined_MSE_ks / (Tmks * n_batches)
-
-        return mean_MSE_ks, R_square
-
     def train(self,
               obs_train, obs_test,
               hidden_train, hidden_test,
@@ -399,6 +302,103 @@ class trainer:
             if self.bestCost == len(self.log_ZSMC_tests) - 1:
                 print("Test log_ZSMC improves to {}, save model".format(self.log_ZSMC_tests[-1]))
                 self.saver.save(self.sess, self.RLT_DIR + "model/model_epoch", global_step=iter_num + 1)
+
+    def evaluate(self, fetches, feed_dict_w_batches={}, average=False, keepdims=False):
+        """
+        Evaluate fetches across multiple batches of feed_dict
+        fetches: a single tensor or list of tensor to evaluate
+        feed_dict_w_batches: {placeholder: input of multiple batches}
+        average: whether to average fetched values across batches
+        keepdims: if not averaging across batches, for N-d tensor in feteches, whether to keep
+            the dimension for different batches.
+        """
+        if not feed_dict_w_batches:
+            return self.sess.run(fetches)
+
+        n_batches = len(list(feed_dict_w_batches.values())[0])
+        assert n_batches >= self.batch_size
+
+        fetches_list = []
+        feed_dict = {}
+        for i in range(0, n_batches, self.batch_size):
+            for key, value in feed_dict_w_batches.items():
+                feed_dict[key] = value[i:i + self.batch_size]
+            fetches_val = self.sess.run(fetches, feed_dict=feed_dict)
+            fetches_list.append(fetches_val)
+
+        res = []
+        if isinstance(fetches, list):
+            for i in range(len(fetches)):
+                if isinstance(fetches_list[0][i], np.ndarray):
+                    if keepdims:
+                        tmp = np.stack([x[i] for x in fetches_list])
+                    else:
+                        tmp = np.concatenate([x[i] for x in fetches_list])
+                else:
+                    tmp = np.array([x[i] for x in fetches_list])
+                res.append(tmp)
+        else:
+            if isinstance(fetches_list[0], np.ndarray):
+                res = np.stack(fetches_list) if keepdims else np.concatenate(fetches_list)
+            else:
+                res = np.array(fetches_list)
+
+        if average:
+            if isinstance(res, list):
+                res = [np.mean(x, axis=0) for x in res]
+            else:
+                res = np.mean(res, axis=0)
+
+        return res
+
+    def evaluate_R_square(self, MSE_ks, y_means, y_vars, hidden_set, obs_set, input_set):
+        n_steps = y_means.shape.as_list()[0] - 1
+        Dy = y_means.shape.as_list()[1]
+        batch_size = self.batch_size
+        n_batches = hidden_set.shape[0]
+
+        combined_MSE_ks = np.zeros((n_steps + 1))             # combined MSE_ks across all batches
+        combined_y_means = np.zeros((n_steps + 1, Dy))        # combined y_means across all batches
+        combined_y_vars = np.zeros((n_steps + 1, Dy))         # combined y_vars across all batches
+
+        for i in range(0, n_batches, batch_size):
+
+            batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
+                                                                      {self.obs: obs_set[i:i + batch_size],
+                                                                       self.hidden: hidden_set[i:i + batch_size],
+                                                                       self.Input: input_set[i:i + batch_size],
+                                                                       self.dropout: np.zeros(batch_size),
+                                                                       self.smoothing_perc: np.ones(batch_size)})
+            # batch_MSE_ks.shape = (n_steps + 1)
+            # batch_y_means.shape = (n_steps + 1, Dy)
+            # batch_y_vars.shape = (n_steps + 1, Dy)
+
+            # update combined_MSE_ks just by summing them across all batches
+            combined_MSE_ks += batch_MSE_ks
+
+            # update combined y_means and combined y_vars according to:
+            # https://stats.stackexchange.com/questions/55999/is-it-possible-to-find-the-combined-standard-deviation
+            Tmks = np.arange(self.time - n_steps, self.time + 1, 1)  # [time - n_steps, time - n_steps + 1, ..., time]
+            Tmks = Tmks[-1:None:-1]                                  # [time, ..., time - n_steps + 1, time - n_steps]
+            TmkxDy = np.tile(Tmks, (Dy, 1)).T                        # (n_steps + 1, Dy)
+
+            # for k = 0, ..., n_steps,
+            # its n1 = (time - k) * i, n2 = (time - k) * batch_size respectively
+            n1 = TmkxDy * i                                     # (n_steps + 1, Dy)
+            n2 = TmkxDy * batch_size                            # (n_steps + 1, Dy)
+
+            combined_y_means_new = (n1 * combined_y_means + n2 * batch_y_means) / (n1 + n2)
+            combined_y_vars = combined_y_vars + batch_y_vars + \
+                n1 * (combined_y_means - combined_y_means_new)**2 + \
+                n2 * (batch_y_means - combined_y_means_new)**2
+
+            combined_y_means = combined_y_means_new
+
+        combined_y_vars = np.mean(combined_y_vars, axis=1)
+        R_square = 1 - combined_MSE_ks / combined_y_vars
+        mean_MSE_ks = combined_MSE_ks / (Tmks * n_batches)
+
+        return mean_MSE_ks, R_square
 
     def draw_2D_quiver_plot(self, Xs_val, nextX, lattice, epoch):
         # Xs_val.shape = (saving_num, time, n_particles, Dx)
