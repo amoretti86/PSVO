@@ -99,7 +99,7 @@ class trainer:
 
     def init_quiver_plotting(self):
         if self.Dx == 2:
-            lattice_shape = self.FLAGS.lattice_shape
+            lattice_shape = [int(x) for x in self.FLAGS.lattice_shape.split(",")]
             assert len(lattice_shape) == self.Dx
             lattice_shape.append(self.Dx)
             self.lattice_shape = lattice_shape
@@ -252,6 +252,10 @@ class trainer:
             else:
                 smoothing_perc_epoch = 1
 
+            if i == 0:
+                log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test = \
+                    self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars, smoothing_perc_epoch)
+
             # training
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
             for j in range(0, len(obs_train), self.batch_size):
@@ -263,7 +267,7 @@ class trainer:
                                          self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch,
                                          lr:                  self.lr})
 
-            if i == 0 or (i + 1) % print_freq == 0:
+            if (i + 1) % print_freq == 0:
                 try:
                     log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test = \
                         self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars, smoothing_perc_epoch)

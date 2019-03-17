@@ -90,17 +90,16 @@ def main(_):
     # generate data from simulation
     if FLAGS.generateTrainingData:
         model = "lorenz"
-        hidden_train, obs_train, hidden_test, obs_test, input_train, input_test = \
+        hidden_train, hidden_test, obs_train, obs_test, input_train, input_test = \
             generate_dataset(FLAGS.n_train, FLAGS.n_test, FLAGS.time, model=model, Dy=FLAGS.Dy, lb=-2.5, ub=2.5)
 
     # load data from file
     else:
-        hidden_train, obs_train, hidden_test, obs_test, input_train, input_test = \
+        hidden_train, hidden_test, obs_train, obs_test, input_train, input_test = \
             load_data(FLAGS.datadir + FLAGS.datadict, Dx, FLAGS.Di, FLAGS.isPython2, use_input, q_uses_true_X)
+        FLAGS.n_train, FLAGS.n_test, FLAGS.time = obs_train.shape[0], obs_test.shape[0], obs_test.shape[1]
 
-        # clip saving_num to avoid it > n_train or n_test
-        FLAGS.n_train, FLAGS.n_test, FLAGS.time = obs_train.shape[0], obs_test.shape[0:2]
-
+    # clip saving_num to avoid it > n_train or n_test
     FLAGS.MSE_steps  = min(FLAGS.MSE_steps, FLAGS.time - 1)
     FLAGS.saving_num = min(FLAGS.saving_num, FLAGS.n_train, FLAGS.n_test)
     saving_num = FLAGS.saving_num

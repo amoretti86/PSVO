@@ -83,4 +83,4 @@ def generate_dataset(n_train, n_test, time,
             hidden_test[i - n_train] = hidden
             obs_test[i - n_train] = obs
 
-    return hidden_train, obs_train, hidden_test, obs_test, input_train, input_test
+    return hidden_train, hidden_test, obs_train, obs_test, input_train, input_test

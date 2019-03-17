@@ -34,6 +34,8 @@ generateTrainingData = False
 
 # if reading data from file
 datadir = "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
+# "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
+# "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
 isPython2 = True
