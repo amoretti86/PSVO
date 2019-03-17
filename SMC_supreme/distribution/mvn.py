@@ -68,6 +68,10 @@ class tf_mvn(distribution):
                                                      allow_nan_stats=False)
                 else:
                     sigma = tf.diag(sigma_con) + 0.1 * sigma
+                    sigma_shape_len = len(sigma.shape.as_list())
+                    axis = list(range(sigma_shape_len))
+                    axis[-2], axis[-1] = axis[-1], axis[-2]
+                    sigma = (sigma + tf.transpose(sigma, axis=axis)) / 2
                     mvn = tfd.MultivariateNormalFullCovariance(mu, sigma,
                                                                validate_args=True,
                                                                allow_nan_stats=False)

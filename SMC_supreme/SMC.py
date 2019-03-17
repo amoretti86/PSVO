@@ -3,56 +3,41 @@ from tensorflow_probability import distributions as tfd
 
 
 class SMC:
-    def __init__(self, q0, q1, q2, f, g,
+    def __init__(self, model,
                  n_particles,
                  q_uses_true_X=False,
-                 bRNN=None,
-                 attention_encoder=None,
+                 use_input=False,
                  X0_use_separate_RNN=True,
                  use_stack_rnn=False,
                  FFBS=False,
-                 smoothing_perc=1.0,
                  FFBS_to_learn=False,
-                 use_stop_gradient=False,
-                 use_input=False,
                  name="log_ZSMC"):
 
-        self.q0 = q0
-        self.q1 = q1
-        self.q2 = q2
-        self.f = f
-        self.g = g
+        # SSM distributions
+        self.q0 = model.q0_dist
+        self.q1 = model.q1_dist
+        self.q2 = model.q2_dist
+        self.f  = model.f_dist
+        self.g  = model.g_dist
+
         self.n_particles = n_particles
 
         self.q_uses_true_X = q_uses_true_X
+        self.use_input = use_input
 
-        if (bRNN or attention_encoder) is not None:
+        # bidirectional RNN as full sequence observations encoder
+        self.X0_use_separate_RNN = X0_use_separate_RNN
+        self.use_stack_rnn = use_stack_rnn
+
+        if model.bRNN is not None:
             self.smooth_obs = True
-            self.X0_use_separate_RNN = X0_use_separate_RNN
-            self.use_stack_rnn = use_stack_rnn
-
-            assert not (bRNN is not None and attention_encoder is not None)
-
-            if bRNN is not None:
-                self.y_smoother_f, self.y_smoother_b, self.X0_smoother_f, self.X0_smoother_b = bRNN
-                self.attention_encoder = None
-                if not use_stack_rnn:
-                    self.y_smoother_f = tf.nn.rnn_cell.MultiRNNCell(self.y_smoother_f)
-                    self.y_smoother_b = tf.nn.rnn_cell.MultiRNNCell(self.y_smoother_b)
-                    if X0_use_separate_RNN:
-                        self.X0_smoother_f = tf.nn.rnn_cell.MultiRNNCell(self.X0_smoother_f)
-                        self.X0_smoother_b = tf.nn.rnn_cell.MultiRNNCell(self.X0_smoother_b)
-            if attention_encoder is not None:
-                self.attention_encoder = attention_encoder
+            self.y_smoother_f, self.y_smoother_b, self.X0_smoother_f, self.X0_smoother_b = model.bRNN
         else:
             self.smooth_obs = False
 
-        self.use_stop_gradient = use_stop_gradient
-        self.use_input = use_input
-
         self.FFBS = FFBS
-        self.smoothing_perc = smoothing_perc
         self.FFBS_to_learn = FFBS_to_learn
+        self.smoothing_perc = model.smoothing_perc
         if not self.FFBS_to_learn:
             self.smoothing_perc = 1
 
@@ -73,7 +58,7 @@ class SMC:
             batch_size, time, Dy = obs.get_shape().as_list()
             n_particles = self.n_particles
 
-            self.n_particles, self.batch_size, self.time, self.Dy = n_particles, batch_size, time, Dy
+            self.batch_size, self.time, self.Dy = batch_size, time, Dy
 
             X_prevs = []
             X_ancestors = []
@@ -194,8 +179,11 @@ class SMC:
 
                 Xs = []
                 for t in range(time):
-                    smoothing_idx = self.get_resample_idx(reweighted_log_Ws[t], t)
-                    smoothed_X_t = tf.gather_nd(X_prevs[t], smoothing_idx)
+                    if n_particles > 1:
+                        smoothing_idx = self.get_resample_idx(reweighted_log_Ws[t], t)
+                        smoothed_X_t = tf.gather_nd(X_prevs[t], smoothing_idx)
+                    else:
+                        smoothed_X_t = X_prevs[t]
                     Xs.append(smoothed_X_t)
 
                 reweighted_log_Ws = tf.stack(reweighted_log_Ws)
@@ -204,7 +192,6 @@ class SMC:
             else:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
                 Xs = X_ancestors
-
 
             # (batch_size, time, n_particles, Dx)
             Xs = tf.transpose(tf.stack(Xs), perm=[2, 0, 1, 3], name="Xs")
@@ -280,9 +267,10 @@ class SMC:
 
     def get_resample_idx(self, log_W, t):
         # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
+
         n_particles, batch_size = self.n_particles, self.batch_size
 
-        log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0), name="log_W_max")
+        log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
         log_W = tf.transpose(log_W - log_W_max)
         categorical = tfd.Categorical(logits=log_W, validate_args=True,
                                       name="Categorical_{}".format(t))
@@ -290,10 +278,7 @@ class SMC:
         # sample multiple times to remove idx out of range
         idx = tf.ones((n_particles, batch_size), dtype=tf.int32) * n_particles
         for _ in range(3):
-            if self.use_stop_gradient:
-                fixup_idx = tf.stop_gradient(categorical.sample(n_particles))  # (n_particles, batch_size)
-            else:
-                fixup_idx = categorical.sample(n_particles)
+            fixup_idx = categorical.sample(n_particles)
             idx = tf.where(idx >= n_particles, fixup_idx, idx)
 
         # if still got idx out of range, replace them with idx from uniform distribution
@@ -324,10 +309,7 @@ class SMC:
                                                       all_fs[t] -
                                                       denominator,
                                                       axis=1)
-                if self.use_stop_gradient:
-                    reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * tf.stop_gradient(reweight_factor)
-                else:
-                    reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * reweight_factor
+                reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * reweight_factor
 
         return reweighted_log_Ws
 
@@ -345,45 +327,42 @@ class SMC:
         return log_ZSMC
 
     def _smooth_obs(self, obs):
-        # smooth obs with bidirectional RNN or attention mechanism
+        # smooth obs with bidirectional RNN
 
         with tf.variable_scope("smooth_obs"):
-            if self.attention_encoder is None:
 
+            if self.use_stack_rnn:
+                outputs, state_fw, state_bw = \
+                    tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                                   self.y_smoother_b,
+                                                                   obs,
+                                                                   dtype=tf.float32)
+            else:
+                outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                                                self.y_smoother_b,
+                                                                                obs,
+                                                                                dtype=tf.float32)
+            smoothed_obs = tf.concat(outputs, axis=-1)
+            smoothed_obs_list = tf.unstack(smoothed_obs, axis=1)
+
+            if self.X0_use_separate_RNN:
                 if self.use_stack_rnn:
                     outputs, state_fw, state_bw = \
-                        tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.y_smoother_f,
-                                                                       self.y_smoother_b,
+                        tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.X0_smoother_f,
+                                                                       self.X0_smoother_b,
                                                                        obs,
                                                                        dtype=tf.float32)
                 else:
-                    outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.y_smoother_f,
-                                                                                    self.y_smoother_b,
+                    outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.X0_smoother_f,
+                                                                                    self.X0_smoother_b,
                                                                                     obs,
                                                                                     dtype=tf.float32)
-                smoothed_obs = tf.concat(outputs, axis=-1)
-
-                if self.X0_use_separate_RNN:
-                    if self.use_stack_rnn:
-                        outputs, state_fw, state_bw = \
-                            tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.X0_smoother_f,
-                                                                           self.X0_smoother_b,
-                                                                           obs,
-                                                                           dtype=tf.float32)
-                    else:
-                        outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.X0_smoother_f,
-                                                                                        self.X0_smoother_b,
-                                                                                        obs,
-                                                                                        dtype=tf.float32)
-
-                smoothed_X0 = tf.concat([tf.concat(state, axis=-1) for state in state_fw + state_bw], axis=-1)
-
+            if self.use_stack_rnn:
+                outputs_fw = outputs_bw = outputs
             else:
-                smoothed_obs = self.attention_encoder(obs)
-                smoothed_obs_list = tf.unstack(smoothed_obs, axis=1)
-                smoothed_X0 = smoothed_obs_list[0]
-
-            smoothed_obs_list = tf.unstack(smoothed_obs, axis=1)
+                outputs_fw, outputs_bw = outputs
+            output_fw_list, output_bw_list = tf.unstack(outputs_fw, axis=1), tf.unstack(outputs_bw, axis=1)
+            smoothed_X0 = tf.concat([output_fw_list[-1], output_bw_list[0]], axis=-1)
 
         return smoothed_X0, smoothed_obs_list
 

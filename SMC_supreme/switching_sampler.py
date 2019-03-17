@@ -162,20 +162,23 @@ if __name__ == "__main__":
     hidden_all = np.concatenate([hidden_train, hidden_test])
 
     std = 0.1
-    weights1 = np.random.randn(2, 10)
-    bias1 = np.random.randn(10)
+    Dh = 5
+    weights1 = np.random.randn(2, Dh)
+    bias1 = np.random.randn(Dh)
     obs_train = np.maximum(np.matmul(hidden_train, weights1) + bias1, 0)
     obs_test = np.maximum(np.matmul(hidden_test, weights1) + bias1, 0)
-    weights2 = np.random.randn(10, 1)
+    print(obs_train.shape, obs_test.shape)
+    weights2 = np.random.randn(Dh, 1)
     bias2 = np.random.randn(1)
-    obs_train = np.matmul(obs_train, weights2) + bias2 + np.random.randn() * np.sqrt(std)
-    obs_test = np.matmul(obs_test, weights2) + bias2 + np.random.randn() * np.sqrt(std)
+    obs_train = np.matmul(obs_train, weights2) + bias2 + np.random.randn(obs_train.shape[1], 1) * np.sqrt(std)
+    obs_test = np.matmul(obs_test, weights2) + bias2 + np.random.randn(obs_test.shape[1], 1) * np.sqrt(std)
+    print(obs_train.shape, obs_test.shape)
 
     datadict["Xtrue"] = hidden_all
     datadict["Ytrain"] = obs_train
     datadict["Yvalid"] = obs_test
 
-    RLT_DIR = "../data/fhn/1D_NN_obs_{}_lager_x0_range/".format(std)
+    RLT_DIR = "../data/fhn/1D_NN_obs_{}_large_x0_range/".format(std)
     if not os.path.exists(RLT_DIR):
         os.makedirs(RLT_DIR)
 

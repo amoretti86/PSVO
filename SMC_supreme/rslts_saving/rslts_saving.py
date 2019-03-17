@@ -33,6 +33,20 @@ def create_RLT_DIR(Experiment_params):
     return RLT_DIR
 
 
+def save_experiment_param(RLT_DIR, FLAGS):
+    params_dict = {}
+    params_list = sorted([param for param in dir(FLAGS) if param
+                          not in ['h', 'help', 'helpfull', 'helpshort']])
+
+    print("Experiment_params:")
+    for param in params_list:
+        params_dict[param] = str(getattr(FLAGS, param))
+        print("\t" + param + ": " + str(getattr(FLAGS, param)))
+
+    with open(RLT_DIR + "param.json", "w") as f:
+        json.dump(params_dict, f, indent=4, cls=NumpyEncoder)
+
+
 class NumpyEncoder(json.JSONEncoder):
     # Special json encoder for numpy types
     def default(self, obj):
