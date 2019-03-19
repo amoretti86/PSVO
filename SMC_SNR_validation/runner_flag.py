@@ -21,21 +21,19 @@ print("\t tensorflow_probability version:", tfp.__version__)
 Dx = 2
 Dy = 1
 Di = 1
-n_particles = 32
+n_particles = 1
 
 batch_size = 1
-lr = 2e-4
+lr = 2e-3
 epoch = 300
 seed = 0
 
-# ------------------- data set parameters ------------------ #
+# --------------------- data set parameters --------------------- #
 # generate synthetic data?
 generateTrainingData = False
 
 # if reading data from file
 datadir = "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
-# "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
-# "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
 isPython2 = True
@@ -45,13 +43,13 @@ time = 200
 n_train = 200 * batch_size
 n_test = 40 * batch_size
 
-# -------------------- model parameters -------------------- #
+# --------------------- model parameters --------------------- #
 # Feed-Forward Network (FFN)
-q0_layers = [64]        # q(x_1|y_1) or q(x_1|y_1:T)
-q1_layers = [64]        # q(x_t|x_{t-1})
-q2_layers = [64]        # q(x_t|y_t) or q(x_t|y_1:T)
-f_layers = [64]
-g_layers = [64]
+q0_layers = [16]        # q(x_1|y_1) or q(x_1|y_1:T)
+q1_layers = [16]        # q(x_t|x_{t-1})
+q2_layers = [16]        # q(x_t|y_t) or q(x_t|y_1:T)
+f_layers = [16]
+g_layers = [16]
 
 q0_sigma_init, q0_sigma_min = 5, 1
 q1_sigma_init, q1_sigma_min = 5, 1
@@ -63,7 +61,7 @@ g_sigma_init, g_sigma_min = 5, 1
 y_smoother_Dhs = [64]
 X0_smoother_Dhs = [64]
 
-# ----------------------- FFN flags ------------------------ #
+# --------------------- FFN flags --------------------- #
 
 # if q1 and f share the same network
 # (ATTENTION: even if use_2_q == True, f and q1 can still use different networks)
@@ -85,16 +83,17 @@ output_cov = False
 # if q, f and g networks also output covariance (sigma)
 diag_cov = False
 
+# if x0 is learnable or takes ground truth
+x_0_learnable = True
+
 # whether use input in q and f
 use_input = False
 
 # dropout rate for FFN
 dropout_rate = 0.2
 
-# whether emission uses Poisson distribution
-poisson_emission = False
+# --------------------- FFBS flags --------------------- #
 
-# ----------------------- FFBS flags ----------------------- #
 # filtering or smoothing
 FFBS = False
 
@@ -105,17 +104,20 @@ smoothing_perc_factor = 0
 FFBS_to_learn = False
 
 # --------------------- smoother flags --------------------- #
-# whether smooth observations with birdectional RNNs
-smooth_obs = True
+# whether smooth observations with birdectional RNNs (bRNN) or self-attention encoders
+smooth_obs = False
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
 
 # whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn or tf.nn.bidirectional_dynamic_rnn
 # check https://stackoverflow.com/a/50552539 for differences between them
-use_stack_rnn = False
+use_stack_rnn = True
 
 # --------------------- training flags --------------------- #
+
+# whether use tf.stop_gradient when resampling and reweighting weights (during smoothing)
+use_stop_gradient = False
 
 # stop training early if validation set does not improve
 early_stop_patience = 200
@@ -139,15 +141,23 @@ print_freq = 1
 # whether to save the followings during training
 #   hidden trajectories
 #   k-step y-hat
+#   gradients for SNR
+save_trajectory = False
+save_y_hat = False
+save_gradient = True
 
-save_trajectory = True
-save_y_hat = True
+#-------- SNR experiment ---- used when save_gradient=True---------
+SNR_sample_num = 100
 
+#SNR_NP_list = [1, 8, 64, 128, 512, 1024, 2048]
+SNR_NP_list = [1, 8, 64, 128, 512, 1024]
+#SNR_NP_list = [1, 2]
 
-SNR_sample_num = 50
+#SNR_collect_grads_point = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
+SNR_collect_grads_point = [-600,-500, -400, -350, -300, -250, -220]
 
 # dir to save all results
-rslt_dir_name = "Allen_wI"
+rslt_dir_name = "SNR_filtering_experiment"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -173,6 +183,8 @@ g_layers = ",".join([str(x) for x in g_layers])
 y_smoother_Dhs = ",".join([str(x) for x in y_smoother_Dhs])
 X0_smoother_Dhs = ",".join([str(x) for x in X0_smoother_Dhs])
 lattice_shape = ",".join([str(x) for x in lattice_shape])
+SNR_NP_list = ",".join([str(x) for x in SNR_NP_list])
+SNR_collect_grads_point = ",".join([str(x) for x in SNR_collect_grads_point])
 
 
 # ================================================ tf.flags ================================================ #
@@ -249,8 +261,8 @@ flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t
 flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
 flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
 flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
+flags.DEFINE_boolean("x_0_learnable", x_0_learnable, "whether x0 is learnable or takes ground truth")
 flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for FFN")
-flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission uses Poisson distribution")
 
 # --------------------- FFBS flags --------------------- #
 
@@ -262,7 +274,8 @@ flags.DEFINE_boolean("FFBS_to_learn", FFBS_to_learn, "whether use FFBS for leani
 
 # --------------------- smoother flags --------------------- #
 
-flags.DEFINE_boolean("smooth_obs", smooth_obs, "whether smooth observations with birdectional RNNs")
+flags.DEFINE_boolean("smooth_obs", smooth_obs, "whether smooth observations with birdectional RNNs "
+                                               "or self-attention encoders")
 flags.DEFINE_boolean("X0_use_separate_RNN", X0_use_separate_RNN, "whether use a separate RNN for getting X0")
 flags.DEFINE_boolean("use_stack_rnn", use_stack_rnn, "whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn "
                                                      "or tf.nn.bidirectional_dynamic_rnn")
@@ -279,16 +292,23 @@ flags.DEFINE_float("lr_reduce_factor", lr_reduce_factor,
 flags.DEFINE_float("min_lr", min_lr, "minimum learning rate")
 flags.DEFINE_float("clip_norm", clip_norm, "The clipping ratio of gradient based on global L2 norm")
 
+flags.DEFINE_boolean("use_stop_gradient", use_stop_gradient, "whether use tf.stop_gradient "
+                                                             "when resampling and reweighting weights during smoothing")
+
 # --------------------- printing and data saving params --------------------- #
 
 flags.DEFINE_integer("print_freq", print_freq, "frequency to evaluate testing loss & other metrics and save results")
 
 flags.DEFINE_boolean("save_trajectory", save_trajectory, "whether to save hidden trajectories during training")
 flags.DEFINE_boolean("save_y_hat", save_y_hat, "whether to save k-step y-hat during training")
+flags.DEFINE_boolean("save_gradient", save_gradient, "whether to save gradients for SNR during training")
 
 flags.DEFINE_string("rslt_dir_name", rslt_dir_name, "dir to save all results")
 flags.DEFINE_integer("MSE_steps", MSE_steps, "number of steps to predict y-hat and calculate R_square")
 flags.DEFINE_integer("SNR_sample_num", SNR_sample_num, "number of gradients to sample to calculate SNR")
+flags.DEFINE_string("SNR_NP_list", SNR_NP_list, "list of number of particles for SNR experiment")
+flags.DEFINE_string("SNR_collect_grads_points", SNR_collect_grads_point, "list of values of log_ZSMC to collect gradients")
+
 
 flags.DEFINE_string("lattice_shape", lattice_shape, "lattice shape [# of rows, # of columns] "
                                                     "to draw arrows in quiver plot")
