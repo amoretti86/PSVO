@@ -1,4 +1,6 @@
 import tensorflow as tf
+from tensorflow.keras.layers import Dense
+
 from transformation.MLP import MLP_transformation
 from distribution.mvn import tf_mvn
 from distribution.poisson import tf_poisson
@@ -168,3 +170,8 @@ class SSM(object):
 
         else:
             self.bRNN = None
+        if not (self.use_bootstrap and self.use_2_q):
+            self.X0_transformer = Dense(self.Dx,
+                                        activation="linear",
+                                        kernel_initializer="he_uniform",
+                                        name="X0_transformer")

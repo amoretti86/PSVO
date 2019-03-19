@@ -104,7 +104,7 @@ class SMC:
                 return t < time - 1
 
             def while_body(t, X_prev, log_W, log):
-                X_ancestor = self.resample_X(X_prev, log_W, t)
+                X_ancestor = self.resample_X(X_prev, log_W)
 
                 q_f_t_feed = X_ancestor
                 if self.use_input:
@@ -161,7 +161,7 @@ class SMC:
             t_final, X_T, log_W, log = tf.while_loop(while_cond, while_body, init_state)
 
             # write to tensor arrays for t = T - 1
-            X_T_resampled = self.resample_X(X_T, log_W, t_final)
+            X_T_resampled = self.resample_X(X_T, log_W)
             log_contents = [X_T, X_T_resampled, log_W, tf.zeros((n_particles, n_particles, batch_size))]
             log = [ta.write(t_final, log_content) if i != 2 else ta
                    for ta, log_content, i in zip(log, log_contents, range(4))]
@@ -183,8 +183,8 @@ class SMC:
                 else:
                     log_ZSMC = self.compute_log_ZSMC(log_Ws)
 
-                Xs = [self.resample_X(X, log_W, t)
-                      for X, log_W, t in zip(X_prevs.unstack(), reweighted_log_Ws.unstack(), range(time))]
+                Xs = [self.resample_X(X, log_W)
+                      for X, log_W, t in zip(tf.unstack(X_prevs), tf.unstack(reweighted_log_Ws), range(time))]
                 Xs = tf.stack(Xs)
             else:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
@@ -262,16 +262,16 @@ class SMC:
 
         return X, q_t_log_prob
 
-    def resample_X(self, X, log_W, t):
+    def resample_X(self, X, log_W):
         if self.n_particles > 1:
-            resample_idx = self.get_resample_idx(log_W, t)
+            resample_idx = self.get_resample_idx(log_W)
             X_resampled = tf.gather_nd(X, resample_idx)
         else:
             X_resampled = X
 
         return X_resampled
 
-    def get_resample_idx(self, log_W, t):
+    def get_resample_idx(self, log_W):
         # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
 
         n_particles, batch_size = self.n_particles, self.batch_size
@@ -279,7 +279,7 @@ class SMC:
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
         log_W = tf.transpose(log_W - log_W_max)
         categorical = tfd.Categorical(logits=log_W, validate_args=True,
-                                      name="Categorical_{}".format(t))
+                                      name="Categorical_t")
 
         # sample multiple times to remove idx out of range
         idx = tf.ones((n_particles, batch_size), dtype=tf.int32) * n_particles
@@ -302,7 +302,7 @@ class SMC:
 
     def reweight_log_Ws(self, log_Ws, all_fs):
         # reweight weight of each particle (w_t^k) according to FFBS formula
-        log_Ws, all_fs = log_Ws.unstack(), all_fs.unstack()
+        log_Ws, all_fs = tf.unstack(log_Ws), tf.unstack(all_fs)
         time = len(log_Ws)
         reweighted_log_Ws = ["placeholder"] * time
 
@@ -318,7 +318,7 @@ class SMC:
                                                       axis=1)
                 reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * reweight_factor
 
-        reweighted_log_Ws = reweighted_log_Ws.stack()
+        reweighted_log_Ws = tf.stack(reweighted_log_Ws)
         return reweighted_log_Ws
 
     @staticmethod
@@ -337,9 +337,8 @@ class SMC:
         # if self.smooth_obs, smooth obs with bidirectional RNN
 
         if not self.smooth_obs:
-            obs_list = tf.unstack(obs, axis=1)
-            X0 = obs_list[0]
-            return X0, obs_list
+            preprocessed_obs = tf.unstack(obs, axis=1)
+            preprocessed_X0 = preprocessed_obs[0]
 
         with tf.variable_scope("smooth_obs"):
 
@@ -355,7 +354,7 @@ class SMC:
                                                                                 obs,
                                                                                 dtype=tf.float32)
             smoothed_obs = tf.concat(outputs, axis=-1)
-            smoothed_obs_list = tf.unstack(smoothed_obs, axis=1)
+            preprocessed_obs = tf.unstack(smoothed_obs, axis=1)
 
             if self.X0_use_separate_RNN:
                 if self.use_stack_rnn:
@@ -374,9 +373,12 @@ class SMC:
             else:
                 outputs_fw, outputs_bw = outputs
             output_fw_list, output_bw_list = tf.unstack(outputs_fw, axis=1), tf.unstack(outputs_bw, axis=1)
-            smoothed_X0 = tf.concat([output_fw_list[-1], output_bw_list[0]], axis=-1)
+            preprocessed_X0 = tf.concat([output_fw_list[-1], output_bw_list[0]], axis=-1)
 
-        return smoothed_X0, smoothed_obs_list
+        if not (self.model.use_bootstrap and self.model.use_2_q):
+            preprocessed_X0 = self.model.X0_transformer(preprocessed_X0)
+
+        return preprocessed_X0, preprocessed_obs
 
     def n_step_MSE(self, n_steps, hidden, obs, Input):
         # Compute MSE_k for k = 0, ..., n_steps
