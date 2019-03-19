@@ -13,6 +13,8 @@ class SMC:
                  FFBS_to_learn=False,
                  name="log_ZSMC"):
 
+        self.model = model
+
         # SSM distributions
         self.q0 = model.q0_dist
         self.q1 = model.q1_dist
@@ -55,73 +57,78 @@ class SMC:
             log: stuff to debug
         """
         with tf.variable_scope(self.name):
-            batch_size, time, Dy = obs.get_shape().as_list()
+            Dx = self.model.Dx
             n_particles = self.n_particles
-
+            batch_size, time, Dy = obs.get_shape().as_list()
             self.batch_size, self.time, self.Dy = batch_size, time, Dy
 
-            X_prevs = []
-            X_ancestors = []
-            log_Ws = []
-            qs = []
-            fs = []
-            gs = []
+            # preprossing obs
+            X_ancestor, smoothed_obs = self.preprocess_obs(obs)
 
-            all_fs = []
+            # t = 0
+            q_f_t_feed = X_ancestor
+            if self.use_input:
+                q_f_t_feed = tf.concat([q_f_t_feed, Input[:, 0, :]], axis=-1)
 
-            X_ancestor = None
-            X_prev = None
-            resample_idx = None
-
-            if self.smooth_obs:
-                X_ancestor, smoothed_obs = self._smooth_obs(obs)
+            if self.q_uses_true_X:
+                X, q_t_log_prob = self.sample_from_true_X(hidden[:, 0, :],
+                                                          q_cov,
+                                                          sample_shape=n_particles,
+                                                          name="q_{}_sample_and_log_prob".format(0))
             else:
-                smoothed_obs = tf.unstack(obs, axis=1)
-                X_ancestor = smoothed_obs[0]
-
-            for t in range(0, time):
-                if t == 0:
-                    sample_size = (n_particles)
+                if self.q2 is None:
+                    X, q_t_log_prob = self.q0.sample_and_log_prob(q_f_t_feed,
+                                                                  sample_shape=n_particles,
+                                                                  name="q_{}_sample_and_log_prob".format(0))
                 else:
-                    sample_size = ()
+                    X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q0,
+                                                                            self.q2,
+                                                                            q_f_t_feed,
+                                                                            smoothed_obs[0],
+                                                                            sample_size=n_particles)
+            if self.f != self.q1:
+                f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(0))
 
+            g_t_log_prob = self.g.log_prob(X, obs[:, 0], name="g_{}_log_prob".format(0))
+            log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_ZSMC".format(0))
+
+            # t = 1, ..., T - 1
+            # prepare input tensor arrays
+            smoothed_obs_ta = tf.TensorArray(tf.float32, size=time, name="smoothed_obs_ta").unstack(smoothed_obs)
+            # prepare state tensor arrays
+            log_names = ["X_prevs", "X_ancestors", "log_Ws", "all_fs"]
+            log = [tf.TensorArray(tf.float32, size=time, name="{}_ta".format(name)) for name in log_names]
+            log[2] = log[2].write(0, log_W)
+
+            def while_cond(t, *unused_args):
+                return t < time - 1
+
+            def while_body(t, X_prev, log_W, log):
+                X_ancestor = self.resample_X(X_prev, log_W, t)
+
+                q_f_t_feed = X_ancestor
                 if self.use_input:
-                    if t == 0:
-                        if X_ancestor is None:
-                            q_f_t_feed = Input[:, 0, :]
-                        else:
-                            q_f_t_feed = tf.concat([X_ancestor, Input[:, 0, :]], axis=-1)
-                    else:
-                        Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
-                        q_f_t_feed = tf.concat([X_ancestor, Input_t_expanded], axis=-1)
-                else:
-                    q_f_t_feed = X_ancestor
+                    Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
+                    q_f_t_feed = tf.concat([q_f_t_feed, Input_t_expanded], axis=-1)
 
                 if self.q_uses_true_X:
-                    Dx = hidden.get_shape().as_list()[-1]
-                    mvn = tfd.MultivariateNormalFullCovariance(hidden[:, t, :], q_cov * tf.eye(Dx),
-                                                               name="q_{}_mvn".format(t))
-                    X = mvn.sample((n_particles))
-                    q_t_log_prob = mvn.log_prob(X)
+                    X, q_t_log_prob = self.sample_from_true_X(hidden[:, t, :],
+                                                              q_cov,
+                                                              sample_shape=(),
+                                                              name="q_t_sample_and_log_prob")
                 else:
                     if self.q2 is None:
-                        if t == 0:
-                            X, q_t_log_prob = self.q0.sample_and_log_prob(q_f_t_feed, sample_shape=sample_size,
-                                                                          name="q_{}_sample_and_log_prob".format(t))
-                        else:
-                            X, q_t_log_prob = self.q1.sample_and_log_prob(q_f_t_feed, sample_shape=sample_size,
-                                                                          name="q_{}_sample_and_log_prob".format(t))
+                        X, q_t_log_prob = self.q1.sample_and_log_prob(q_f_t_feed,
+                                                                      sample_shape=(),
+                                                                      name="q_t_sample_and_log_prob")
                     else:
-                        if t == 0:
-                            X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q0, self.q2,
-                                                                                    q_f_t_feed, smoothed_obs[t],
-                                                                                    sample_size)
-                        else:
-                            X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q1, self.q2,
-                                                                                    q_f_t_feed, smoothed_obs[t],
-                                                                                    sample_size)
+                        X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(self.q1,
+                                                                                self.q2,
+                                                                                q_f_t_feed,
+                                                                                smoothed_obs_ta.read(t),
+                                                                                sample_size=())
 
-                if self.FFBS and t != 0:
+                if self.FFBS:
                     X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles, 1, 1), name="X_tile")
 
                     if self.use_input:
@@ -130,45 +137,44 @@ class SMC:
                     else:
                         f_t_all_feed = X_prev
 
-                    f_t_all_log_prob = self.f.log_prob(f_t_all_feed, X_tile, name="f_{}_all_log_prob".format(t))
-                    all_fs.append(f_t_all_log_prob)
+                    f_t_all_log_prob = self.f.log_prob(f_t_all_feed, X_tile, name="f_t_all_log_prob")
 
-                    f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(t))
+                    f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_t_log_prob")
 
-                elif self.f != self.q1 and t != 0:
-                    f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(t))
                 else:
-                    # if f and q1 share the same network, f_t_log_prob is already calculated in self.sample_from_2_dist
-                    pass
+                    f_t_all_log_prob = tf.zeros((n_particles, n_particles, batch_size))
+                    if self.f != self.q1:
+                        f_t_log_prob = self.f.log_prob(q_f_t_feed, X, name="f_t_log_prob")
 
-                g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_{}_log_prob".format(t))
+                g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_t_log_prob")
+                log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_t")
 
-                log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_{}".format(t))
+                # write to tensor arrays
+                idxs = [t, t, t + 1, t]
+                log_contents = [X_prev, X_ancestor, log_W, f_t_all_log_prob]
+                log = [ta.write(idx, log_content) for ta, idx, log_content in zip(log, idxs, log_contents)]
 
-                log_Ws.append(log_W)
-                qs.append(q_t_log_prob)
-                fs.append(f_t_log_prob)
-                gs.append(g_t_log_prob)
+                return (t + 1, X, log_W, log)
 
-                # no need to resample for t = time - 1
-                if t == time - 1:
-                    break
+            # conduct the while loop
+            init_state = (0, X, log_W, log)
+            t_final, X_T, log_W, log = tf.while_loop(while_cond, while_body, init_state)
 
-                if n_particles > 1:
-                    resample_idx = self.get_resample_idx(log_W, t)
-                    X_ancestor = tf.gather_nd(X, resample_idx)                    # (n_particles, batch_size, Dx)
-                else:
-                    X_ancestor = X
-                X_prev = X
+            # write to tensor arrays for t = T - 1
+            X_T_resampled = self.resample_X(X_T, log_W, t_final)
+            log_contents = [X_T, X_T_resampled, log_W, tf.zeros((n_particles, n_particles, batch_size))]
+            log = [ta.write(t_final, log_content) if i != 2 else ta
+                   for ta, log_content, i in zip(log, log_contents, range(4))]
 
-                # collect X after rather than before resampling
-                X_prevs.append(X_prev)
-                X_ancestors.append(X_ancestor)
+            # transfer tensor arrays to tensors
+            log_shapes = [(time, n_particles, batch_size, Dx)] * 2 + \
+                         [(time, n_particles, batch_size), (time, n_particles, n_particles, batch_size)]
+            log = [ta.stack(name=name) for ta, name in zip(log, log_names)]
+            for tensor, shape in zip(log, log_shapes):
+                tensor.set_shape(shape)
+            X_prevs, X_ancestors, log_Ws, all_fs = log
 
-            # to make sure len(Xs) = time
-            X_prevs.append(X_prev)
-            X_ancestors.append(X_ancestor)
-
+            # FFBS and computing log_ZSMC
             reweighted_log_Ws = None
             if self.FFBS:
                 reweighted_log_Ws = self.reweight_log_Ws(log_Ws, all_fs)
@@ -177,44 +183,25 @@ class SMC:
                 else:
                     log_ZSMC = self.compute_log_ZSMC(log_Ws)
 
-                Xs = []
-                for t in range(time):
-                    if n_particles > 1:
-                        smoothing_idx = self.get_resample_idx(reweighted_log_Ws[t], t)
-                        smoothed_X_t = tf.gather_nd(X_prevs[t], smoothing_idx)
-                    else:
-                        smoothed_X_t = X_prevs[t]
-                    Xs.append(smoothed_X_t)
-
-                reweighted_log_Ws = tf.stack(reweighted_log_Ws)
-                reweighted_log_Ws = tf.transpose(reweighted_log_Ws, perm=[2, 0, 1], name="reweighted_log_Ws")
-                log = [reweighted_log_Ws]
+                Xs = [self.resample_X(X, log_W, t)
+                      for X, log_W, t in zip(X_prevs.unstack(), reweighted_log_Ws.unstack(), range(time))]
+                Xs = tf.stack(Xs)
             else:
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
                 Xs = X_ancestors
 
             # (batch_size, time, n_particles, Dx)
-            Xs = tf.transpose(tf.stack(Xs), perm=[2, 0, 1, 3], name="Xs")
-            X_prevs = tf.transpose(tf.stack(X_prevs), perm=[2, 0, 1, 3], name="X_prev")
-            X_ancestors = tf.transpose(tf.stack(X_ancestors), perm=[2, 0, 1, 3], name="X_ancestors")
+            Xs          = tf.transpose(Xs,          perm=[2, 0, 1, 3], name="Xs")
+            X_prevs     = tf.transpose(X_prevs,     perm=[2, 0, 1, 3], name="X_prev")
+            X_ancestors = tf.transpose(X_ancestors, perm=[2, 0, 1, 3], name="X_ancestors")
 
-            log_Ws = tf.transpose(tf.stack(log_Ws), perm=[2, 0, 1], name="log_Ws")     # (batch_size, time, n_particles)
-            qs = tf.transpose(tf.stack(qs), perm=[2, 0, 1], name="qs")                 # (batch_size, time, n_particles)
-            fs = tf.transpose(tf.stack(fs), perm=[2, 0, 1], name="fs")                 # (batch_size, time, n_particles)
-            gs = tf.transpose(tf.stack(gs), perm=[2, 0, 1], name="gs")                 # (batch_size, time, n_particles)
-
-            log = {"Xs": Xs,
-                   "X_prevs": X_prevs,
-                   "X_ancestors": X_ancestors,
-                   "log_Ws": log_Ws,
-                   "reweighted_log_Ws": reweighted_log_Ws,
-                   "qs": qs,
-                   "fs": fs,
-                   "gs": gs}
+            log = {"Xs":          Xs,
+                   "X_prevs":     X_prevs,
+                   "X_ancestors": X_ancestors}
 
         return log_ZSMC, log
 
-    def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size):
+    def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size=()):
         d1_mvn = dist1.get_mvn(d1_input)
         d2_mvn = dist2.get_mvn(d2_input)
 
@@ -265,6 +252,25 @@ class SMC:
 
         return X, q_t_log_prob, f_t_log_prob
 
+    def sample_from_true_X(self, hidden, q_cov, sample_shape=(), name="q_t_mvn"):
+        Dx = self.model.Dx
+        mvn = tfd.MultivariateNormalDiag(hidden,
+                                         q_cov * tf.ones(Dx, dtype=tf.float32),
+                                         name=name)
+        X = mvn.sample(sample_shape)
+        q_t_log_prob = mvn.log_prob(X)
+
+        return X, q_t_log_prob
+
+    def resample_X(self, X, log_W, t):
+        if self.n_particles > 1:
+            resample_idx = self.get_resample_idx(log_W, t)
+            X_resampled = tf.gather_nd(X, resample_idx)
+        else:
+            X_resampled = X
+
+        return X_resampled
+
     def get_resample_idx(self, log_W, t):
         # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
 
@@ -296,6 +302,7 @@ class SMC:
 
     def reweight_log_Ws(self, log_Ws, all_fs):
         # reweight weight of each particle (w_t^k) according to FFBS formula
+        log_Ws, all_fs = log_Ws.unstack(), all_fs.unstack()
         time = len(log_Ws)
         reweighted_log_Ws = ["placeholder"] * time
 
@@ -311,13 +318,13 @@ class SMC:
                                                       axis=1)
                 reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * reweight_factor
 
+        reweighted_log_Ws = reweighted_log_Ws.stack()
         return reweighted_log_Ws
 
     @staticmethod
     def compute_log_ZSMC(log_Ws):
-        # log_Ws: list of log_W for t = 1, ..., T
+        # log_Ws: tensor of log_W for t = 0, ..., T - 1
         # compute loss
-        log_Ws = tf.stack(log_Ws)
         time, n_particles, batch_size = log_Ws.get_shape().as_list()
 
         log_ZSMC = tf.reduce_logsumexp(log_Ws, axis=1)
@@ -326,8 +333,13 @@ class SMC:
 
         return log_ZSMC
 
-    def _smooth_obs(self, obs):
-        # smooth obs with bidirectional RNN
+    def preprocess_obs(self, obs):
+        # if self.smooth_obs, smooth obs with bidirectional RNN
+
+        if not self.smooth_obs:
+            obs_list = tf.unstack(obs, axis=1)
+            X0 = obs_list[0]
+            return X0, obs_list
 
         with tf.variable_scope("smooth_obs"):
 

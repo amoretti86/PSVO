@@ -131,9 +131,10 @@ class trainer:
         with tf.variable_scope("train"):
             lr = tf.placeholder(tf.float32, name="lr")
             optimizer = tf.train.AdamOptimizer(lr)
-            gradients, variables = zip(*optimizer.compute_gradients(-self.log_ZSMC))
-            gradients, _ = tf.clip_by_global_norm(gradients, self.clip_norm)
-            train_op = optimizer.apply_gradients(zip(gradients, variables))
+            train_op = optimizer.minimize(-self.log_ZSMC)
+            # gradients, variables = zip(*optimizer.compute_gradients(-self.log_ZSMC))
+            # gradients, _ = tf.clip_by_global_norm(gradients, self.clip_norm)
+            # train_op = optimizer.apply_gradients(zip(gradients, variables))
 
         init = tf.global_variables_initializer()
 
@@ -417,7 +418,8 @@ class trainer:
             x1range, x2range = axes.get_xlim(), axes.get_ylim()
             X = lattice_val = self.define2Dlattice(x1range, x2range)
 
-            nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val})
+            nextX = self.sess.run(nextX, feed_dict={lattice: lattice_val,
+                                                    self.dropout: 0})
 
             scale = int(5 / 3 * max(abs(x1range[0]) + abs(x1range[1]), abs(x2range[0]) + abs(x2range[1])))
             plt.quiver(X[:, :, 0], X[:, :, 1], nextX[:, :, 0] - X[:, :, 0], nextX[:, :, 1] - X[:, :, 1], scale=scale)

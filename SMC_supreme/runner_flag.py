@@ -21,7 +21,7 @@ print("\t tensorflow_probability version:", tfp.__version__)
 Dx = 2
 Dy = 1
 Di = 1
-n_particles = 1
+n_particles = 64
 
 batch_size = 1
 lr = 2e-3
