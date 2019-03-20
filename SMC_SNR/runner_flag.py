@@ -25,7 +25,7 @@ Di = 1
 n_particles = 1
 
 batch_size = 1
-lr = 2e-4
+lr = 2e-3
 epoch = 300
 seed = 0
 
@@ -36,11 +36,12 @@ save_gradient = True
 SNR_sample_num = 100
 
 #SNR_NP_list = [1, 8, 64, 128, 512, 1024, 2048]
-SNR_NP_list = [1, 8, 64, 128, 512, 1024]
-#SNR_NP_list = [1, 2]
+#SNR_NP_list = [1, 8, 64, 128, 512, 1024]
+SNR_NP_list = [1, 2]
 
 #SNR_collect_grads_point = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
-SNR_collect_grads_point = [-700, -600,-500, -400, -350, -300, -250, -220]
+#SNR_collect_grads_point = [-700, -600,-500, -400, -350, -300, -250, -220]
+SNR_collect_grads_point = [-700, -400, -350, -250, -220]
 
 SNR_NP_list = ",".join([str(x) for x in SNR_NP_list])
 SNR_collect_grads_point = ",".join([str(x) for x in SNR_collect_grads_point])
@@ -48,7 +49,7 @@ SNR_collect_grads_point = ",".join([str(x) for x in SNR_collect_grads_point])
 
 
 # ------------------ loss type ---------------------- #
-loss_type = 'full'
+loss_type = 'soft'
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -128,7 +129,7 @@ FFBS_to_learn = False
 
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs
-smooth_obs = True
+smooth_obs = False
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
