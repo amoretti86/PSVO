@@ -421,6 +421,7 @@ class SMC:
         if not self.smooth_obs:
             preprocessed_obs = tf.unstack(obs, axis=1)
             preprocessed_X0 = preprocessed_obs[0]
+            return preprocessed_X0, preprocessed_obs
 
         with tf.variable_scope("smooth_obs"):
 

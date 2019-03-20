@@ -235,6 +235,7 @@ class trainer:
 
         print("initializing variables...")
         self.sess.run(init)
+        print("start training...")
 
         # unused tensorboard stuff
         if self.save_res and self.save_tensorboard:

@@ -420,6 +420,8 @@ class SMC:
             preprocessed_obs = tf.unstack(obs, axis=1)
             preprocessed_X0 = preprocessed_obs[0]
 
+            return preprocessed_X0, preprocessed_obs
+
         with tf.variable_scope("smooth_obs"):
 
             if self.use_stack_rnn:
