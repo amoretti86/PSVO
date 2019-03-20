@@ -198,7 +198,6 @@ def plot_y_hat(RLT_DIR, ys_hat_val, obs, saving_num=20):
             plt.plot(obs[i, :, j])
             for k, ys_k_hat_val in enumerate(ys_hat_val):
                 plt.plot(range(k, time), ys_k_hat_val[i, :, j], "--")
-            plt.legend()
             sns.despine()
             plt.savefig(RLT_DIR + "/y_hat plots/obs_dim_{}_idx_{}".format(j, i))
             plt.close()

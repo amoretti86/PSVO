@@ -56,15 +56,23 @@ def main(_):
     # whether emission uses Poisson distribution
     poisson_emission = FLAGS.poisson_emission
 
-    # --------------------- FFBS flags --------------------- #
+    # -------------------------------- TFS flags -------------------------------- #
 
-    # filtering or smoothing
+    # whether use Two Filter Smoothing
+    TFS = FLAGS.TFS
+
+    # whether backward filtering in TFS uses different q0
+    TFS_use_diff_q0 = FLAGS.TFS_use_diff_q0
+
+    # -------------------------------- FFBS flags ------------------------------- #
+
+    # whether use Forward Filtering Backward Smoothing
     FFBS = FLAGS.FFBS
 
-    # whether use smoothing for inference or leaning
+    # whether use FFBS for inference or leaning
     FFBS_to_learn = FLAGS.FFBS_to_learn
 
-    # --------------------- smoother flags --------------------- #
+    # ------------------------------ smoother flags ----------------------------- #
 
     # whether smooth observations with birdectional RNNs (bRNN) or self-attention encoders
     smooth_obs = FLAGS.smooth_obs
@@ -114,6 +122,8 @@ def main(_):
                     use_bootstrap=use_bootstrap,
                     use_2_q=use_2_q,
                     poisson_emission=poisson_emission,
+                    TFS=TFS,
+                    TFS_use_diff_q0=TFS_use_diff_q0,
                     smooth_obs=smooth_obs,
                     X0_use_separate_RNN=X0_use_separate_RNN,
                     use_stack_rnn=use_stack_rnn)
@@ -127,6 +137,7 @@ def main(_):
                     use_stack_rnn=use_stack_rnn,
                     FFBS=FFBS,
                     FFBS_to_learn=FFBS_to_learn,
+                    TFS=TFS,
                     name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #

@@ -94,12 +94,19 @@ dropout_rate = 0.2
 # whether emission uses Poisson distribution
 poisson_emission = False
 
+# ----------------------- TFS flags ------------------------ #
+# whether use Two Filter Smoothing
+TFS = False
+
+# whether backward filtering in TFS uses different q0
+TFS_use_diff_q0 = False
+
 # ----------------------- FFBS flags ----------------------- #
-# filtering or smoothing
+# whether use Forward Filtering Backward Smoothing
 FFBS = False
 
 # how fast the model transfers from filtering to smoothing
-smoothing_perc_factor = 0
+smoothing_perc_factor = 2
 
 # whether use smoothing for inference or leaning
 FFBS_to_learn = False
@@ -134,7 +141,7 @@ clip_norm = 10.0
 
 # --------------------- printing and data saving params --------------------- #
 # frequency to evaluate testing loss & other metrics and save results
-print_freq = 1
+print_freq = 5
 
 # whether to save the followings during training
 #   hidden trajectories
@@ -142,9 +149,6 @@ print_freq = 1
 
 save_trajectory = True
 save_y_hat = True
-
-
-SNR_sample_num = 50
 
 # dir to save all results
 rslt_dir_name = "Allen_wI"
@@ -252,7 +256,12 @@ flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
 flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for FFN")
 flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission uses Poisson distribution")
 
-# --------------------- FFBS flags --------------------- #
+# ----------------------- TFS flags ------------------------ #
+
+flags.DEFINE_boolean("TFS", TFS, "whether use Two Filter Smoothing")
+flags.DEFINE_boolean("TFS_use_diff_q0", TFS_use_diff_q0, "whether backward filtering in TFS uses different q0")
+
+# ----------------------- FFBS flags ----------------------- #
 
 flags.DEFINE_boolean("FFBS", FFBS, "whether use Forward Filtering Backward Smoothing")
 flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
@@ -288,7 +297,6 @@ flags.DEFINE_boolean("save_y_hat", save_y_hat, "whether to save k-step y-hat dur
 
 flags.DEFINE_string("rslt_dir_name", rslt_dir_name, "dir to save all results")
 flags.DEFINE_integer("MSE_steps", MSE_steps, "number of steps to predict y-hat and calculate R_square")
-flags.DEFINE_integer("SNR_sample_num", SNR_sample_num, "number of gradients to sample to calculate SNR")
 
 flags.DEFINE_string("lattice_shape", lattice_shape, "lattice shape [# of rows, # of columns] "
                                                     "to draw arrows in quiver plot")

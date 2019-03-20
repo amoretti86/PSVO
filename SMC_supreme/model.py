@@ -20,6 +20,8 @@ class SSM(object):
                  use_bootstrap=True,
                  use_2_q=True,
                  poisson_emission=False,
+                 TFS=False,
+                 TFS_use_diff_q0=False,
                  smooth_obs=True,
                  X0_use_separate_RNN=True,
                  use_stack_rnn=False):
@@ -45,19 +47,21 @@ class SSM(object):
         self.f_sigma_init,  self.f_sigma_min  = FLAGS.f_sigma_init, FLAGS.f_sigma_min
         self.g_sigma_init,  self.g_sigma_min  = FLAGS.f_sigma_init, FLAGS.g_sigma_min
 
-        # bidirectional RNN
+        # bidirectional RNN architectures
         self.y_smoother_Dhs  = [int(x) for x in FLAGS.y_smoother_Dhs.split(",")]
         self.X0_smoother_Dhs = [int(x) for x in FLAGS.X0_smoother_Dhs.split(",")]
 
-        self.use_residual = use_residual
-        self.output_cov = output_cov
-        self.diag_cov = diag_cov
-        self.use_bootstrap = use_bootstrap
-        self.use_2_q = use_2_q
-        self.poisson_emission = poisson_emission
-        self.smooth_obs = smooth_obs
+        self.use_residual        = use_residual
+        self.output_cov          = output_cov
+        self.diag_cov            = diag_cov
+        self.use_bootstrap       = use_bootstrap
+        self.use_2_q             = use_2_q
+        self.poisson_emission    = poisson_emission
+        self.TFS                 = TFS
+        self.TFS_use_diff_q0     = TFS_use_diff_q0
+        self.smooth_obs          = smooth_obs
         self.X0_use_separate_RNN = X0_use_separate_RNN
-        self.use_stack_rnn = use_stack_rnn
+        self.use_stack_rnn       = use_stack_rnn
 
         self.init_placeholder()
         self.init_trans()
@@ -78,12 +82,27 @@ class SSM(object):
                                           diag_cov=self.diag_cov,
                                           dropout_rate=self.dropout,
                                           name="q0_tran")
+        if self.TFS and self.TFS_use_diff_q0:
+            self.TFS_q0_tran = MLP_transformation(self.q0_layers, self.Dx,
+                                                  use_residual=False,
+                                                  output_cov=self.output_cov,
+                                                  diag_cov=self.diag_cov,
+                                                  dropout_rate=self.dropout,
+                                                  name="TFS_q0_tran")
+
         self.q1_tran = MLP_transformation(self.q1_layers, self.Dx,
                                           use_residual=self.use_residual,
                                           output_cov=self.output_cov,
                                           diag_cov=self.diag_cov,
                                           dropout_rate=self.dropout,
                                           name="q1_tran")
+        if self.TFS:
+            self.q1_inv_tran = MLP_transformation(self.q1_layers, self.Dx,
+                                                  use_residual=self.use_residual,
+                                                  output_cov=self.output_cov,
+                                                  diag_cov=self.diag_cov,
+                                                  dropout_rate=self.dropout,
+                                                  name="q1_inv_tran")
         if self.use_2_q:
             self.q2_tran = MLP_transformation(self.q2_layers, self.Dx,
                                               use_residual=False,
@@ -96,6 +115,8 @@ class SSM(object):
 
         if self.use_bootstrap:
             self.f_tran = self.q1_tran
+            if self.TFS:
+                self.f_inv_tran = self.q1_inv_tran
         else:
             self.f_tran = MLP_transformation(self.f_layers, self.Dx,
                                              use_residual=self.use_residual,
@@ -103,6 +124,13 @@ class SSM(object):
                                              diag_cov=self.diag_cov,
                                              dropout_rate=self.dropout,
                                              name="f_tran")
+            if self.TFS:
+                self.f_inv_tran = MLP_transformation(self.f_layers, self.Dx,
+                                                     use_residual=self.use_residual,
+                                                     output_cov=self.output_cov,
+                                                     diag_cov=self.diag_cov,
+                                                     dropout_rate=self.dropout,
+                                                     name="f_inv_tran")
 
         self.g_tran = MLP_transformation(self.g_layers, self.Dy,
                                          use_residual=False,
@@ -116,10 +144,21 @@ class SSM(object):
                               sigma_init=self.q0_sigma_init,
                               sigma_min=self.q0_sigma_min,
                               name="q0_dist")
+        if self.TFS and self.TFS_use_diff_q0:
+            self.TFS_q0_dist = tf_mvn(self.q0_tran,
+                                      sigma_init=self.q0_sigma_init,
+                                      sigma_min=self.q0_sigma_min,
+                                      name="TFS_q0_dist")
+
         self.q1_dist = tf_mvn(self.q1_tran,
                               sigma_init=self.q1_sigma_init,
                               sigma_min=self.q1_sigma_min,
                               name="q1_dist")
+        if self.TFS:
+            self.q1_inv_dist = tf_mvn(self.q1_inv_tran,
+                                      sigma_init=self.q1_sigma_init,
+                                      sigma_min=self.q1_sigma_min,
+                                      name="q1_inv_dist")
 
         if self.use_2_q:
             self.q2_dist = tf_mvn(self.q2_tran,
@@ -131,11 +170,18 @@ class SSM(object):
 
         if self.use_bootstrap:
             self.f_dist = self.q1_dist
+            if self.TFS:
+                self.f_inv_dist = self.q1_inv_dist
         else:
             self.f_dist = tf_mvn(self.f_tran,
                                  sigma_init=self.f_sigma_init,
                                  sigma_min=self.f_sigma_min,
                                  name="f_dist")
+            if self.TFS:
+                self.f_inv_dist = tf_mvn(self.f_inv_tran,
+                                         sigma_init=self.f_sigma_init,
+                                         sigma_min=self.f_sigma_min,
+                                         name="f_inv_dist")
         if self.poisson_emission:
             self.g_dist = tf_poisson(self.g_tran,
                                      name="g_dist")
