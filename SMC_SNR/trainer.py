@@ -13,6 +13,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from rslts_saving.rslts_saving import plot_R_square_epoch
 
+SAVE_COUNT_DOWN = 1
+
 
 class StopTraining(Exception):
     pass
@@ -97,6 +99,25 @@ class trainer:
         if self.save_model:
             self.saver = tf.train.Saver(max_to_keep=1)
 
+        # collect gradients to calculate SNR
+        self.save_gradient = self.FLAGS.save_gradient
+        if self.save_gradient:
+            self.SNR_sample_num = self.FLAGS.SNR_sample_num
+
+            self.SNR_NP_list = [int(x) for x in self.FLAGS.SNR_NP_list.split(",")]
+
+            self.SNR_collect_grads_points = [int(x) for x in self.FLAGS.SNR_collect_grads_points.split(",")]
+
+            flag = [False for i in range(len(self.SNR_collect_grads_points))]
+            self.SNR_collect_grads_flag = dict(zip(self.SNR_collect_grads_points, flag))
+            self.save_count_down = -1
+
+        epoch_data_DIR = self.RLT_DIR.split("/")
+        epoch_data_DIR.insert(epoch_data_DIR.index("rslts") + 1, "epoch_data")
+        self.epoch_data_DIR = "/".join(epoch_data_DIR)
+
+
+
     def init_quiver_plotting(self):
         if self.Dx == 2:
             lattice_shape = [int(x) for x in self.FLAGS.lattice_shape.split(",")]
@@ -111,6 +132,53 @@ class trainer:
         elif self.Dx == 3:
             self.draw_quiver_during_training = True
 
+    def get_variables(self):
+        trans_variables_dict = {}
+
+        # K = 1
+        SMC = self.SMC
+
+        q0 = SMC.q0.transformation
+        q1 = SMC.q1.transformation
+        g = SMC.g.transformation
+        q2 = None if self.SMC.q2 is None else SMC.q2.transformation  # If not using 2q network, q2 == None
+        f = None if self.SMC.f == self.SMC.q1 else SMC.f.transformation  # If using bootstrap, f == q1
+
+        for MLP_trans in [q0, q1, q2, f, g]:
+            if MLP_trans is None:
+                continue
+
+            variables_dict = MLP_trans.get_variables()
+            for key, val in variables_dict.items():
+                trans_variables_dict[MLP_trans.name + "/" + key] = val
+
+        variable_names = list(trans_variables_dict.keys())
+        variables = list(trans_variables_dict.values())
+
+        return variable_names, variables
+
+
+    def set_up_gradient(self, list_of_loss):
+        variable_names, variables = self.get_variables()
+
+        list_of_gradients_dict = []
+        for loss in list_of_loss:
+            gradients = tf.gradients(loss, variables)
+            gradients_dict = dict(zip(variable_names, gradients))
+            list_of_gradients_dict.append(gradients_dict)
+
+        return list_of_gradients_dict
+
+    def evaluate_gradients(self, gradients_dict, feed_dict):
+        variable_names = list(gradients_dict.keys())
+        gradients = list(gradients_dict.values())
+        gradients_val_samples = [self.evaluate(gradients, feed_dict, average=True) for _ in range(self.SNR_sample_num)]
+        gradients_val = [np.stack([gradients_val_sample[i] for gradients_val_sample in gradients_val_samples])
+                         for i in range(len(gradients))]
+        res_dict = dict(zip(variable_names, gradients_val))
+
+        return res_dict
+
     def train(self,
               obs_train, obs_test,
               hidden_train, hidden_test,
@@ -121,12 +189,32 @@ class trainer:
         self.hidden_train, self.hidden_test = hidden_train, hidden_test
         self.input_train,  self.input_test  = input_train,  input_test
 
-        self.log_ZSMC, log, resampling_loss = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input, loss_type)
+        self.log_ZSMC, log, resampling_loss = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input,
+                                                                    loss_type=loss_type, n_particles=self.SNR_NP_list[0])
+        print("build log_ZSMC for n_particles = ", self.SNR_NP_list[0])
 
         if loss_type == 'full':
             self.loss = self.log_ZSMC + resampling_loss
         else:
             self.loss = self.log_ZSMC
+
+        list_of_loss_np = [self.loss]
+        if self.save_gradient:
+            if len(self.SNR_NP_list) > 1:
+                for n_particles in self.SNR_NP_list[1:]:
+                    print("build log_ZSMC for n_particles = ", n_particles)
+                    log_ZSMC_np, log, resampling_loss_np = \
+                        self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input,
+                                              loss_type=loss_type, n_particles=n_particles)
+                    if loss_type == 'full':
+                        loss_np = log_ZSMC_np + resampling_loss_np
+                    else:
+                        loss_np = log_ZSMC_np
+
+                    list_of_loss_np.append(loss_np)
+
+            self.list_of_gradients_dict = self.set_up_gradient(list_of_loss_np)
+
 
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
@@ -210,6 +298,41 @@ class trainer:
                         elif self.Dx == 3:
                             self.draw_3D_quiver_plot(Xs_val, i + 1)
 
+                    #---------------- save gradients ---------------------#
+                    if self.save_gradient:
+
+                        for check_point in self.SNR_collect_grads_points:
+                            if not self.SNR_collect_grads_flag[check_point] and log_ZSMC_train > check_point:
+                                print("Surpassing {}, collecting the gradients....\n".format(check_point))
+                                self.SNR_collect_grads_flag[check_point] = True
+                                self.save_count_down = SAVE_COUNT_DOWN
+                                break
+
+                        if self.save_count_down > 0:
+                            self.save_count_down -= 1
+                            print("Count down: ", self.save_count_down)
+                            gradients_feed_dict = {self.obs: obs_train[0:self.saving_num],
+                                                   self.hidden: hidden_train[0:self.saving_num],
+                                                   self.Input: input_train[0:self.saving_num],
+                                                   self.dropout: np.zeros(self.saving_num),
+                                                   self.smoothing_perc: np.ones(self.saving_num) * smoothing_perc_epoch}
+
+                            np_idx = 0
+                            for gradients_dict in self.list_of_gradients_dict:
+                                gradients_val_dict = \
+                                    self.evaluate_gradients(gradients_dict, gradients_feed_dict)
+
+                                n_particles = self.SNR_NP_list[np_idx]
+                                with open(
+                                        self.epoch_data_DIR + "gradient_{}_np_{}.p".format(i + 1, n_particles),
+                                        "wb") as f:
+                                    print("Dump gradients for epoch {} np {}".format(i + 1, n_particles))
+                                    pickle.dump(gradients_val_dict, f)
+
+                                np_idx += 1
+
+                            # ----------------------- end of saving gradients --------------------#
+
             end = time.time()
             print("epoch {:<4} took {:.3f} seconds".format(i + 1, end - start))
 
@@ -243,6 +366,7 @@ class trainer:
                                        self.dropout:        np.zeros(len(self.obs_test)),
                                        self.smoothing_perc: np.ones(len(self.obs_test)) * smoothing_perc_epoch},
                                       average=True)
+
 
         MSE_train, R_square_train = self.evaluate_R_square(MSE_ks, y_means, y_vars,
                                                            self.hidden_train, self.obs_train, self.input_train)

@@ -45,7 +45,7 @@ class SMC:
 
         self.name = name
 
-    def get_log_ZSMC(self, obs, hidden, Input, q_cov=1, loss_type='main'):
+    def get_log_ZSMC(self, obs, hidden, Input, q_cov=1, loss_type='main', n_particles=1):
         """
         Get log_ZSMC from obs y_1:T
         Input:
@@ -58,7 +58,7 @@ class SMC:
         """
         with tf.variable_scope(self.name):
             Dx = self.model.Dx
-            n_particles = self.n_particles
+            #n_particles = self.n_particles
             batch_size, time, Dy = obs.get_shape().as_list()
             self.batch_size, self.time, self.Dy = batch_size, time, Dy
 
@@ -108,7 +108,7 @@ class SMC:
 
             def while_body(t, X_prev, log_W, log):
                 X_ancestor, resample_idx = self.resample_X(X_prev, log_W, loss_type=loss_type)
-                # resample idx: (batch_size, n_particles)
+                # resample idx: (n_particles, batch_size)
 
                 q_f_t_feed = X_ancestor
                 if self.use_input:
@@ -312,11 +312,11 @@ class SMC:
         n_particles, batch_size = log_W.get_shape().as_list()
 
         if n_particles > 1:
-            resample_idx = self.get_resample_idx(log_W) # (n_particles, batch_size, 2)
+            resample_idx = self.get_resample_idx(log_W)  # (n_particles, batch_size, 2)
             X_resampled = tf.gather_nd(X, resample_idx)
 
             # recover resample_idx
-            recover_idx = resample_idx[:, :, 0] # (n_particles, batch_size)
+            recover_idx = resample_idx[:, :, 0]  # (n_particles, batch_size)
         else:
             X_resampled = X
             recover_idx = tf.constant([[0]])
@@ -333,24 +333,23 @@ class SMC:
 
         soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=0.2)
 
-        soft_idx = soft_categorical.sample(n_particles) # (n_particles, batch_size, n_particles)
+        soft_idx = soft_categorical.sample(n_particles)  # (n_particles, batch_size, n_particles)
 
         hard_idx = tf.cast(tf.equal(soft_idx, tf.reduce_max(soft_idx, 2, keepdims=True)), soft_idx.dtype)
 
         idx = tf.stop_gradient(hard_idx - soft_idx) + soft_idx
 
-        idx = tf.transpose(idx, perm=[1, 0, 2]) # (batch_size, n_particles, n_particles)
+        idx = tf.transpose(idx, perm=[1, 0, 2])  # (batch_size, n_particles, n_particles)
 
         # X shape: (n_particles, batch_size, Dx)
-        X = tf.transpose(X, perm=[1,0,2]) # (batch_size, n_particles, Dx)
+        X = tf.transpose(X, perm=[1, 0, 2])  # (batch_size, n_particles, Dx)
         X_resampled = tf.matmul(idx, X)  # (batch_size, n_particles, Dx)
-        X_resampled = tf.transpose(X_resampled, perm=[1,0,2])
+        X_resampled = tf.transpose(X_resampled, perm=[1, 0, 2])
 
-        recover_idx = tf.zeros([batch_size, n_particles]) # would not be used
+        recover_idx = tf.zeros([n_particles, batch_size])  # would not be used
         return X_resampled, recover_idx
 
-
-    def get_resample_idx(self, log_W,):
+    def get_resample_idx(self, log_W, ):
         # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
         # (n_particles, batch_size)
 
@@ -358,7 +357,6 @@ class SMC:
 
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
         log_W = tf.transpose(log_W - log_W_max)  # shape (batch_size, n_particles)
-
 
         categorical = tfd.Categorical(logits=log_W, validate_args=True,
                                       name="Categorical_t")
@@ -375,10 +373,10 @@ class SMC:
         idx = tf.where(idx >= n_particles, final_fixup, idx)
 
         # ugly stuff used to resample X
-        batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)            # (1, batch_size)
-        batch_NxB = tf.tile(batch_1xB, (n_particles, 1))                    # (n_particles, batch_size)
+        batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)  # (1, batch_size)
+        batch_NxB = tf.tile(batch_1xB, (n_particles, 1))  # (n_particles, batch_size)
 
-        resample_idx_NxBx2 = tf.stack((idx, batch_NxB), axis=2)             # (n_particles, batch_size, 2)
+        resample_idx_NxBx2 = tf.stack((idx, batch_NxB), axis=2)  # (n_particles, batch_size, 2)
 
         return resample_idx_NxBx2
 
