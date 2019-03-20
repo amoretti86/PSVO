@@ -333,7 +333,8 @@ class SMC:
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
         log_W = tf.transpose(log_W - log_W_max)  # shape (batch_size, n_particles)
 
-        soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=0.2)
+        #soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=0.2)
+        soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=1/n_particles)
 
         soft_idx = soft_categorical.sample(n_particles)  # (n_particles, batch_size, n_particles)
 
