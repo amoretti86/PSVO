@@ -219,7 +219,7 @@ class trainer:
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
         Xs = log["Xs"]
-        MSE_ks, y_means, y_vars, y_hat = self.SMC.n_step_MSE(self.MSE_steps, Xs, self.obs, self.Input)
+        #MSE_ks, y_means, y_vars, y_hat = self.SMC.n_step_MSE(self.MSE_steps, Xs, self.obs, self.Input)
 
         with tf.variable_scope("train"):
             lr = tf.placeholder(tf.float32, name="lr")
@@ -251,11 +251,13 @@ class trainer:
                 smoothing_perc_epoch = 1
 
             if i == 0:
-                log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test = \
-                    self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars, smoothing_perc_epoch)
+                log_ZSMC_train, log_ZSMC_test = \
+                    self.evaluate_and_save_metrics(i, smoothing_perc_epoch)
+                    #self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars, smoothing_perc_epoch)
 
             # training
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
+            print("running train_op...")
             for j in range(0, len(obs_train), self.batch_size):
                 self.sess.run(train_op,
                               feed_dict={self.obs:            obs_train[j:j + self.batch_size],
@@ -265,10 +267,13 @@ class trainer:
                                          self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch,
                                          lr:                  self.lr})
 
+            print("start evaluating metrics...")
             if (i + 1) % print_freq == 0:
                 try:
-                    log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test = \
-                        self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars, smoothing_perc_epoch)
+                    print("start evaluating log_ZSMC")
+                    log_ZSMC_train, log_ZSMC_test = \
+                        self.evaluate_and_save_metrics(i, smoothing_perc_epoch)
+                        #self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars, smoothing_perc_epoch)
                     self.adjust_lr(i, print_freq)
                 except StopTraining:
                     break
@@ -286,12 +291,13 @@ class trainer:
                         trajectory_dict = {"Xs": Xs_val}
                         with open(self.epoch_data_DIR + "trajectory_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(trajectory_dict, f)
-
+                    """
                     if self.save_y_hat:
                         y_hat_val = self.evaluate(y_hat, self.saving_feed_dict, average=False)
                         y_hat_dict = {"y_hat": y_hat_val}
                         with open(self.epoch_data_DIR + "y_hat_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(y_hat_dict, f)
+                    """
 
                     if self.draw_quiver_during_training:
                         if self.Dx == 2:
@@ -345,14 +351,19 @@ class trainer:
                    "MSE_tests":       self.MSE_tests,
                    "R_square_trains": self.R_square_trains,
                    "R_square_tests":  self.R_square_tests}
-        log["y_hat"] = y_hat
+        #log["y_hat"] = y_hat
 
         return metrics, log
 
     def close_session(self):
         self.sess.close()
 
-    def evaluate_and_save_metrics(self, iter_num, MSE_ks, y_means, y_vars, smoothing_perc_epoch):
+    #def evaluate_and_save_metrics(self, iter_num, MSE_ks, y_means, y_vars, smoothing_perc_epoch):
+    def evaluate_and_save_metrics(self, iter_num, smoothing_perc_epoch):
+        print("evaluate and save metrics", iter_num)
+        print("n_particles = ", self.SMC.n_particles)
+
+        print("evaluate log_ZSMC_train")
         log_ZSMC_train = self.evaluate(self.log_ZSMC,
                                        {self.obs:            self.obs_train,
                                         self.hidden:         self.hidden_train,
@@ -360,6 +371,8 @@ class trainer:
                                         self.dropout:        np.zeros(len(self.obs_train)),
                                         self.smoothing_perc: np.ones(len(self.obs_train)) * smoothing_perc_epoch},
                                        average=True)
+
+        print("evaluate log_ZSMC_test")
         log_ZSMC_test = self.evaluate(self.log_ZSMC,
                                       {self.obs:            self.obs_test,
                                        self.hidden:         self.hidden_test,
@@ -367,19 +380,20 @@ class trainer:
                                        self.dropout:        np.zeros(len(self.obs_test)),
                                        self.smoothing_perc: np.ones(len(self.obs_test)) * smoothing_perc_epoch},
                                       average=True)
-
-
+        """
+        print("evaluate MSE_train, R_square_train")
         MSE_train, R_square_train = self.evaluate_R_square(MSE_ks, y_means, y_vars,
                                                            self.hidden_train, self.obs_train, self.input_train)
+        print("evaluate MSE_test, R_square_test")
         MSE_test, R_square_test = self.evaluate_R_square(MSE_ks, y_means, y_vars,
                                                          self.hidden_test, self.obs_test, self.input_test)
+        """
 
-        print()
         print("iter", iter_num + 1)
         print("Train log_ZSMC: {:>7.3f}, valid log_ZSMC: {:>7.3f}"
               .format(log_ZSMC_train, log_ZSMC_test))
 
-        print("Train, Valid k-step Rsq:\n", R_square_train, "\n", R_square_test)
+        #print("Train, Valid k-step Rsq:\n", R_square_train, "\n", R_square_test)
 
         if not math.isfinite(log_ZSMC_train):
             print("Nan in log_ZSMC, stop training")
@@ -388,23 +402,24 @@ class trainer:
         if self.save_res:
             self.log_ZSMC_trains.append(log_ZSMC_train)
             self.log_ZSMC_tests.append(log_ZSMC_test)
-            self.MSE_trains.append(MSE_train)
-            self.MSE_tests.append(MSE_test)
-            self.R_square_trains.append(R_square_train)
-            self.R_square_tests.append(R_square_test)
+            #self.MSE_trains.append(MSE_train)
+            #self.MSE_tests.append(MSE_test)
+            #self.R_square_trains.append(R_square_train)
+            #self.R_square_tests.append(R_square_test)
 
-            plot_R_square_epoch(self.RLT_DIR, R_square_train, R_square_test, iter_num + 1)
+            #plot_R_square_epoch(self.RLT_DIR, R_square_train, R_square_test, iter_num + 1)
 
             if not os.path.exists(self.epoch_data_DIR):
                 os.makedirs(self.epoch_data_DIR)
             metric_dict = {"log_ZSMC_train": log_ZSMC_train,
-                           "log_ZSMC_test":  log_ZSMC_test,
-                           "R_square_train": R_square_train,
-                           "R_square_test":  R_square_test}
+                           "log_ZSMC_test":  log_ZSMC_test}
+                           #"R_square_train": R_square_train,
+                           #"R_square_test":  R_square_test}
             with open(self.epoch_data_DIR + "metric_{}.p".format(iter_num + 1), "wb") as f:
                 pickle.dump(metric_dict, f)
 
-        return log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test
+        #return log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test
+        return log_ZSMC_train, log_ZSMC_test
 
     def adjust_lr(self, iter_num, print_freq):
         # determine whether should decrease lr or even stop training
@@ -492,8 +507,9 @@ class trainer:
         combined_y_means = np.zeros((n_steps + 1, Dy))        # combined y_means across all batches
         combined_y_vars = np.zeros((n_steps + 1, Dy))         # combined y_vars across all batches
 
+        print("evaluate_R_Square")
         for i in range(0, n_batches, batch_size):
-
+            print("batch ", i)
             batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
                                                                       {self.obs: obs_set[i:i + batch_size],
                                                                        self.hidden: hidden_set[i:i + batch_size],

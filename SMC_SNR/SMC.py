@@ -45,7 +45,7 @@ class SMC:
 
         self.name = name
 
-    def get_log_ZSMC(self, obs, hidden, Input, q_cov=1, loss_type='main', n_particles=1):
+    def get_log_ZSMC(self, obs, hidden, Input, q_cov=1, loss_type='main', n_particles=None):
         """
         Get log_ZSMC from obs y_1:T
         Input:
@@ -59,6 +59,8 @@ class SMC:
         with tf.variable_scope(self.name):
             Dx = self.model.Dx
             #n_particles = self.n_particles
+            if n_particles is None:
+                n_particles = self.n_particles
             batch_size, time, Dy = obs.get_shape().as_list()
             self.batch_size, self.time, self.Dy = batch_size, time, Dy
 
