@@ -82,7 +82,7 @@ class SMC:
                 X_prevs_b, X_ancestors_b, log_Ws_b = self.SMC(Input, hidden, obs, forward=False)
                 log_Ws = self.TFS_reweight_log_Ws(log_Ws, log_Ws_b, X_prevs, X_prevs_b, Input)
                 X_ancestors = [self.resample_X(X, log_W)
-                               for X, log_W in zip(tf.unstack(X_prevs), tf.unstack(log_Ws))]
+                               for X, log_W in zip(tf.unstack(X_prevs_b), tf.unstack(log_Ws))]
                 X_ancestors = tf.stack(X_ancestors)
 
             # FFBS

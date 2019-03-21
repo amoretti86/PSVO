@@ -89,7 +89,7 @@ diag_cov = False
 use_input = False
 
 # dropout rate for FFN
-dropout_rate = 0.2
+dropout_rate = 0.0
 
 # whether emission uses Poisson distribution
 poisson_emission = False
