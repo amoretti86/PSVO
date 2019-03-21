@@ -239,7 +239,7 @@ class SMC:
 
                     final_resampling_ta = final_resampling_ta.stack()  # shape (n_particles, batch_size, time-1)
 
-                    resampling_loss = tf.multiply(tf.reduce_mean(final_resampling_ta), tf.stop_gradient(log_ZSMC),
+                    resampling_loss = tf.multiply(tf.reduce_sum(final_resampling_ta), tf.stop_gradient(log_ZSMC),
                                                   name="resampling_loss")
             else:
                 resampling_loss = 0

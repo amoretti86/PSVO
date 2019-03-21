@@ -257,7 +257,7 @@ class trainer:
 
             # training
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
-            print("running train_op...")
+            #print("running train_op...")
             for j in range(0, len(obs_train), self.batch_size):
                 self.sess.run(train_op,
                               feed_dict={self.obs:            obs_train[j:j + self.batch_size],
@@ -267,10 +267,10 @@ class trainer:
                                          self.smoothing_perc: np.ones(self.batch_size) * smoothing_perc_epoch,
                                          lr:                  self.lr})
 
-            print("start evaluating metrics...")
+            #print("start evaluating metrics...")
             if (i + 1) % print_freq == 0:
                 try:
-                    print("start evaluating log_ZSMC")
+                    #print("start evaluating log_ZSMC")
                     log_ZSMC_train, log_ZSMC_test = \
                         self.evaluate_and_save_metrics(i, smoothing_perc_epoch)
                         #self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars, smoothing_perc_epoch)
@@ -360,10 +360,10 @@ class trainer:
 
     #def evaluate_and_save_metrics(self, iter_num, MSE_ks, y_means, y_vars, smoothing_perc_epoch):
     def evaluate_and_save_metrics(self, iter_num, smoothing_perc_epoch):
-        print("evaluate and save metrics", iter_num)
-        print("n_particles = ", self.SMC.n_particles)
+        #print("evaluate and save metrics", iter_num)
+        #print("n_particles = ", self.SMC.n_particles)
 
-        print("evaluate log_ZSMC_train")
+        #print("evaluate log_ZSMC_train")
         log_ZSMC_train = self.evaluate(self.log_ZSMC,
                                        {self.obs:            self.obs_train,
                                         self.hidden:         self.hidden_train,
@@ -372,7 +372,7 @@ class trainer:
                                         self.smoothing_perc: np.ones(len(self.obs_train)) * smoothing_perc_epoch},
                                        average=True)
 
-        print("evaluate log_ZSMC_test")
+        #print("evaluate log_ZSMC_test")
         log_ZSMC_test = self.evaluate(self.log_ZSMC,
                                       {self.obs:            self.obs_test,
                                        self.hidden:         self.hidden_test,

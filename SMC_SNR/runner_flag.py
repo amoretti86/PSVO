@@ -41,7 +41,8 @@ SNR_NP_list = [1, 8, 64, 128, 512, 1024]
 
 #SNR_collect_grads_points = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
 #SNR_collect_grads_points = [-700, -600,-500, -400, -350, -300, -250, -220]
-SNR_collect_grads_points = [-700, -400, -350, -250, -220]
+#SNR_collect_grads_points = [-700, -400, -350, -250, -220]
+SNR_collect_grads_points = [-350, -250, -220]
 
 SNR_NP_list = ",".join([str(x) for x in SNR_NP_list])
 SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
@@ -49,7 +50,7 @@ SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
 
 
 # ------------------ loss type ---------------------- #
-loss_type = 'soft'
+loss_type = 'full'
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -168,7 +169,7 @@ save_y_hat = False
 
 
 # dir to save all results
-rslt_dir_name = "SNR_0320_soft_loss"
+rslt_dir_name = "SNR_0320_full_loss"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
