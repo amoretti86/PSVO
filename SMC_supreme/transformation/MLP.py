@@ -58,7 +58,7 @@ class MLP_transformation(transformation):
             # for hidden_layer, dropout_layer in zip(self.hidden_layers, self.dropout_layers):
             #     hidden = hidden_layer(hidden)
             #     hidden = dropout_layer(hidden)
-            for hidden_layer in zip(self.hidden_layers):
+            for hidden_layer in self.hidden_layers:
                 hidden = hidden_layer(hidden)
 
             mu = self.mu_layer(hidden)
