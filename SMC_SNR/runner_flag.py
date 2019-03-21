@@ -36,15 +36,15 @@ save_gradient = True
 SNR_sample_num = 100
 
 #SNR_NP_list = [1, 8, 64, 128, 512, 1024, 2048]
-#SNR_NP_list = [1, 8, 64, 128, 512, 1024]
-SNR_NP_list = [1, 2]
+SNR_NP_list = [1, 8, 64, 128, 512, 1024]
+#SNR_NP_list = [1, 2]
 
-#SNR_collect_grads_point = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
-#SNR_collect_grads_point = [-700, -600,-500, -400, -350, -300, -250, -220]
-SNR_collect_grads_point = [-700, -400, -350, -250, -220]
+#SNR_collect_grads_points = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
+#SNR_collect_grads_points = [-700, -600,-500, -400, -350, -300, -250, -220]
+SNR_collect_grads_points = [-700, -400, -350, -250, -220]
 
 SNR_NP_list = ",".join([str(x) for x in SNR_NP_list])
-SNR_collect_grads_point = ",".join([str(x) for x in SNR_collect_grads_point])
+SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
 
 
 
@@ -218,7 +218,7 @@ flags.DEFINE_integer("seed", seed, "random seed for np.random and tf")
 flags.DEFINE_boolean("save_gradient", save_gradient, "whether to save gradients for SNR during training")
 flags.DEFINE_integer("SNR_sample_num", SNR_sample_num, "number of gradients to sample to calculate SNR")
 flags.DEFINE_string("SNR_NP_list", SNR_NP_list, "list of number of particles for SNR experiment")
-flags.DEFINE_string("SNR_collect_grads_points", SNR_collect_grads_point, "list of values of log_ZSMC to collect gradients")
+flags.DEFINE_string("SNR_collect_grads_points", SNR_collect_grads_points, "list of values of log_ZSMC to collect gradients")
 
 
 
