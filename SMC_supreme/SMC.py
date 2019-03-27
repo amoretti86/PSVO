@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
@@ -69,6 +70,7 @@ class SMC:
             log_ZSMC: shape = scalar
             log: stuff to debug
         """
+        n_particles = self.n_particles
         batch_size, time, _ = obs.get_shape().as_list()
         self.Dx, self.batch_size, self.time = self.model.Dx, batch_size, time
 
@@ -81,14 +83,14 @@ class SMC:
             if self.TFS:
                 X_prevs_b, X_ancestors_b, log_Ws_b = self.SMC(Input, hidden, obs, forward=False)
                 log_Ws = self.TFS_reweight_log_Ws(log_Ws, log_Ws_b, X_prevs, X_prevs_b, Input)
-                X_ancestors = [self.resample_X(X, log_W)
+                X_ancestors = [self.resample_X(X, log_W, sample_size=n_particles)
                                for X, log_W in zip(tf.unstack(X_prevs_b), tf.unstack(log_Ws))]
                 X_ancestors = tf.stack(X_ancestors)
 
             # FFBS
             if self.FFBS:
                 reweighted_log_Ws = self.FFBS_reweight_log_Ws(log_Ws, X_prevs, Input)
-                X_ancestors = [self.resample_X(X, log_W)
+                X_ancestors = [self.resample_X(X, log_W, sample_size=n_particles)
                                for X, log_W in zip(tf.unstack(X_prevs), tf.unstack(reweighted_log_Ws))]
                 X_ancestors = tf.stack(X_ancestors)
                 if self.FFBS_to_learn:
@@ -163,7 +165,7 @@ class SMC:
             return t < time - 1
 
         def while_body(t, X_prev, log_W, log):
-            X_ancestor = self.resample_X(X_prev, log_W)
+            X_ancestor = self.resample_X(X_prev, log_W, sample_size=n_particles)
             q_f_t_feed = X_ancestor
 
             if self.use_input:
@@ -205,7 +207,7 @@ class SMC:
         t_final, X_T, log_W, log = tf.while_loop(while_cond, while_body, init_state)
 
         # write final results at t = T - 1 to tensor arrays
-        X_T_resampled = self.resample_X(X_T, log_W)
+        X_T_resampled = self.resample_X(X_T, log_W, sample_size=n_particles)
         log_contents = [X_T, X_T_resampled, log_W]
         log = [ta.write(t_final, log_content) if i != 2 else ta
                for ta, log_content, i in zip(log, log_contents, range(4))]
@@ -227,6 +229,7 @@ class SMC:
         d1_mvn = dist1.get_mvn(d1_input)
         d2_mvn = dist2.get_mvn(d2_input)
 
+        can_solve_analytically = True
         if isinstance(d1_mvn, tfd.MultivariateNormalDiag) and isinstance(d2_mvn, tfd.MultivariateNormalDiag):
             d1_mvn_mean, d1_mvn_cov = d1_mvn.mean(), d1_mvn.stddev()
             d2_mvn_mean, d2_mvn_cov = d2_mvn.mean(), d2_mvn.stddev()
@@ -242,36 +245,51 @@ class SMC:
         else:
             if isinstance(d1_mvn, tfd.MultivariateNormalDiag):
                 d1_mvn_mean, d1_mvn_cov = d1_mvn.mean(), tf.diag(d1_mvn.stddev())
-            else:
+            elif isinstance(d1_mvn, tfd.MultivariateNormalFullCovariance):
                 d1_mvn_mean, d1_mvn_cov = d1_mvn.mean(), d1_mvn.covariance()
+            else:
+                can_solve_analytically = False
             if isinstance(d2_mvn, tfd.MultivariateNormalDiag):
                 d2_mvn_mean, d2_mvn_cov = d2_mvn.mean(), tf.diag(d2_mvn.stddev())
-            else:
+            elif isinstance(d2_mvn, tfd.MultivariateNormalFullCovariance):
                 d2_mvn_mean, d2_mvn_cov = d2_mvn.mean(), d2_mvn.covariance()
+            else:
+                can_solve_analytically = False
 
-            if len(d1_mvn_cov.shape.as_list()) == 2:
-                d1_mvn_cov = tf.expand_dims(d1_mvn_cov, axis=0)
+            if can_solve_analytically:
+                if len(d1_mvn_cov.shape.as_list()) == 2:
+                    d1_mvn_cov = tf.expand_dims(d1_mvn_cov, axis=0)
 
-            d1_mvn_cov_inv, d2_mvn_cov_inv = tf.linalg.inv(d1_mvn_cov), tf.linalg.inv(d2_mvn_cov)
-            combined_cov = tf.linalg.inv(d1_mvn_cov_inv + d2_mvn_cov_inv)
-            perm = list(range(len(combined_cov.shape)))
-            perm[-2], perm[-1] = perm[-1], perm[-2]
-            combined_cov = (combined_cov + tf.transpose(combined_cov, perm=perm)) / 2
-            combined_mean = tf.matmul(combined_cov,
-                                      tf.matmul(d1_mvn_cov_inv, tf.expand_dims(d1_mvn_mean, axis=-1)) +
-                                      tf.matmul(d2_mvn_cov_inv, tf.expand_dims(d2_mvn_mean, axis=-1))
-                                      )
-            combined_mean = tf.squeeze(combined_mean, axis=-1)
+                d1_mvn_cov_inv, d2_mvn_cov_inv = tf.linalg.inv(d1_mvn_cov), tf.linalg.inv(d2_mvn_cov)
+                combined_cov = tf.linalg.inv(d1_mvn_cov_inv + d2_mvn_cov_inv)
+                perm = list(range(len(combined_cov.shape)))
+                perm[-2], perm[-1] = perm[-1], perm[-2]
+                combined_cov = (combined_cov + tf.transpose(combined_cov, perm=perm)) / 2
+                combined_mean = tf.matmul(combined_cov,
+                                          tf.matmul(d1_mvn_cov_inv, tf.expand_dims(d1_mvn_mean, axis=-1)) +
+                                          tf.matmul(d2_mvn_cov_inv, tf.expand_dims(d2_mvn_mean, axis=-1))
+                                          )
+                combined_mean = tf.squeeze(combined_mean, axis=-1)
 
-            mvn = tfd.MultivariateNormalFullCovariance(combined_mean,
-                                                       combined_cov,
-                                                       validate_args=True,
-                                                       allow_nan_stats=False)
-
-        X = mvn.sample(sample_size)
-        q_t_log_prob = mvn.log_prob(X)
-        f_t_log_prob = d1_mvn.log_prob(X)
-
+                mvn = tfd.MultivariateNormalFullCovariance(combined_mean,
+                                                           combined_cov,
+                                                           validate_args=True,
+                                                           allow_nan_stats=False)
+        if can_solve_analytically:
+            X = mvn.sample(sample_size)
+            q_t_log_prob = mvn.log_prob(X)
+            f_t_log_prob = d1_mvn.log_prob(X)
+        else:
+            assert sample_size == ()
+            X = d1_mvn.sample(dist1.transformation.sample_num)
+            f_t_log_prob   = d1_mvn.log_prob(X)
+            q2_t_log_prob  = d2_mvn.log_prob(X)
+            aggr_log_prob  = f_t_log_prob + q2_t_log_prob
+            f_t_log_prob  -= tf.reduce_logsumexp(f_t_log_prob, axis=0)
+            aggr_log_prob -= tf.reduce_logsumexp(aggr_log_prob, axis=0)
+            X, q_t_log_prob, f_t_log_prob = self.resample_X([X, aggr_log_prob, f_t_log_prob],
+                                                            aggr_log_prob,
+                                                            sample_size=())
         return X, q_t_log_prob, f_t_log_prob
 
     def sample_from_true_X(self, hidden, q_cov, sample_shape=(), name="q_t_mvn"):
@@ -283,46 +301,54 @@ class SMC:
 
         return X, q_t_log_prob
 
-    def resample_X(self, X, log_W):
-        if self.n_particles > 1:
-            resample_idx = self.get_resample_idx(log_W)
-            X_resampled = tf.gather_nd(X, resample_idx)
+    def resample_X(self, X, log_W, sample_size=()):
+        if log_W.shape.as_list()[0] != 1:
+            resample_idx = self.get_resample_idx(log_W, sample_size)
+            if isinstance(X, list):
+                X_resampled = [tf.gather_nd(item, resample_idx) for item in X]
+            else:
+                X_resampled = tf.gather_nd(X, resample_idx)
         else:
+            assert sample_size == 1
             X_resampled = X
 
         return X_resampled
 
-    def get_resample_idx(self, log_W):
+    def get_resample_idx(self, log_W, sample_size=()):
         # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
-
-        n_particles, batch_size = self.n_particles, self.batch_size
+        nb_classes  = log_W.shape.as_list()[0]
+        batch_shape = log_W.shape.as_list()[1:]
+        perm = list(range(1, len(batch_shape) + 1)) + [0]
 
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
-        log_W = tf.transpose(log_W - log_W_max)
-        categorical = tfd.Categorical(logits=log_W, validate_args=True,
-                                      name="Categorical_t")
+        log_W = tf.transpose(log_W - log_W_max, perm=perm)
+        categorical = tfd.Categorical(logits=log_W, validate_args=True, name="Categorical")
 
         # sample multiple times to remove idx out of range
-        idx = tf.ones((n_particles, batch_size), dtype=tf.int32) * n_particles
-        for _ in range(3):
-            fixup_idx = categorical.sample(n_particles)
-            idx = tf.where(idx >= n_particles, fixup_idx, idx)
+        if sample_size == ():
+            idx_shape = batch_shape
+        else:
+            assert isinstance(sample_size, int), "sample_size should be int, {} is given".format(sample_size)
+            idx_shape = [sample_size] + batch_shape
+
+        idx = tf.ones(idx_shape, dtype=tf.int32) * nb_classes
+        for _ in range(1):
+            fixup_idx = categorical.sample(sample_size)
+            idx = tf.where(idx >= nb_classes, fixup_idx, idx)
 
         # if still got idx out of range, replace them with idx from uniform distribution
-        final_fixup = tf.random.uniform((n_particles, batch_size),
-                                        maxval=n_particles, dtype=tf.int32)
-        idx = tf.where(idx >= n_particles, final_fixup, idx)
+        final_fixup = tf.random.uniform(idx_shape, maxval=nb_classes, dtype=tf.int32)
+        idx = tf.where(idx >= nb_classes, final_fixup, idx)
 
-        # ugly stuff used to resample X
-        batch_1xB = tf.expand_dims(tf.range(batch_size), axis=0)            # (1, batch_size)
-        batch_NxB = tf.tile(batch_1xB, (n_particles, 1))                    # (n_particles, batch_size)
+        batch_idx = np.meshgrid(*[range(i) for i in idx_shape], indexing='ij')
+        if sample_size != ():
+            batch_idx = batch_idx[1:]
+        resample_idx = tf.stack([idx] + batch_idx, axis=-1)
 
-        resample_idx_NxBx2 = tf.stack((idx, batch_NxB), axis=2)             # (n_particles, batch_size, 2)
-
-        return resample_idx_NxBx2
+        return resample_idx
 
     def TFS_reweight_log_Ws(self, log_Ws, log_Ws_b, X_prevs, X_prevs_b, Input):
-        # reweight weight of each particle (w_t^k) according to TFS formula
+        # reweight weight of each particle (w_t^k) according to TFS formula9
         n_particles, time = self.n_particles, self.time
 
         log_Ws,  log_Ws_b  = tf.unstack(log_Ws),  tf.unstack(log_Ws_b)
@@ -476,7 +502,7 @@ class SMC:
                     f_k_input = tf.concat((x_BxTmkxDz, Input[:, :-(k + 1), :]), axis=-1)
                 else:
                     f_k_input = x_BxTmkxDz
-                x_BxTmkxDz = self.f.mean(f_k_input)                                # (batch_size, time - k - 1, Dx)
+                x_BxTmkxDz = self.f.mean(f_k_input)                                 # (batch_size, time - k - 1, Dx)
 
             y_hat_BxTmNxDy = self.g.mean(x_BxTmkxDz)                                # (batch_size, time - N, Dy)
             y_hat_N_BxTxDy.append(y_hat_BxTmNxDy)

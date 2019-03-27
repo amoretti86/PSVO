@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense
 
+from transformation.flow import NF
 from transformation.MLP import MLP_transformation
 from distribution.mvn import tf_mvn
 from distribution.poisson import tf_poisson
@@ -19,6 +20,7 @@ class SSM(object):
                  diag_cov=False,
                  use_bootstrap=True,
                  use_2_q=True,
+                 flow_transition=False,
                  poisson_emission=False,
                  TFS=False,
                  TFS_use_diff_q0=False,
@@ -47,6 +49,12 @@ class SSM(object):
         self.f_sigma_init,  self.f_sigma_min  = FLAGS.f_sigma_init, FLAGS.f_sigma_min
         self.g_sigma_init,  self.g_sigma_min  = FLAGS.f_sigma_init, FLAGS.g_sigma_min
 
+        # Normalizing Flow architectures
+        self.q1_flow_layers  = FLAGS.q1_flow_layers
+        self.f_flow_layers   = FLAGS.f_flow_layers
+        self.flow_sample_num = FLAGS.flow_sample_num
+        self.flow_type       = FLAGS.flow_type
+
         # bidirectional RNN architectures
         self.y_smoother_Dhs  = [int(x) for x in FLAGS.y_smoother_Dhs.split(",")]
         self.X0_smoother_Dhs = [int(x) for x in FLAGS.X0_smoother_Dhs.split(",")]
@@ -56,6 +64,7 @@ class SSM(object):
         self.diag_cov            = diag_cov
         self.use_bootstrap       = use_bootstrap
         self.use_2_q             = use_2_q
+        self.flow_transition     = flow_transition
         self.poisson_emission    = poisson_emission
         self.TFS                 = TFS
         self.TFS_use_diff_q0     = TFS_use_diff_q0
@@ -90,19 +99,30 @@ class SSM(object):
                                                   dropout_rate=self.dropout,
                                                   name="TFS_q0_tran")
 
-        self.q1_tran = MLP_transformation(self.q1_layers, self.Dx,
-                                          use_residual=self.use_residual,
-                                          output_cov=self.output_cov,
-                                          diag_cov=self.diag_cov,
-                                          dropout_rate=self.dropout,
-                                          name="q1_tran")
+        if self.flow_transition:
+            self.q1_tran = NF(self.q1_flow_layers, self.Dx,
+                              hidden_layers=self.q1_layers,
+                              sample_num=self.flow_sample_num,
+                              flow_type=self.flow_type,
+                              name="q1_tran")
+        else:
+            self.q1_tran = MLP_transformation(self.q1_layers, self.Dx,
+                                              use_residual=self.use_residual,
+                                              output_cov=self.output_cov,
+                                              diag_cov=self.diag_cov,
+                                              dropout_rate=self.dropout,
+                                              name="q1_tran")
         if self.TFS:
-            self.q1_inv_tran = MLP_transformation(self.q1_layers, self.Dx,
-                                                  use_residual=self.use_residual,
-                                                  output_cov=self.output_cov,
-                                                  diag_cov=self.diag_cov,
-                                                  dropout_rate=self.dropout,
-                                                  name="q1_inv_tran")
+            if self.flow_transition:
+                self.q1_inv_tran = NF(self.q1_flow_layers, self.Dx,
+                                      flow_to_reverse=self.q1_tran)
+            else:
+                self.q1_inv_tran = MLP_transformation(self.q1_layers, self.Dx,
+                                                      use_residual=self.use_residual,
+                                                      output_cov=self.output_cov,
+                                                      diag_cov=self.diag_cov,
+                                                      dropout_rate=self.dropout,
+                                                      name="q1_inv_tran")
         if self.use_2_q:
             self.q2_tran = MLP_transformation(self.q2_layers, self.Dx,
                                               use_residual=False,
@@ -118,19 +138,30 @@ class SSM(object):
             if self.TFS:
                 self.f_inv_tran = self.q1_inv_tran
         else:
-            self.f_tran = MLP_transformation(self.f_layers, self.Dx,
-                                             use_residual=self.use_residual,
-                                             output_cov=self.output_cov,
-                                             diag_cov=self.diag_cov,
-                                             dropout_rate=self.dropout,
-                                             name="f_tran")
+            if self.flow_transition:
+                self.f_tran = NF(self.f_flow_layers, self.Dx,
+                                 hidden_layers=self.f_layers,
+                                 sample_num=self.flow_sample_num,
+                                 flow_type=self.flow_type,
+                                 name="f_tran")
+            else:
+                self.f_tran = MLP_transformation(self.f_layers, self.Dx,
+                                                 use_residual=self.use_residual,
+                                                 output_cov=self.output_cov,
+                                                 diag_cov=self.diag_cov,
+                                                 dropout_rate=self.dropout,
+                                                 name="f_tran")
             if self.TFS:
-                self.f_inv_tran = MLP_transformation(self.f_layers, self.Dx,
-                                                     use_residual=self.use_residual,
-                                                     output_cov=self.output_cov,
-                                                     diag_cov=self.diag_cov,
-                                                     dropout_rate=self.dropout,
-                                                     name="f_inv_tran")
+                if self.flow_transition:
+                    self.f_inv_tran = NF(self.f_flow_layers, self.Dx,
+                                         flow_to_reverse=self.f_tran)
+                else:
+                    self.f_inv_tran = MLP_transformation(self.f_layers, self.Dx,
+                                                         use_residual=self.use_residual,
+                                                         output_cov=self.output_cov,
+                                                         diag_cov=self.diag_cov,
+                                                         dropout_rate=self.dropout,
+                                                         name="f_inv_tran")
 
         self.g_tran = MLP_transformation(self.g_layers, self.Dy,
                                          use_residual=False,

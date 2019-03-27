@@ -28,21 +28,12 @@ def main(_):
     # ========================================= parameter part begins ========================================== #
     Dx = FLAGS.Dx
 
-    # --------------------- FFN flags --------------------- #
-    # do q and f use the same network?
-    use_bootstrap = FLAGS.use_bootstrap
-
+    # --------------------- SSM flags --------------------- #
     # should q use true_X to sample? (useful for debugging)
     q_uses_true_X = FLAGS.q_uses_true_X
 
-    # if f and q use residual
-    use_residual = FLAGS.use_residual
-
-    # if q, f and g networks also output covariance (sigma)
-    output_cov = FLAGS.output_cov
-
-    # if the networks only output diagonal value of cov matrix
-    diag_cov = FLAGS.diag_cov
+    # do q and f use the same network?
+    use_bootstrap = FLAGS.use_bootstrap
 
     # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
     # if True, use_bootstrap will be overwritten as True
@@ -55,6 +46,19 @@ def main(_):
 
     # whether emission uses Poisson distribution
     poisson_emission = FLAGS.poisson_emission
+
+    # whether transitions (q1 and f) use Normalizing Flow
+    flow_transition = FLAGS.flow_transition
+
+    # --------------------- FFN flags --------------------- #
+    # if f and q use residual
+    use_residual = FLAGS.use_residual
+
+    # if q, f and g networks also output covariance (sigma)
+    output_cov = FLAGS.output_cov
+
+    # if the networks only output diagonal value of cov matrix
+    diag_cov = FLAGS.diag_cov
 
     # -------------------------------- TFS flags -------------------------------- #
 
@@ -90,6 +94,8 @@ def main(_):
 
     if FLAGS.use_2_q:
         FLAGS.q_uses_true_X = q_uses_true_X = False
+    if FLAGS.flow_transition:
+        FLAGS.use_input = use_input = False
 
     tf.set_random_seed(FLAGS.seed)
     np.random.seed(FLAGS.seed)
@@ -121,6 +127,7 @@ def main(_):
                     diag_cov=diag_cov,
                     use_bootstrap=use_bootstrap,
                     use_2_q=use_2_q,
+                    flow_transition=flow_transition,
                     poisson_emission=poisson_emission,
                     TFS=TFS,
                     TFS_use_diff_q0=TFS_use_diff_q0,

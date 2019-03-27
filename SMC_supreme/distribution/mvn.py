@@ -1,8 +1,8 @@
 import numpy as np
-
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
+from transformation.flow import NF
 from distribution.base import distribution
 
 
@@ -24,37 +24,40 @@ class tf_mvn(distribution):
     # multivariate normal distribution
 
     def __init__(self, transformation,
-                 output_0=None,
                  sigma_init=5, sigma_min=1,
                  name='tf_mvn'):
         self.transformation = transformation
-        self.output_0 = output_0
         self.sigma_init = sigma_init
         self.sigma_min = sigma_min
         self.name = name
 
-    def get_mvn(self, Input=None):
+    def get_mvn(self, Input):
+        if isinstance(self.transformation, NF):
+            dist = self.get_mvn_from_flow(Input)
+        else:
+            dist = self.get_mvn_from_transformation(Input)
+        return dist
+
+    def get_mvn_from_flow(self, Input):
+        with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE):
+            assert Input.shape.as_list()[-1] == self.transformation.event_size
+            sigma = self.get_sigma(Input)
+            dist = tfd.MultivariateNormalDiag(Input, sigma,
+                                              validate_args=True,
+                                              allow_nan_stats=False)
+            dist = self.transformation.transform(dist)
+            return dist
+
+    def get_mvn_from_transformation(self, Input):
         with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE):
             sigma = None
 
-            if Input is None:
-                assert self.output_0 is not None, "output_0 is not initialized for {}!".format(self.name)
-                mu = self.output_0
-            else:
-                mu = self.transformation.transform(Input)
-                if isinstance(mu, tuple):
-                    assert len(mu) == 2, "output of {} should contain 2 elements".format(self.transformation.name)
-                    mu, sigma = mu
+            mu = self.transformation.transform(Input)
+            if isinstance(mu, tuple):
+                assert len(mu) == 2, "output of {} should contain 2 elements".format(self.transformation.name)
+                mu, sigma = mu
 
-            Dout = mu.shape.as_list()[-1]
-            sigma_con = tf.get_variable("sigma_con",
-                                        shape=[Dout],
-                                        dtype=tf.float32,
-                                        initializer=tf.constant_initializer(self.sigma_init),
-                                        trainable=True)
-            sigma_con = tf.nn.softplus(sigma_con)
-            sigma_con = tf.where(tf.is_nan(sigma_con), tf.zeros_like(sigma_con), sigma_con)
-            sigma_con = tf.maximum(sigma_con, self.sigma_min)
+            sigma_con = self.get_sigma(mu)
 
             if sigma is None:
                 mvn = tfd.MultivariateNormalDiag(mu, sigma_con,
@@ -68,15 +71,23 @@ class tf_mvn(distribution):
                                                      allow_nan_stats=False)
                 else:
                     sigma = tf.diag(sigma_con) + 0.1 * sigma
-                    # sigma_shape_len = len(sigma.shape.as_list())
-                    # axis = list(range(sigma_shape_len))
-                    # axis[-2], axis[-1] = axis[-1], axis[-2]
-                    # sigma = (sigma + tf.transpose(sigma, perm=axis)) / 2
                     mvn = tfd.MultivariateNormalFullCovariance(mu, sigma,
                                                                validate_args=True,
                                                                allow_nan_stats=False)
 
             return mvn
+
+    def get_sigma(self, mu):
+        Dout = mu.shape.as_list()[-1]
+        sigma_con = tf.get_variable("sigma_con",
+                                    shape=[Dout],
+                                    dtype=tf.float32,
+                                    initializer=tf.constant_initializer(self.sigma_init),
+                                    trainable=True)
+        sigma_con = tf.nn.softplus(sigma_con)
+        sigma_con = tf.where(tf.is_nan(sigma_con), tf.zeros_like(sigma_con), sigma_con)
+        sigma_con = tf.maximum(sigma_con, self.sigma_min)
+        return sigma_con
 
     def sample_and_log_prob(self, Input, sample_shape=(), name=None):
         mvn = self.get_mvn(Input)
@@ -93,4 +104,16 @@ class tf_mvn(distribution):
     def mean(self, Input, name=None):
         mvn = self.get_mvn(Input)
         with tf.variable_scope(name or self.name):
-            return mvn.mean()
+            if isinstance(self.transformation, NF):
+                # for flow, choose the point with max prob
+                sample = mvn.sample(self.transformation.sample_num)
+                print(mvn)
+                print(mvn.batch_shape)
+                log_prob = mvn.log_prob(sample)
+                ML_idx = tf.argmax(log_prob, axis=0, output_type=tf.int32)
+                batch_shape = mvn.batch_shape
+                meshgrid_axis = [tf.range(batch_axis_size) for batch_axis_size in batch_shape]
+                gather_idx = tf.stack([ML_idx] + tf.meshgrid(*meshgrid_axis, indexing="ij"), axis=-1)
+                return tf.gather_nd(sample, gather_idx)
+            else:
+                return mvn.mean()

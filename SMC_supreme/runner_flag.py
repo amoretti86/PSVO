@@ -59,11 +59,17 @@ q2_sigma_init, q2_sigma_min = 5, 1
 f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
 
+# Normalizing Flow (NF)
+q1_flow_layers  = 2
+f_flow_layers   = 2
+flow_sample_num = 100
+flow_type       = "MAF"
+
 # bidirectional RNN
 y_smoother_Dhs = [64]
 X0_smoother_Dhs = [64]
 
-# ----------------------- FFN flags ------------------------ #
+# ----------------------- SSM flags ------------------------ #
 
 # if q1 and f share the same network
 # (ATTENTION: even if use_2_q == True, f and q1 can still use different networks)
@@ -72,12 +78,23 @@ use_bootstrap = True
 # should q use true_X to sample? (useful for debugging)
 q_uses_true_X = False
 
-# if f and q use residual
-use_residual = False
-
 # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
 # if True, q_uses_true_X will be overwritten as False
 use_2_q = True
+
+# whether use input in q and f
+use_input = False
+
+# whether emission uses Poisson distribution
+poisson_emission = False
+
+# whether transitions (q1 and f) use Normalizing Flow
+flow_transition = False
+
+# ----------------------- FFN flags ------------------------ #
+
+# if f and q use residual
+use_residual = False
 
 # if q, f and g networks also output covariance (sigma)
 output_cov = False
@@ -85,21 +102,15 @@ output_cov = False
 # if q, f and g networks also output covariance (sigma)
 diag_cov = False
 
-# whether use input in q and f
-use_input = False
-
 # dropout rate for FFN
 dropout_rate = 0.0
-
-# whether emission uses Poisson distribution
-poisson_emission = False
 
 # ----------------------- TFS flags ------------------------ #
 # whether use Two Filter Smoothing
 TFS = False
 
 # whether backward filtering in TFS uses different q0
-TFS_use_diff_q0 = False
+TFS_use_diff_q0 = True
 
 # ----------------------- FFBS flags ----------------------- #
 # whether use Forward Filtering Backward Smoothing
@@ -120,7 +131,7 @@ X0_use_separate_RNN = True
 
 # whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn or tf.nn.bidirectional_dynamic_rnn
 # check https://stackoverflow.com/a/50552539 for differences between them
-use_stack_rnn = False
+use_stack_rnn = True
 
 # --------------------- training flags --------------------- #
 
@@ -128,13 +139,13 @@ use_stack_rnn = False
 early_stop_patience = 200
 
 # reduce learning rate when testing loss doesn't improve for some time
-lr_reduce_patience = 20
+lr_reduce_patience = 30
 
 # the factor to reduce lr, new_lr = old_lr * lr_reduce_factor
 lr_reduce_factor = 1 / np.sqrt(2)
 
 # minimum lr
-min_lr = lr / 50
+min_lr = lr / 10
 
 # The clipping ratio of gradient based on global L2 norm
 clip_norm = 10.0
@@ -219,22 +230,28 @@ flags.DEFINE_string("q1_layers", q1_layers, "architecture for q1 network, int se
                                             "for example: '50,50' ")
 flags.DEFINE_string("q2_layers", q2_layers, "architecture for q2 network, int seperated by comma, "
                                             "for example: '50,50' ")
-flags.DEFINE_string("f_layers", f_layers, "architecture for f network, int seperated by comma, "
-                                          "for example: '50,50' ")
-flags.DEFINE_string("g_layers", g_layers, "architecture for g network, int seperated by comma, "
-                                          "for example: '50,50' ")
+flags.DEFINE_string("f_layers",  f_layers,  "architecture for f network, int seperated by comma, "
+                                            "for example: '50,50' ")
+flags.DEFINE_string("g_layers",  g_layers,  "architecture for g network, int seperated by comma, "
+                                            "for example: '50,50' ")
 
 flags.DEFINE_float("q0_sigma_init", q0_sigma_init, "initial value of q0_sigma")
 flags.DEFINE_float("q1_sigma_init", q1_sigma_init, "initial value of q1_sigma")
 flags.DEFINE_float("q2_sigma_init", q2_sigma_init, "initial value of q2_sigma")
-flags.DEFINE_float("f_sigma_init", f_sigma_init, "initial value of f_sigma")
-flags.DEFINE_float("g_sigma_init", g_sigma_init, "initial value of g_sigma")
+flags.DEFINE_float("f_sigma_init",  f_sigma_init,  "initial value of f_sigma")
+flags.DEFINE_float("g_sigma_init",  g_sigma_init,  "initial value of g_sigma")
 
 flags.DEFINE_float("q0_sigma_min", q0_sigma_min, "minimal value of q0_sigma")
 flags.DEFINE_float("q1_sigma_min", q1_sigma_min, "minimal value of q1_sigma")
 flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
-flags.DEFINE_float("f_sigma_min", f_sigma_min, "minimal value of f_sigma")
-flags.DEFINE_float("g_sigma_min", g_sigma_min, "minimal value of g_sigma")
+flags.DEFINE_float("f_sigma_min",  f_sigma_min,  "minimal value of f_sigma")
+flags.DEFINE_float("g_sigma_min",  g_sigma_min,  "minimal value of g_sigma")
+
+# Normalizing Flow
+flags.DEFINE_integer("q1_flow_layers",  q1_flow_layers,  "number of layers of q1 normalizing flow")
+flags.DEFINE_integer("f_flow_layers",   f_flow_layers,   "number of layers of f normalizing flow")
+flags.DEFINE_integer("flow_sample_num", flow_sample_num, "number of samples used to determine the mean of flow")
+flags.DEFINE_string("flow_type",        flow_type,       "type of flow to use: MAF, IAF or RealNVP")
 
 # bidirectional RNN
 flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smoother birdectional RNNs, "
@@ -242,19 +259,21 @@ flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smo
 flags.DEFINE_string("X0_smoother_Dhs", X0_smoother_Dhs, "number of units for X0_smoother birdectional RNNs, "
                                                         "int seperated by comma")
 
-# --------------------- FFN flags --------------------- #
+# --------------------- SSM flags --------------------- #
 flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether q1 and f share the same network, "
                                                      "(ATTENTION: even if use_2_q == True, "
                                                      "f and q1 can still use different networks)")
 flags.DEFINE_boolean("q_uses_true_X", q_uses_true_X, "whether q1 uses true hidden states to sample")
-flags.DEFINE_boolean("use_residual", use_residual, "whether f and q use residual network")
 flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t), "
                                          "if True, q_uses_true_X will be overwritten as False")
+flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
+flags.DEFINE_boolean("flow_transition", flow_transition, "whether transitions (q1 and f) use Normalizing Flow")
+flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission uses Poisson distribution")
+# --------------------- FFN flags --------------------- #
+flags.DEFINE_boolean("use_residual", use_residual, "whether f and q use residual network")
 flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
 flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
-flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
 flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for FFN")
-flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission uses Poisson distribution")
 
 # ----------------------- TFS flags ------------------------ #
 
