@@ -287,7 +287,7 @@ class trainer:
 
         if self.bestCost != len(self.log_ZSMC_tests) - 1:
             self.early_stop_count += 1
-            if self.early_stop_count == self.early_stop_patience:
+            if self.early_stop_count * print_freq == self.early_stop_patience:
                 print("valid cost not improving. stopping training...")
                 raise StopTraining()
 

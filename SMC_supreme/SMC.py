@@ -162,7 +162,7 @@ class SMC:
         log[2] = log[2].write(0, log_W)
 
         def while_cond(t, *unused_args):
-            return t < time - 1
+            return t < time
 
         def while_body(t, X_prev, log_W, log):
             X_ancestor = self.resample_X(X_prev, log_W, sample_size=n_particles)
@@ -196,21 +196,21 @@ class SMC:
             log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_t")
 
             # write to tensor arrays
-            idxs = [t, t, t + 1]
+            idxs = [t - 1, t - 1, t]
             log_contents = [X_prev, X_ancestor, log_W]
             log = [ta.write(idx, log_content) for ta, idx, log_content in zip(log, idxs, log_contents)]
 
             return (t + 1, X, log_W, log)
 
         # conduct the while loop
-        init_state = (0, X, log_W, log)
+        init_state = (1, X, log_W, log)
         t_final, X_T, log_W, log = tf.while_loop(while_cond, while_body, init_state)
 
         # write final results at t = T - 1 to tensor arrays
         X_T_resampled = self.resample_X(X_T, log_W, sample_size=n_particles)
         log_contents = [X_T, X_T_resampled, log_W]
-        log = [ta.write(t_final, log_content) if i != 2 else ta
-               for ta, log_content, i in zip(log, log_contents, range(4))]
+        log = [ta.write(t_final - 1, log_content) if i != 2 else ta
+               for ta, log_content, i in zip(log, log_contents, range(3))]
 
         # transfer tensor arrays to tensors
         log_shapes = [(time, n_particles, batch_size, Dx)] * 2 + [(time, n_particles, batch_size)]

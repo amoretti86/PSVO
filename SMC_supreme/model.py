@@ -176,7 +176,7 @@ class SSM(object):
                               sigma_min=self.q0_sigma_min,
                               name="q0_dist")
         if self.TFS and self.TFS_use_diff_q0:
-            self.TFS_q0_dist = tf_mvn(self.q0_tran,
+            self.TFS_q0_dist = tf_mvn(self.TFS_q0_tran,
                                       sigma_init=self.q0_sigma_init,
                                       sigma_min=self.q0_sigma_min,
                                       name="TFS_q0_dist")

@@ -26,38 +26,30 @@ class MLP_transformation(transformation):
     def init_FFN(self):
         with tf.variable_scope(self.name):
             self.hidden_layers = []
-            # self.dropout_layers = []
             for i, Dh in enumerate(self.Dhs):
                 self.hidden_layers.append(
                     Dense(Dh,
                           activation="relu",
-                          kernel_initializer="he_uniform",
+                          kernel_initializer="he_normal",
                           name="hidden_{}".format(i))
                 )
-                # self.dropout_layers.append(
-                #     Dropout(rate=self.dropout_rate,
-                #             name="dropout_{}".format(i))
-                # )
 
             self.mu_layer = Dense(self.Dout,
                                   activation="linear",
-                                  kernel_initializer="he_uniform",
+                                  kernel_initializer="he_normal",
                                   name="mu_layer")
 
             if self.output_cov:
                 sigma_dim = self.Dout if self.diag_cov else self.Dout**2
                 self.sigma_layer = Dense(sigma_dim,
                                          activation="linear",
-                                         kernel_initializer="he_uniform",
+                                         kernel_initializer="he_normal",
                                          bias_initializer=Constant(1.0),
                                          name="sigma_layer")
 
     def transform(self, Input):
         with tf.variable_scope(self.name):
             hidden = tf.identity(Input)
-            # for hidden_layer, dropout_layer in zip(self.hidden_layers, self.dropout_layers):
-            #     hidden = hidden_layer(hidden)
-            #     hidden = dropout_layer(hidden)
             for hidden_layer in self.hidden_layers:
                 hidden = hidden_layer(hidden)
 
