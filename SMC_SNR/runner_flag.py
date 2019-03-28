@@ -50,7 +50,7 @@ SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
 
 
 # ------------------ loss type ---------------------- #
-loss_type = 'full'
+loss_type = 'soft'
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -169,7 +169,7 @@ save_y_hat = False
 
 
 # dir to save all results
-rslt_dir_name = "SNR_0320_full_loss"
+rslt_dir_name = "SNR_0328_soft_loss"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
