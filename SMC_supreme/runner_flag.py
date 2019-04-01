@@ -62,7 +62,7 @@ g_sigma_init, g_sigma_min = 5, 1
 # Normalizing Flow (NF)
 q1_flow_layers  = 2
 f_flow_layers   = 2
-flow_sample_num = 100
+flow_sample_num = 25
 flow_type       = "MAF"
 
 # bidirectional RNN

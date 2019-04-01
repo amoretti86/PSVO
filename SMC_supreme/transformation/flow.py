@@ -19,13 +19,13 @@ class NF:
             self.sample_num = sample_num
             self.flow_type  = flow_type
             self.name       = name
-            self.bijector = self.init_bijectors(n_layers, hidden_layers)
+            self.bijector   = self.init_bijectors(n_layers, hidden_layers)
         else:
             self.event_size = flow_to_reverse.event_size
             self.sample_num = flow_to_reverse.sample_num
             self.flow_type  = flow_to_reverse.flow_type + "_reversed"
             self.name       = flow_to_reverse.name + "_reversed"
-            self.bijector  = tfb.Invert(flow_to_reverse.bijector)
+            self.bijector   = tfb.Invert(flow_to_reverse.bijector)
 
     @staticmethod
     def init_once(x, name):
@@ -61,11 +61,11 @@ class NF:
                 elif self.flow_type == "RealNVP":
                     bijectors.append(
                         tfb.RealNVP(
-                            num_masked=self.event_size,
-                            shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                            num_masked=self.event_size - 1,
+                            shift_and_log_scale_fn=tfb.real_nvp_default_template(
                                 hidden_layers=hidden_layers,
                                 activation=tf.nn.relu,
-                                name="MAF_template_{}".format(i)
+                                name="RealNVP_template_{}".format(i)
                             ),
                             name="RealNVP_{}".format(i)
                         )
@@ -73,8 +73,14 @@ class NF:
                 else:
                     raise ValueError("Unknown flow type {}".format(self.flow_type))
                 bijectors.append(tfb.Permute(permutation=list(range(1, self.event_size)) + [0]))
+                # bijectors.append(
+                #     tfb.Permute(
+                #         self.init_once(np.random.permutation(self.event_size).astype("int32"),
+                #                        name="permutation_{}".format(i))
+                #     )
+                # )
 
-            flow_bijector = tfb.Chain(list(reversed(bijectors[:-1])))
+            flow_bijector = tfb.Chain(list(reversed(bijectors[:-1])), validate_args=True, name="NF_chain")
 
             return flow_bijector
 
@@ -82,7 +88,8 @@ class NF:
         dist = tfd.TransformedDistribution(
             distribution=base_dist,
             bijector=self.bijector,
-            name=name)
+            validate_args=True,
+            name=name or self.name)
 
         return dist
 

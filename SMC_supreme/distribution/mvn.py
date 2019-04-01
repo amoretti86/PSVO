@@ -107,8 +107,6 @@ class tf_mvn(distribution):
             if isinstance(self.transformation, NF):
                 # for flow, choose the point with max prob
                 sample = mvn.sample(self.transformation.sample_num)
-                print(mvn)
-                print(mvn.batch_shape)
                 log_prob = mvn.log_prob(sample)
                 ML_idx = tf.argmax(log_prob, axis=0, output_type=tf.int32)
                 batch_shape = mvn.batch_shape

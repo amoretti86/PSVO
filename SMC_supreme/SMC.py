@@ -141,6 +141,12 @@ class SMC:
                                                                         q_f_t_feed,
                                                                         preprocessed_obs[0],
                                                                         sample_size=n_particles)
+                if self.model.flow_transition:
+                    _, _, _ = self.sample_from_2_dist(self.q1,
+                                                      self.q2,
+                                                      X,
+                                                      preprocessed_obs[0],
+                                                      sample_size=())
             else:
                 X, q_t_log_prob = q0.sample_and_log_prob(q_f_t_feed,
                                                          sample_shape=n_particles,
