@@ -138,7 +138,17 @@ class trainer:
 
         init = tf.global_variables_initializer()
 
-        self.sess = tf.Session()
+        if self.model.TFS and self.model.flow_transition:
+            from tensorflow.core.protobuf import rewriter_config_pb2
+
+            config_proto = tf.ConfigProto()
+
+            off = rewriter_config_pb2.RewriterConfig.OFF
+            config_proto.graph_options.rewrite_options.memory_optimization = off
+
+            self.sess = tf.Session(config=config_proto)
+        else:
+            self.sess = tf.Session()
 
         print("initializing variables...")
         self.sess.run(init)

@@ -142,7 +142,7 @@ class SMC:
                                                                         preprocessed_obs[0],
                                                                         sample_size=n_particles)
                 if self.model.flow_transition:
-                    _, _, _ = self.sample_from_2_dist(self.q1,
+                    _, _, _ = self.sample_from_2_dist(q1,
                                                       self.q2,
                                                       X,
                                                       preprocessed_obs[0],

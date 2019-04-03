@@ -41,7 +41,7 @@ def generate_dataset(n_train, n_test, time,
             f = dirac_delta(f_tran)
 
         if g is None:
-            g_params = np.array([[1.0, 0.0, 0.0]])
+            g_params = np.array([[1.0, 0.0]])
             g_cov = 0.01 * np.eye(Dy)
 
     elif model == "lorenz":

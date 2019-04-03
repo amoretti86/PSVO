@@ -6,39 +6,39 @@ import time
 # This is design for python 2.6
 if __name__ == "__main__":
 
-    mem = 32                        # memory in Gb
-    sh_time = 72                    # time in hour
-    task_name = "lorenz"               # name of the task
+    mem = 8                        # memory in Gb
+    sh_time = 48                    # time in hour
+    task_name = "fhn_1D"            # name of the task
     conda_path = "/ifs/scratch/c2b2/ip_lab/zw2504/miniconda3/bin/"
     env_name = "vismc"
     execution_path = "/ifs/scratch/c2b2/ip_lab/zw2504/"
     py_script_path = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/SMC_supreme/runner_flag.py"
 
-    sh_name = "run.sh"
+    sh_name = "run"
 
     params_dict = {}
 
     # --------------------- training hyperparameters --------------------- #
-    params_dict["Dx"] = [3]
+    params_dict["Dx"] = [2]
     params_dict["Dy"] = [1]
     params_dict["Di"] = [1]
-    params_dict["n_particles"] = [500]
+    params_dict["n_particles"] = [64]
 
     params_dict["batch_size"] = [1]
-    params_dict["lr"] = [1e-3]
-    params_dict["epoch"] = [300]
+    params_dict["lr"] = [5e-4]
+    params_dict["epoch"] = [600]
     params_dict["seed"] = [0]
 
     # --------------------- data set parameters --------------------- #
-    # generate synthetic data?
     params_dict["generateTrainingData"] = [False]
 
-    # if reading data from file
-    params_dict["datadir"] = ["/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"]
+    params_dict["datadir"] = ["/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/fhn/[1,0]_obs_cov_0.01/"]
+    # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/fitzhughnagumo/"
+    # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
+    # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/fhn/changing/"
     params_dict["datadict"] = ["datadict"]
     params_dict["isPython2"] = [False]
 
-    # time, n_train and n_test will be overwritten if loading data from the file
     params_dict["time"] = [200]
     params_dict["n_train"] = [200]
     params_dict["n_test"] = [40]
@@ -63,64 +63,69 @@ if __name__ == "__main__":
     params_dict["f_sigma_min"] = [1]
     params_dict["g_sigma_min"] = [1]
 
-    # bidirectional RNN
-    params_dict["y_smoother_Dhs"] = [[16, 16]]
-    params_dict["X0_smoother_Dhs"] = [[16, 16]]
+    # Normalizing Flow (NF)
+    params_dict["q1_flow_layers"] = [2]
+    params_dict["f_flow_layers"] = [2]
+    params_dict["flow_sample_num"] = [25]
+    params_dict["flow_type"] = ["MAF"]
 
-    # Self-Attention encoder
-    params_dict["num_hidden_layers"] = [4]
-    params_dict["num_heads"] = [4]
-    params_dict["hidden_size"] = [16]
-    params_dict["filter_size"] = [16]
-    params_dict["dropout_rate"] = [0.1]
+    # bidirectional RNN
+    params_dict["y_smoother_Dhs"] = [[32]]
+    params_dict["X0_smoother_Dhs"] = [[32]]
+
+    # --------------------- SSM flags --------------------- #
+    params_dict["use_bootstrap"] = [True]
+    params_dict["q_uses_true_X"] = [False]
+    params_dict["use_2_q"] = [True]
+    params_dict["use_input"] = [False]
+    params_dict["poisson_emission"] = [False]
+    params_dict["flow_transition"] = [True]
 
     # --------------------- FFN flags --------------------- #
-    params_dict["use_bootstrap"] = [True]
-    params_dict["x_0_learnable"] = [True]
-    params_dict["q_uses_true_X"] = [False]
     params_dict["use_residual"] = [False]
-    params_dict["use_2_q"] = [True]
     params_dict["output_cov"] = [False]
-    params_dict["use_input"] = [False]
+    params_dict["diag_cov"] = [False]
+    params_dict["dropout_rate"] = [0.0]
+
+    # --------------------- TFS flags --------------------- #
+    params_dict["TFS"] = [True]
+    params_dict["TFS_use_diff_q0"] = [True]
 
     # --------------------- FFBS flags --------------------- #
     params_dict["FFBS"] = [False]
-    params_dict["smoothing_perc_factor"] = [0]
-    params_dict["FFBS_to_learn"] = [False]
+    params_dict["smoothing_perc_factor"] = [1]
+    params_dict["FFBS_to_learn"] = [True]
 
     # --------------------- smoother flags --------------------- #
-    params_dict["smooth_obs"] = [True]
-    params_dict["use_RNN"] = [True]
+    params_dict["smooth_obs"] = [False]
     params_dict["X0_use_separate_RNN"] = [True]
     params_dict["use_stack_rnn"] = [True]
 
     # --------------------- training flags --------------------- #
-    # stop training early if validation set does not improve
-    params_dict["maxNumberNoImprovement"] = [200]
-    params_dict["use_stop_gradient"] = [False]
+    params_dict["early_stop_patience"] = [200]
+    params_dict["lr_reduce_patience"] = [40]
+    params_dict["lr_reduce_factor"] = [0.7]
+    params_dict["min_lr"] = [2e-5, 1e-5, 5e-6]
+    params_dict["clip_norm"] = [10.0]
 
     # --------------------- printing and data saving params --------------------- #
-    params_dict["print_freq"] = [1]
+    params_dict["print_freq"] = [5]
+    params_dict["save_trajectory"] = [True]
+    params_dict["save_y_hat"] = [True]
 
-    params_dict["store_res"] = [True]
-    params_dict["MSE_steps"] = [10]
-
-    # how many trajectories to draw in quiver plot
-    params_dict["quiver_traj_num"] = [30]
-    params_dict["lattice_shape"] = [[10, 10, 3]]  # [25, 25] or [10, 10, 3]
-
+    params_dict["MSE_steps"] = [30]
     params_dict["saving_num"] = [30]
 
+    params_dict["lattice_shape"] = [[25, 25]]  # [25, 25] or [10, 10, 5]
     params_dict["save_tensorboard"] = [False]
     params_dict["save_model"] = [False]
-    params_dict["save_freq"] = [10]
 
     # --------------------- parameters part ends --------------------- #
     param_keys = list(params_dict.keys())
     param_values = list(params_dict.values())
     param_vals_permutation = list(itertools.product(*param_values))
 
-    for param_vals in param_vals_permutation:
+    for i, param_vals in enumerate(param_vals_permutation):
         args = ""
         arg_dict = {}
         for param_name, param_val in zip(param_keys, param_vals):
@@ -132,10 +137,15 @@ if __name__ == "__main__":
         # some ad hoc way to define rslt_dir_name, feel free to delete/comment out it
         rslt_dir_name = "fhn/"
         rslt_dir_name += arg_dict["datadir"].split("/")[-2]
-        if arg_dict["smooth_obs"]:
-            rslt_dir_name += "/" + ("RNN" if arg_dict["use_RNN"] else "attention")
+
+        if arg_dict["TFS"]:
+            rslt_dir_name += "/TFS"
+        elif arg_dict["FFBS"]:
+            rslt_dir_name += "/FFBS"
+        elif arg_dict["smooth_obs"]:
+            rslt_dir_name += "/RNN"
         else:
-            rslt_dir_name += "/" + ("FFBS" if arg_dict["FFBS"] else "filtering")
+            rslt_dir_name += "/filtering"
 
         args += "--rslt_dir_name={0}".format(rslt_dir_name)
 

@@ -103,7 +103,7 @@ def main(_):
     # ============================================= dataset part ============================================= #
     # generate data from simulation
     if FLAGS.generateTrainingData:
-        model = "lorenz"
+        model = "fhn"
         hidden_train, hidden_test, obs_train, obs_test, input_train, input_test = \
             generate_dataset(FLAGS.n_train, FLAGS.n_test, FLAGS.time, model=model, Dy=FLAGS.Dy, lb=-2.5, ub=2.5)
 
