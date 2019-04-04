@@ -60,6 +60,13 @@ def main(_):
     # if the networks only output diagonal value of cov matrix
     diag_cov = FLAGS.diag_cov
 
+    # -------------------------------- NF flags --------------------------------- #
+    # whether only the shift term shall be computed
+    shift_only = FLAGS.shift_only
+
+    # whether clip the gradients of log scale term
+    log_scale_clip_gradient = FLAGS.log_scale_clip_gradient
+
     # -------------------------------- TFS flags -------------------------------- #
 
     # whether use Two Filter Smoothing
@@ -92,6 +99,8 @@ def main(_):
 
     print_freq = FLAGS.print_freq
 
+    if FLAGS.use_input:
+        FLAGS.use_residual = use_residual = False
     if FLAGS.use_2_q:
         FLAGS.q_uses_true_X = q_uses_true_X = False
     if FLAGS.flow_transition:
@@ -129,6 +138,8 @@ def main(_):
                     use_2_q=use_2_q,
                     flow_transition=flow_transition,
                     poisson_emission=poisson_emission,
+                    shift_only=shift_only,
+                    log_scale_clip_gradient=log_scale_clip_gradient,
                     TFS=TFS,
                     TFS_use_diff_q0=TFS_use_diff_q0,
                     smooth_obs=smooth_obs,

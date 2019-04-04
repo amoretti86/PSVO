@@ -105,6 +105,13 @@ diag_cov = False
 # dropout rate for FFN
 dropout_rate = 0.0
 
+# ----------------------- NF flags ------------------------- #
+# whether only the shift term shall be computed
+shift_only = True
+
+# whether clip the gradients of log scale term
+log_scale_clip_gradient = True
+
 # ----------------------- TFS flags ------------------------ #
 # whether use Two Filter Smoothing
 TFS = False
@@ -269,11 +276,19 @@ flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t
 flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
 flags.DEFINE_boolean("flow_transition", flow_transition, "whether transitions (q1 and f) use Normalizing Flow")
 flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission uses Poisson distribution")
+
 # --------------------- FFN flags --------------------- #
+
 flags.DEFINE_boolean("use_residual", use_residual, "whether f and q use residual network")
 flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
 flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
 flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for FFN")
+
+# ----------------------- NF flags ------------------------- #
+
+flags.DEFINE_boolean("shift_only", shift_only, "whether only the shift term shall be computed")
+flags.DEFINE_boolean("log_scale_clip_gradient", log_scale_clip_gradient,
+                     "whether clip the gradients of log scale term")
 
 # ----------------------- TFS flags ------------------------ #
 

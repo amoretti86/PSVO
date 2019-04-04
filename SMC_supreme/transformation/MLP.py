@@ -54,6 +54,8 @@ class MLP_transformation(transformation):
                 hidden = hidden_layer(hidden)
 
             mu = self.mu_layer(hidden)
+            if self.use_residual:
+                mu += Input
 
             cov = None
             if self.output_cov:

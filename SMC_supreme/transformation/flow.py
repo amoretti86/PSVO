@@ -13,13 +13,17 @@ class NF:
                  hidden_layers=[32],
                  sample_num=100,
                  flow_type="IAF",
+                 shift_only=False,
+                 log_scale_clip_gradient=False,
                  name="NF"):
         if flow_to_reverse is None:
-            self.event_size = event_size
-            self.sample_num = sample_num
-            self.flow_type  = flow_type
-            self.name       = name
-            self.bijector   = self.init_bijectors(n_layers, hidden_layers)
+            self.event_size              = event_size
+            self.sample_num              = sample_num
+            self.flow_type               = flow_type
+            self.shift_only              = shift_only
+            self.log_scale_clip_gradient = log_scale_clip_gradient
+            self.name                    = name
+            self.bijector                = self.init_bijectors(n_layers, hidden_layers)
         else:
             self.event_size = flow_to_reverse.event_size
             self.sample_num = flow_to_reverse.sample_num
@@ -41,6 +45,8 @@ class NF:
                             shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
                                 hidden_layers=hidden_layers,
                                 activation=tf.nn.relu,
+                                shift_only=self.shift_only,
+                                log_scale_clip_gradient=self.log_scale_clip_gradient,
                                 name="MAF_template_{}".format(i)
                             ),
                             name="MAF_{}".format(i)
@@ -53,6 +59,8 @@ class NF:
                                 shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
                                     hidden_layers=hidden_layers,
                                     activation=tf.nn.relu,
+                                    shift_only=self.shift_only,
+                                    log_scale_clip_gradient=self.log_scale_clip_gradient,
                                     name="MAF_template_{}".format(i))
                             ),
                             name="IAF_{}".format(i)
@@ -65,6 +73,7 @@ class NF:
                             shift_and_log_scale_fn=tfb.real_nvp_default_template(
                                 hidden_layers=hidden_layers,
                                 activation=tf.nn.relu,
+                                shift_only=self.shift_only,
                                 name="RealNVP_template_{}".format(i)
                             ),
                             name="RealNVP_{}".format(i)

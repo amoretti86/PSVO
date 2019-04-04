@@ -21,6 +21,8 @@ class SSM(object):
                  use_bootstrap=True,
                  use_2_q=True,
                  flow_transition=False,
+                 shift_only=False,
+                 log_scale_clip_gradient=False,
                  poisson_emission=False,
                  TFS=False,
                  TFS_use_diff_q0=False,
@@ -59,18 +61,20 @@ class SSM(object):
         self.y_smoother_Dhs  = [int(x) for x in FLAGS.y_smoother_Dhs.split(",")]
         self.X0_smoother_Dhs = [int(x) for x in FLAGS.X0_smoother_Dhs.split(",")]
 
-        self.use_residual        = use_residual
-        self.output_cov          = output_cov
-        self.diag_cov            = diag_cov
-        self.use_bootstrap       = use_bootstrap
-        self.use_2_q             = use_2_q
-        self.flow_transition     = flow_transition
-        self.poisson_emission    = poisson_emission
-        self.TFS                 = TFS
-        self.TFS_use_diff_q0     = TFS_use_diff_q0
-        self.smooth_obs          = smooth_obs
-        self.X0_use_separate_RNN = X0_use_separate_RNN
-        self.use_stack_rnn       = use_stack_rnn
+        self.use_residual            = use_residual
+        self.output_cov              = output_cov
+        self.diag_cov                = diag_cov
+        self.use_bootstrap           = use_bootstrap
+        self.use_2_q                 = use_2_q
+        self.flow_transition         = flow_transition
+        self.shift_only              = shift_only
+        self.log_scale_clip_gradient = log_scale_clip_gradient
+        self.poisson_emission        = poisson_emission
+        self.TFS                     = TFS
+        self.TFS_use_diff_q0         = TFS_use_diff_q0
+        self.smooth_obs              = smooth_obs
+        self.X0_use_separate_RNN     = X0_use_separate_RNN
+        self.use_stack_rnn           = use_stack_rnn
 
         self.init_placeholder()
         self.init_trans()
@@ -104,6 +108,8 @@ class SSM(object):
                               hidden_layers=self.q1_layers,
                               sample_num=self.flow_sample_num,
                               flow_type=self.flow_type,
+                              shift_only=self.shift_only,
+                              log_scale_clip_gradient=self.log_scale_clip_gradient,
                               name="q1_tran")
         else:
             self.q1_tran = MLP_transformation(self.q1_layers, self.Dx,
@@ -143,6 +149,8 @@ class SSM(object):
                                  hidden_layers=self.f_layers,
                                  sample_num=self.flow_sample_num,
                                  flow_type=self.flow_type,
+                                 shift_only=self.shift_only,
+                                 log_scale_clip_gradient=self.log_scale_clip_gradient,
                                  name="f_tran")
             else:
                 self.f_tran = MLP_transformation(self.f_layers, self.Dx,
