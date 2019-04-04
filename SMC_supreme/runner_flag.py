@@ -3,7 +3,7 @@ import tensorflow_probability as tfp
 import os
 import numpy as np
 
-from runner import main
+from SMC_supreme.runner import main 
 
 np.warnings.filterwarnings('ignore')
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # to avoid lots of log about the device

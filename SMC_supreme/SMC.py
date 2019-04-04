@@ -14,7 +14,11 @@ class SMC:
                  FFBS_to_learn=False,
                  TFS=False,
                  name="log_ZSMC"):
-
+        """
+        Arguments
+            model (SSM) : A state space model. In particular SMC gets all the
+                    distributions from it
+        """        
         self.model = model
 
         # SSM distributions

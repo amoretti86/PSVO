@@ -5,19 +5,19 @@ import pickle
 import os
 
 # import from files
-from transformation.fhn import fhn_transformation, tf_fhn_transformation
-from transformation.linear import linear_transformation, tf_linear_transformation
-from transformation.lorenz import lorenz_transformation, tf_lorenz_transformation
-from transformation.MLP import MLP_transformation
+from SMC_supreme.transformation.fhn import fhn_transformation, tf_fhn_transformation
+from SMC_supreme.transformation.linear import linear_transformation, tf_linear_transformation
+from SMC_supreme.transformation.lorenz import lorenz_transformation, tf_lorenz_transformation
+from SMC_supreme.transformation.MLP import MLP_transformation
 
-from distribution.dirac_delta import dirac_delta
-from distribution.mvn import mvn, tf_mvn
-from distribution.poisson import poisson, tf_poisson
+from SMC_supreme.distribution.dirac_delta import dirac_delta
+from SMC_supreme.distribution.mvn import mvn, tf_mvn
+from SMC_supreme.distribution.poisson import poisson, tf_poisson
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from rslts_saving.rslts_saving import *
+from SMC_supreme.rslts_saving.rslts_saving import *
 
 
 def generate_hidden_obs(time, Dx, Dy, x_0, f, g, keep_first=True):

@@ -10,16 +10,16 @@ import os
 import pdb
 
 # import from files
-from model import SSM
-from SMC import SMC
-from trainer import trainer
+from SMC_supreme.model import SSM
+from SMC_supreme.SMC import SMC
+from SMC_supreme.trainer import trainer
 
-from rslts_saving.rslts_saving import *
-from rslts_saving.fhn_rslts_saving import *
-from rslts_saving.lorenz_rslts_saving import *
+from SMC_supreme.rslts_saving.rslts_saving import *
+from SMC_supreme.rslts_saving.fhn_rslts_saving import *
+from SMC_supreme.rslts_saving.lorenz_rslts_saving import *
 
-from utils.data_generator import generate_dataset
-from utils.data_loader import load_data
+from SMC_supreme.utils.data_generator import generate_dataset
+from SMC_supreme.utils.data_loader import load_data
 
 
 def main(_):
@@ -200,3 +200,4 @@ def main(_):
     plot_MSEs(RLT_DIR, history["MSE_trains"], history["MSE_tests"], print_freq)
     plot_R_square(RLT_DIR, history["R_square_trains"], history["R_square_tests"], print_freq)
     plot_log_ZSMC(RLT_DIR, history["log_ZSMC_trains"], history["log_ZSMC_tests"], print_freq)
+        

@@ -2,8 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from transformation.flow import NF
-from distribution.base import distribution
+from SMC_supreme.transformation.flow import NF
+from SMC_supreme.distribution.base import distribution
 
 
 # np ver, just used in sampler, so no need to implement log_prob
@@ -26,6 +26,10 @@ class tf_mvn(distribution):
     def __init__(self, transformation,
                  sigma_init=5, sigma_min=1,
                  name='tf_mvn'):
+        """
+        Args:
+            transformation : 
+        """
         self.transformation = transformation
         self.sigma_init = sigma_init
         self.sigma_min = sigma_min
@@ -45,6 +49,7 @@ class tf_mvn(distribution):
             dist = tfd.MultivariateNormalDiag(Input, sigma,
                                               validate_args=True,
                                               allow_nan_stats=False)
+
             dist = self.transformation.transform(dist)
             return dist
 

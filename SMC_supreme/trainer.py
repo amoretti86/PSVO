@@ -8,10 +8,13 @@ import pickle
 import time
 import pdb
 
+import matplotlib as mpl
+mpl.use('TkAgg')
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from rslts_saving.rslts_saving import plot_R_square_epoch
+from SMC_supreme.rslts_saving.rslts_saving import plot_R_square_epoch
 
 
 class StopTraining(Exception):
@@ -19,6 +22,7 @@ class StopTraining(Exception):
 
 
 class trainer:
+
     def __init__(self, model, SMC, FLAGS):
         self.model = model
         self.SMC = SMC
@@ -117,9 +121,9 @@ class trainer:
               input_train, input_test,
               print_freq):
 
-        self.obs_train,    self.obs_test    = obs_train,    obs_test
+        self.obs_train, self.obs_test = obs_train, obs_test
         self.hidden_train, self.hidden_test = hidden_train, hidden_test
-        self.input_train,  self.input_test  = input_train,  input_test
+        self.input_train, self.input_test = input_train, input_test
 
         self.log_ZSMC, log = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input)
 
@@ -358,9 +362,9 @@ class trainer:
         batch_size = self.batch_size
         n_batches = hidden_set.shape[0]
 
-        combined_MSE_ks = np.zeros((n_steps + 1))             # combined MSE_ks across all batches
-        combined_y_means = np.zeros((n_steps + 1, Dy))        # combined y_means across all batches
-        combined_y_vars = np.zeros((n_steps + 1, Dy))         # combined y_vars across all batches
+        combined_MSE_ks = np.zeros((n_steps + 1))  # combined MSE_ks across all batches
+        combined_y_means = np.zeros((n_steps + 1, Dy))  # combined y_means across all batches
+        combined_y_vars = np.zeros((n_steps + 1, Dy))  # combined y_vars across all batches
 
         for i in range(0, n_batches, batch_size):
 
@@ -380,18 +384,18 @@ class trainer:
             # update combined y_means and combined y_vars according to:
             # https://stats.stackexchange.com/questions/55999/is-it-possible-to-find-the-combined-standard-deviation
             Tmks = np.arange(self.time - n_steps, self.time + 1, 1)  # [time - n_steps, time - n_steps + 1, ..., time]
-            Tmks = Tmks[-1:None:-1]                                  # [time, ..., time - n_steps + 1, time - n_steps]
-            TmkxDy = np.tile(Tmks, (Dy, 1)).T                        # (n_steps + 1, Dy)
+            Tmks = Tmks[-1:None:-1]  # [time, ..., time - n_steps + 1, time - n_steps]
+            TmkxDy = np.tile(Tmks, (Dy, 1)).T  # (n_steps + 1, Dy)
 
             # for k = 0, ..., n_steps,
             # its n1 = (time - k) * i, n2 = (time - k) * batch_size respectively
-            n1 = TmkxDy * i                                     # (n_steps + 1, Dy)
-            n2 = TmkxDy * batch_size                            # (n_steps + 1, Dy)
+            n1 = TmkxDy * i  # (n_steps + 1, Dy)
+            n2 = TmkxDy * batch_size  # (n_steps + 1, Dy)
 
             combined_y_means_new = (n1 * combined_y_means + n2 * batch_y_means) / (n1 + n2)
             combined_y_vars = combined_y_vars + batch_y_vars + \
-                n1 * (combined_y_means - combined_y_means_new)**2 + \
-                n2 * (batch_y_means - combined_y_means_new)**2
+                n1 * (combined_y_means - combined_y_means_new) ** 2 + \
+                n2 * (batch_y_means - combined_y_means_new) ** 2
 
             combined_y_means = combined_y_means_new
 
