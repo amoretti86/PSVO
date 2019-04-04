@@ -14,21 +14,12 @@ class SSM(object):
     keeps q, f, g and obs smoother
     """
 
-    def __init__(self, FLAGS,
-                 use_residual=False,
-                 output_cov=False,
-                 diag_cov=False,
-                 use_bootstrap=True,
-                 use_2_q=True,
-                 flow_transition=False,
-                 poisson_emission=False,
-                 TFS=False,
-                 TFS_use_diff_q0=False,
-                 smooth_obs=True,
-                 X0_use_separate_RNN=True,
-                 use_stack_rnn=False):
-        # leave the bool flags so that one can know which flags affect which classes
-
+    def __init__(self, FLAGS):
+        """
+        Initialize the SSM
+        
+        :param FLAGS:
+        """
         self.Dx = FLAGS.Dx
         self.Dy = FLAGS.Dy
         self.Di = FLAGS.Di
@@ -59,18 +50,19 @@ class SSM(object):
         self.y_smoother_Dhs = [int(x) for x in FLAGS.y_smoother_Dhs.split(",")]
         self.X0_smoother_Dhs = [int(x) for x in FLAGS.X0_smoother_Dhs.split(",")]
 
-        self.use_residual = use_residual
-        self.output_cov = output_cov
-        self.diag_cov = diag_cov
-        self.use_bootstrap = use_bootstrap
-        self.use_2_q = use_2_q
-        self.flow_transition = flow_transition
-        self.poisson_emission = poisson_emission
-        self.TFS = TFS
-        self.TFS_use_diff_q0 = TFS_use_diff_q0
-        self.smooth_obs = smooth_obs
-        self.X0_use_separate_RNN = X0_use_separate_RNN
-        self.use_stack_rnn = use_stack_rnn
+        # bool flags
+        self.use_residual = FLAGS.use_residual
+        self.output_cov = FLAGS.output_cov
+        self.diag_cov = FLAGS.diag_cov
+        self.use_bootstrap = FLAGS.use_bootstrap
+        self.use_2_q = FLAGS.use_2_q
+        self.flow_transition = FLAGS.flow_transition
+        self.poisson_emission = FLAGS.poisson_emission
+        self.TFS = FLAGS.TFS
+        self.TFS_use_diff_q0 = FLAGS.TFS_use_diff_q0
+        self.smooth_obs = FLAGS.smooth_obs
+        self.X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
+        self.use_stack_rnn = FLAGS.use_stack_rnn
 
         self.init_placeholder()
         self.init_trans()

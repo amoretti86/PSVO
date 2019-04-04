@@ -1,12 +1,12 @@
 import numpy as np
 
-from transformation.fhn import fhn_transformation
-from transformation.linear import linear_transformation
-from transformation.lorenz import lorenz_transformation
+from SMC_supreme.transformation.fhn import fhn_transformation
+from SMC_supreme.transformation.linear import linear_transformation
+from SMC_supreme.transformation.lorenz import lorenz_transformation
 
-from distribution.dirac_delta import dirac_delta
-from distribution.mvn import mvn
-from distribution.poisson import poisson
+from SMC_supreme.distribution.dirac_delta import dirac_delta
+from SMC_supreme.distribution.mvn import mvn
+from SMC_supreme.distribution.poisson import poisson
 
 
 def generate_hidden_obs(time, Dx, Dy, x_0, f, g):

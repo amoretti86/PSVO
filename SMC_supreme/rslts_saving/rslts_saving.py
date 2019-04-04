@@ -8,7 +8,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from rslts_saving.datetools import addDateTime
+from SMC_supreme.rslts_saving.datetools import addDateTime
 
 
 def create_RLT_DIR(Experiment_params):
@@ -48,6 +48,7 @@ def save_experiment_param(RLT_DIR, FLAGS):
 
 
 class NumpyEncoder(json.JSONEncoder):
+
     # Special json encoder for numpy types
     def default(self, obj):
         if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,

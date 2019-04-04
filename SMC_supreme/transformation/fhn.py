@@ -3,9 +3,11 @@ from scipy.integrate import odeint
 import tensorflow as tf
 from tensorflow.contrib.integrate import odeint as tf_odeint
 
-from transformation.base import transformation
+from SMC_supreme.transformation.base import transformation
+
 
 class fhn_transformation(transformation):
+
 	def transform(self, X_prev):
 		"""
 		Integrates the fhn ODEs
@@ -27,16 +29,18 @@ class fhn_transformation(transformation):
 
 		def fhn_equation(X, t, a, b, c, I):
 			V, w = X
-			dVdt = V-V**3/3 - w + I
-			dwdt = a*(b*V - c*w)
+			dVdt = V - V ** 3 / 3 - w + I
+			dwdt = a * (b * V - c * w)
 			return [dVdt, dwdt]
 
-		t = np.arange(0, 2*dt, dt)
-		X = odeint(fhn_equation, X_prev, t, args = (a, b, c, I))[1, :]
+		t = np.arange(0, 2 * dt, dt)
+		X = odeint(fhn_equation, X_prev, t, args=(a, b, c, I))[1, :]
 
 		return X
 
+
 class tf_fhn_transformation(transformation):
+
 	def transform(self, X_prev):
 		"""
 		X_prev.shape = [B0, B1, ..., Bn, Dx]
@@ -44,15 +48,16 @@ class tf_fhn_transformation(transformation):
 		a, b, c, I, dt = self.params
 
 		def fhn_equation(X, t):
-			V, w = tf.unstack(X, axis = -1)
-			dVdt = V-V**3/3 - w + I
-			dwdt = a*(b*V - c*w)
-			return tf.stack([dVdt, dwdt], axis = -1)
+			V, w = tf.unstack(X, axis=-1)
+			dVdt = V - V ** 3 / 3 - w + I
+			dwdt = a * (b * V - c * w)
+			return tf.stack([dVdt, dwdt], axis=-1)
 
-		t = np.arange(0.0, 2*dt, dt)
-		X = tf.unstack(tf_odeint(fhn_equation, X_prev, t, name = "loc"), axis = 0)[1]
+		t = np.arange(0.0, 2 * dt, dt)
+		X = tf.unstack(tf_odeint(fhn_equation, X_prev, t, name="loc"), axis=0)[1]
 
 		return X
+
 
 # test code
 if __name__ == "__main__":
@@ -66,9 +71,9 @@ if __name__ == "__main__":
 	fhn = fhn_transformation(fhn_params)
 
 	X = np.zeros((T, Dx))
-	X[0] = np.random.uniform(low = 0, high = 1, size = Dx)
-	for t in range(1,T):
-		X[t] = fhn.transform(X[t-1])
+	X[0] = np.random.uniform(low=0, high=1, size=Dx)
+	for t in range(1, T):
+		X[t] = fhn.transform(X[t - 1])
 
 	plt.figure()
 	plt.plot(X[:, 0], X[:, 1])
@@ -78,7 +83,7 @@ if __name__ == "__main__":
 	tf_fhn = tf_fhn_transformation(fhn_params)
 
 	Xs = []
-	X = tf.constant(np.random.uniform(low = -1, high = 1, size = (batch_size, Dx)), dtype = tf.float32)
+	X = tf.constant(np.random.uniform(low=-1, high=1, size=(batch_size, Dx)), dtype=tf.float32)
 	for t in range(1, T):
 		X = tf_fhn.transform(X)
 		Xs.append(X)
@@ -86,7 +91,7 @@ if __name__ == "__main__":
 	init = tf.global_variables_initializer()
 	sess = tf.InteractiveSession()
 	sess.run(init)
-	Xs = tf.stack(Xs, axis = 1).eval()
+	Xs = tf.stack(Xs, axis=1).eval()
 
 	plt.figure()
 	for i in range(batch_size):

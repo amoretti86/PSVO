@@ -2,16 +2,41 @@ import tensorflow as tf
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.initializers import Constant
 
-from transformation.base import transformation
+from SMC_supreme.transformation.base import transformation
 
 
 class MLP_transformation(transformation):
-    def __init__(self, Dhs, Dout,
+    """
+    """
+
+    def __init__(self,
+                 Dhs,
+                 Dout,
                  use_residual=False,
                  output_cov=False,
                  diag_cov=False,
                  dropout_rate=0.2,
                  name="MLP_transformation"):
+        """
+        Initialize an MLP_transformation instance
+
+        Args:
+            Dhs : list of int
+                Hidden layer dimensions
+            
+            Dout : int
+                Dimension of the output layer of the MLP
+            
+            use_residual : bool, optional
+                
+            output_cov : bool, optional
+            
+            diag_cov : bool, optional
+        
+            dropout_rate : float, optional
+            
+            name : str, optional
+        """
         self.Dhs = Dhs
         self.Dout = Dout
 
@@ -31,8 +56,7 @@ class MLP_transformation(transformation):
                     Dense(Dh,
                           activation="relu",
                           kernel_initializer="he_normal",
-                          name="hidden_{}".format(i))
-                )
+                          name="hidden_{}".format(i)))
 
             self.mu_layer = Dense(self.Dout,
                                   activation="linear",
@@ -40,7 +64,7 @@ class MLP_transformation(transformation):
                                   name="mu_layer")
 
             if self.output_cov:
-                sigma_dim = self.Dout if self.diag_cov else self.Dout**2
+                sigma_dim = self.Dout if self.diag_cov else self.Dout ** 2
                 self.sigma_layer = Dense(sigma_dim,
                                          activation="linear",
                                          kernel_initializer="he_normal",
@@ -48,6 +72,10 @@ class MLP_transformation(transformation):
                                          name="sigma_layer")
 
     def transform(self, Input):
+        """
+        
+        :param Input:
+        """
         with tf.variable_scope(self.name):
             hidden = tf.identity(Input)
             for hidden_layer in self.hidden_layers:

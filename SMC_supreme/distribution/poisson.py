@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from distribution.base import distribution
+from SMC_supreme.distribution.base import distribution
 
 
 class poisson(distribution):
