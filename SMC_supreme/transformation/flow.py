@@ -1,11 +1,10 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Dense
 from tensorflow_probability import distributions as tfd
 from tensorflow_probability import bijectors as tfb
 
 
 class NF:
+
     def __init__(self,
                  n_layers,
                  event_size,
@@ -14,18 +13,38 @@ class NF:
                  sample_num=100,
                  flow_type="IAF",
                  name="NF"):
+        """
+        
+        :param n_layers:
+        :param event_size:
+        :param flow_to_reverse:
+        :param hidden_layers:
+        :param sample_num:
+        :param flow_type:
+        :param name:
+        """
         if flow_to_reverse is None:
             self.event_size = event_size
             self.sample_num = sample_num
-            self.flow_type  = flow_type
-            self.name       = name
+            self.flow_type = flow_type
+            self.name = name
             self.bijector = self.init_bijectors(n_layers, hidden_layers)
         else:
             self.event_size = flow_to_reverse.event_size
             self.sample_num = flow_to_reverse.sample_num
-            self.flow_type  = flow_to_reverse.flow_type + "_reversed"
-            self.name       = flow_to_reverse.name + "_reversed"
-            self.bijector  = tfb.Invert(flow_to_reverse.bijector)
+            self.flow_type = flow_to_reverse.flow_type + "_reversed"
+            self.name = flow_to_reverse.name + "_reversed"
+            self.bijector = tfb.Invert(flow_to_reverse.bijector)
+
+    @classmethod
+    def from_flow_to_reverse(cls, flow_to_reverse):
+        """
+        """
+        self = cls(None,
+                   flow_to_reverse.event_size,
+                   hidden_layers=None,
+                   sample_num=flow_to_reverse.sample_num)
+        return
 
     @staticmethod
     def init_once(x, name):
@@ -85,6 +104,7 @@ class NF:
             name=name)
 
         return dist
+
 
 if __name__ == "__main__":
     Dx = 2

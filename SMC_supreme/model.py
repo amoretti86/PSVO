@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense  # pylint: disable=import-error
 
 from SMC_supreme.transformation.flow import NF
 from SMC_supreme.transformation.MLP import MLP_transformation

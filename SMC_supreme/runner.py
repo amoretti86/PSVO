@@ -23,7 +23,7 @@ from SMC_supreme.utils.data_loader import load_data
 
 
 def main(_):
-    FLAGS = tf.app.flags.FLAGS
+    FLAGS = tf.app.flags.FLAGS  # @UndefinedVariable
 
     # ========================================= parameter part begins ========================================== #
     Dx = FLAGS.Dx
@@ -114,26 +114,27 @@ def main(_):
         FLAGS.n_train, FLAGS.n_test, FLAGS.time = obs_train.shape[0], obs_test.shape[0], obs_test.shape[1]
 
     # clip saving_num to avoid it > n_train or n_test
-    FLAGS.MSE_steps  = min(FLAGS.MSE_steps, FLAGS.time - 1)
+    FLAGS.MSE_steps = min(FLAGS.MSE_steps, FLAGS.time - 1)
     FLAGS.saving_num = min(FLAGS.saving_num, FLAGS.n_train, FLAGS.n_test)
     saving_num = FLAGS.saving_num
 
     print("finished preparing dataset")
 
     # ============================================== model part ============================================== #
-    SSM_model = SSM(FLAGS,
-                    use_residual=use_residual,
-                    output_cov=output_cov,
-                    diag_cov=diag_cov,
-                    use_bootstrap=use_bootstrap,
-                    use_2_q=use_2_q,
-                    flow_transition=flow_transition,
-                    poisson_emission=poisson_emission,
-                    TFS=TFS,
-                    TFS_use_diff_q0=TFS_use_diff_q0,
-                    smooth_obs=smooth_obs,
-                    X0_use_separate_RNN=X0_use_separate_RNN,
-                    use_stack_rnn=use_stack_rnn)
+    SSM_model = SSM(FLAGS)
+#     SSM_model = SSM(FLAGS,
+#                     use_residual=use_residual,
+#                     output_cov=output_cov,
+#                     diag_cov=diag_cov,
+#                     use_bootstrap=use_bootstrap,
+#                     use_2_q=use_2_q,
+#                     flow_transition=flow_transition,
+#                     poisson_emission=poisson_emission,
+#                     TFS=TFS,
+#                     TFS_use_diff_q0=TFS_use_diff_q0,
+#                     smooth_obs=smooth_obs,
+#                     X0_use_separate_RNN=X0_use_separate_RNN,
+#                     use_stack_rnn=use_stack_rnn)
 
     # SMC class to calculate loss
     SMC_train = SMC(SSM_model,
@@ -200,4 +201,4 @@ def main(_):
     plot_MSEs(RLT_DIR, history["MSE_trains"], history["MSE_tests"], print_freq)
     plot_R_square(RLT_DIR, history["R_square_trains"], history["R_square_tests"], print_freq)
     plot_log_ZSMC(RLT_DIR, history["log_ZSMC_trains"], history["log_ZSMC_tests"], print_freq)
-        
+

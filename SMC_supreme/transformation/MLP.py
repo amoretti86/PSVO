@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense  # pylint: disable=import-error
 from tensorflow.keras.initializers import Constant
 
 from SMC_supreme.transformation.base import transformation
@@ -96,6 +96,8 @@ class MLP_transformation(transformation):
         return mu, cov
 
     def get_variables(self):
+        """
+        """
         res_dict = {}
 
         layers = self.hidden_layers + [self.mu_layer]

@@ -18,9 +18,9 @@ import tensorflow as tf
 
 from SMC_supreme.transformation.MLP import MLP_transformation
 
-# NUM_TESTS : 3
+# NUM_TESTS : 4
 RUN_FROM = 0
-RUN_TO = 3
+RUN_TO = 4
 TESTS_TO_RUN = list(range(RUN_FROM, RUN_TO))
 
 
@@ -75,6 +75,7 @@ class TestMLP(tf.test.TestCase):
         self.assertEqual(cov.shape, (1, 3, 3),
                          "MLP transform dimension error")
 
+    @unittest.skipIf(3 not in TESTS_TO_RUN, "Skipping")
     def test_MLP_get_variables(self):
         """
         """

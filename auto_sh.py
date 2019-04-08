@@ -1,20 +1,46 @@
+import argparse
 import subprocess
 import itertools
 import os
+import sys
 import time
 
-# This is design for python 2.6
-if __name__ == "__main__":
+# SBATCH/QSUB arguments
+MEM = 32  # memory in Gb
+SH_TIME = 168  # time in hour
+TASK_NAME = "lorenz"  # name of the task
+ENV_NAME = "vismc"
+RSLT_DIR = "fhn"
+CLUSTER_COM = 'sbatch'
+USER_EMAIL = "dh2832@columbia.edu"
 
-    mem = 32                        # memory in Gb
-    sh_time = 72                    # time in hour
-    task_name = "lorenz"               # name of the task
-    conda_path = "/ifs/scratch/c2b2/ip_lab/zw2504/miniconda3/bin/"
-    env_name = "vismc"
-    execution_path = "/ifs/scratch/c2b2/ip_lab/zw2504/"
-    py_script_path = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/SMC_supreme/runner_flag.py"
+# SBATCH arguments
+ACCOUNT = 'stats'
+NUM_CPU_CORES = 1
 
-    sh_name = "run.sh"
+parser = argparse.ArgumentParser(description='Process arguments for sbatch')
+parser.add_argument('--mem', default=MEM, metavar='M', type=int, nargs='+',
+                    help='an integer for the accumulator')
+parser.add_argument('--sum', dest='accumulate', action='store_const',
+                    const=sum, default=max,
+                    help='sum the integers (default: find the max)')
+
+args = parser.parse_args()
+
+lib_path = '/'.join(os.getcwd().split('/'))
+sys.path.append(lib_path)
+
+
+def run_batch():
+    """
+    """
+#     execution_path = "/ifs/scratch/c2b2/ip_lab/zw2504/"
+#     execution_path = lib_path + "/ifs/scratch/c2b2/ip_lab/zw2504/"
+
+#     conda_path = "/ifs/scratch/c2b2/ip_lab/zw2504/miniconda3/bin/"
+#     py_script_path = "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/SMC_supreme/runner_flag.py"
+    py_script_path = lib_path + "/SMC_supreme/runner_flag.py"
+    shell_script_name = "run.sh"
 
     params_dict = {}
 
@@ -115,11 +141,15 @@ if __name__ == "__main__":
     params_dict["save_model"] = [False]
     params_dict["save_freq"] = [10]
 
-    # --------------------- parameters part ends --------------------- #
+    # --------------------- parameters part ends --------------------- # DANI:
+    # This is dangerous, I think it only works because python 3.5+ preserves the
+    # dict ordering. This is not the case for previous pythons!
     param_keys = list(params_dict.keys())
     param_values = list(params_dict.values())
+    print("param_values", param_values)
     param_vals_permutation = list(itertools.product(*param_values))
 
+    print("param_vals_permutation", param_vals_permutation)
     for param_vals in param_vals_permutation:
         args = ""
         arg_dict = {}
@@ -130,7 +160,7 @@ if __name__ == "__main__":
             args += "--{0}={1} ".format(param_name, param_val)
 
         # some ad hoc way to define rslt_dir_name, feel free to delete/comment out it
-        rslt_dir_name = "fhn/"
+        rslt_dir_name = RSLT_DIR
         rslt_dir_name += arg_dict["datadir"].split("/")[-2]
         if arg_dict["smooth_obs"]:
             rslt_dir_name += "/" + ("RNN" if arg_dict["use_RNN"] else "attention")
@@ -140,16 +170,42 @@ if __name__ == "__main__":
         args += "--rslt_dir_name={0}".format(rslt_dir_name)
 
         # create shell script
-        with open(sh_name, "w") as f:
-            f.write("#!/bin/bash\n")
-            f.write("#$ -l mem={0}G,time={1}:: -S /bin/bash -N {2} -j y -cwd\n".format(mem, sh_time, task_name))
-            f.write("cd {0}\n".format(conda_path))
-            f.write("source activate {0}\n".format(env_name))
-            f.write("cd {0}\n".format(execution_path))
-            f.write("python {0} {1}\n".format(py_script_path, args))
-            f.write("cd {0}\n".format(conda_path))
-            f.write("source deactivate")
+        if CLUSTER_COM == 'qsub':
+            with open(shell_script_name, "w") as f:
+                f.write("#!/bin/bash\n")
+                f.write("#$ -l MEM={0}G,time={1}:: -S /bin/bash "
+                        "-N {2} -j y -cwd\n".format(MEM, SH_TIME, TASK_NAME))
+    #             f.write("cd {0}\n".format(conda_path)) # conda binaries assumed to be on $PATH
+    #             f.write("source activate {0}\n".format(ENV_NAME))
+    #             f.write("cd {0}\n".format(execution_path))
+                f.write("python {0} {1}\n".format(py_script_path, args))
+    #             f.write("cd {0}\n".format(conda_path))
+    #             f.write("source deactivate")
+        elif CLUSTER_COM == 'sbatch':
+            with open(shell_script_name, "w") as f:
+                f.write("#!/bin/sh\n\n")
+                f.write("#SBATCH --account={0}\n".format(ACCOUNT))
+                f.write("#SBATCH --job-name={0}\n".format(TASK_NAME))
+                f.write("#SBATCH -c {}\n".format(NUM_CPU_CORES))
+                f.write("#SBATCH --time={0}\n".format(str(SH_TIME) + ":00:00"))
+                f.write("#SBATCH --mem-per-cpu={0}gb\n".format(MEM))
+                f.write("#SBATCH --workdir={0}\n".format(lib_path))
+                f.write("#SBATCH --error={0}/eo/e/e_%j.out\n".format(RSLT_DIR))
+                f.write("#SBATCH --output={0}/eo/o/o_%j.out\n".format(RSLT_DIR))
+                f.write("#SBATCH --mail_type=BEGIN\n")
+                f.write("#SBATCH --mail_type=END\n")
+                f.write("#SBATCH --mail_type=FAIL\n")
+                f.write("#SBATCH --mail-user={0}\n".format(USER_EMAIL))
+
+                f.write("\npython {0} {1}\n".format(py_script_path, args))
+        else:
+            raise ValueError("Cluster command {0} not recognized [allowed ones = "
+                             'qsub, sbatch'"]".format(CLUSTER_COM))
 
         # execute the shell script
-        subprocess.Popen("qsub {0}".format(sh_name), shell=True)
-        time.sleep(2)
+#         subprocess.Popen("qsub {0}".format(shell_script_name), shell=True)
+#         time.sleep(2)
+
+
+run_batch()
+
