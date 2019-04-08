@@ -4,6 +4,7 @@ import itertools
 import os
 import sys
 import time
+from datetools import addDateTime
 
 # SBATCH/QSUB arguments
 MEM = 32  # memory in Gb
@@ -181,6 +182,9 @@ def run_batch():
     #             f.write("source deactivate")
         elif CLUSTER_COM == 'sbatch':
             with open(shell_script_name, "w") as f:
+                rslt_dir_path = lib_path + '/rslts/' + RSLT_DIR + '/' + addDateTime()
+                if not os.path.exists(rslt_dir_path):
+                    os.makedirs(rslt_dir_path)
                 f.write("#!/bin/sh\n\n")
                 f.write("#SBATCH --account={0}\n".format(ACCOUNT))
                 f.write("#SBATCH --job-name={0}\n".format(TASK_NAME))
@@ -188,8 +192,8 @@ def run_batch():
                 f.write("#SBATCH --time={0}\n".format(str(SH_TIME) + ":00:00"))
                 f.write("#SBATCH --mem-per-cpu={0}gb\n".format(MEM))
                 f.write("#SBATCH --workdir={0}\n".format(lib_path))
-                f.write("#SBATCH --error={0}/eo/e/e_%j.out\n".format(RSLT_DIR))
-                f.write("#SBATCH --output={0}/eo/o/o_%j.out\n".format(RSLT_DIR))
+                f.write("#SBATCH --error={0}/e_%j.out\n".format(rslt_dir_path))
+                f.write("#SBATCH --output={0}/o_%j.out\n".format(rslt_dir_path))
                 f.write("#SBATCH --mail-type=BEGIN\n")
                 f.write("#SBATCH --mail-type=END\n")
                 f.write("#SBATCH --mail-type=FAIL\n")
