@@ -146,10 +146,8 @@ def run_batch():
     # dict ordering. This is not the case for previous pythons!
     param_keys = list(params_dict.keys())
     param_values = list(params_dict.values())
-    print("param_values", param_values)
     param_vals_permutation = list(itertools.product(*param_values))
 
-    print("param_vals_permutation", param_vals_permutation)
     for param_vals in param_vals_permutation:
         args = ""
         arg_dict = {}
@@ -192,9 +190,9 @@ def run_batch():
                 f.write("#SBATCH --workdir={0}\n".format(lib_path))
                 f.write("#SBATCH --error={0}/eo/e/e_%j.out\n".format(RSLT_DIR))
                 f.write("#SBATCH --output={0}/eo/o/o_%j.out\n".format(RSLT_DIR))
-                f.write("#SBATCH --mail_type=BEGIN\n")
-                f.write("#SBATCH --mail_type=END\n")
-                f.write("#SBATCH --mail_type=FAIL\n")
+                f.write("#SBATCH --mail-type=BEGIN\n")
+                f.write("#SBATCH --mail-type=END\n")
+                f.write("#SBATCH --mail-type=FAIL\n")
                 f.write("#SBATCH --mail-user={0}\n".format(USER_EMAIL))
 
                 f.write("\npython {0} {1}\n".format(py_script_path, args))
