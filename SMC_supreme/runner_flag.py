@@ -7,6 +7,7 @@ from runner import main
 
 np.warnings.filterwarnings('ignore')
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # to avoid lots of log about the device
+os.environ['KMP_DUPLICATE_LIB_OK']='True' # hack to avoid OS bug...
 
 print("the code is written in:")
 print("\t tensorflow version: 1.12.0")
