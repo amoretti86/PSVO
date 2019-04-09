@@ -10,7 +10,7 @@ from datetools import addDateTime
 MEM = 32  # memory in Gb
 SH_TIME = 168  # time in hour
 TASK_NAME = "lorenz"  # name of the task
-ENV_NAME = "vismc"
+ENV_NAME = "tf"
 RSLT_DIR = "fhn"
 CLUSTER_COM = 'sbatch'
 USER_EMAIL = "dh2832@columbia.edu"
@@ -19,6 +19,7 @@ USER_EMAIL = "dh2832@columbia.edu"
 ACCOUNT = 'stats'
 NUM_CPU_CORES = 1
 
+# TODO: Add remaining args for the cluster command
 parser = argparse.ArgumentParser(description='Process arguments for sbatch')
 parser.add_argument('--mem', default=MEM, metavar='M', type=int, nargs='+',
                     help='an integer for the accumulator')
@@ -175,14 +176,15 @@ def run_batch():
                 f.write("#$ -l MEM={0}G,time={1}:: -S /bin/bash "
                         "-N {2} -j y -cwd\n".format(MEM, SH_TIME, TASK_NAME))
     #             f.write("cd {0}\n".format(conda_path)) # conda binaries assumed to be on $PATH
-    #             f.write("source activate {0}\n".format(ENV_NAME))
+                f.write("source activate {0}\n".format(ENV_NAME))
     #             f.write("cd {0}\n".format(execution_path))
                 f.write("python {0} {1}\n".format(py_script_path, args))
     #             f.write("cd {0}\n".format(conda_path))
-    #             f.write("source deactivate")
+                f.write("source deactivate")
         elif CLUSTER_COM == 'sbatch':
             with open(shell_script_name, "w") as f:
                 rslt_dir_path = lib_path + '/rslts/' + RSLT_DIR + '/' + addDateTime()
+                print("rslt_dir_path", rslt_dir_path)
                 if not os.path.exists(rslt_dir_path):
                     os.makedirs(rslt_dir_path)
                 f.write("#!/bin/sh\n\n")
@@ -199,15 +201,17 @@ def run_batch():
                 f.write("#SBATCH --mail-type=FAIL\n")
                 f.write("#SBATCH --mail-user={0}\n".format(USER_EMAIL))
 
-                f.write("\npython {0} {1}\n".format(py_script_path, args))
+                f.write("\nsource activate {0}\n".format(ENV_NAME))
+                f.write("python {0} {1}\n".format(py_script_path, args))
+                f.write("source deactivate")
         else:
             raise ValueError("Cluster command {0} not recognized [allowed ones = "
                              'qsub, sbatch'"]".format(CLUSTER_COM))
 
         # execute the shell script
-#         subprocess.Popen("qsub {0}".format(shell_script_name), shell=True)
+#         subprocess.Popen(CLUSTER_COM + " {0}".format(shell_script_name), shell=True)
 #         time.sleep(2)
 
 
+# Fly babe!
 run_batch()
-
