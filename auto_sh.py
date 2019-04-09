@@ -8,12 +8,13 @@ from datetools import addDateTime
 
 # SBATCH/QSUB arguments
 MEM = 32  # memory in Gb
-SH_TIME = 168  # time in hour
+SH_TIME = 24  # time in hour
 TASK_NAME = "lorenz"  # name of the task
 ENV_NAME = "tf"
 RSLT_DIR = "fhn"
 CLUSTER_COM = 'sbatch'
 USER_EMAIL = "dh2832@columbia.edu"
+CLUSTER = 'habanero'
 
 # SBATCH arguments
 ACCOUNT = 'stats'
@@ -201,9 +202,11 @@ def run_batch():
                 f.write("#SBATCH --mail-type=FAIL\n")
                 f.write("#SBATCH --mail-user={0}\n".format(USER_EMAIL))
 
-                f.write("\nsource activate {0}\n".format(ENV_NAME))
-                f.write("python {0} {1}\n".format(py_script_path, args))
-                f.write("source deactivate")
+                if CLUSTER == 'habanero':
+                    f.write("module load anaconda\n")
+#                 f.write("\nsource activate {0}\n".format(ENV_NAME))
+                    f.write("python {0} {1}\n".format(py_script_path, args))
+#                 f.write("source deactivate")
         else:
             raise ValueError("Cluster command {0} not recognized [allowed ones = "
                              'qsub, sbatch'"]".format(CLUSTER_COM))
