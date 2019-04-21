@@ -8,6 +8,7 @@ class SMC:
                  n_particles,
                  q_uses_true_X=False,
                  use_input=False,
+                 IWAE=False,
                  X0_use_separate_RNN=True,
                  use_stack_rnn=False,
                  FFBS=False,
@@ -34,6 +35,9 @@ class SMC:
 
         self.q_uses_true_X = q_uses_true_X
         self.use_input = use_input
+
+        # IWAE
+        self.IWAE = IWAE
 
         # bidirectional RNN as full sequence observations encoder
         self.X0_use_separate_RNN = X0_use_separate_RNN
@@ -308,6 +312,10 @@ class SMC:
         return X, q_t_log_prob
 
     def resample_X(self, X, log_W, sample_size=()):
+        if self.IWAE:
+            X_resampled = X
+            return X_resampled
+
         if log_W.shape.as_list()[0] != 1:
             resample_idx = self.get_resample_idx(log_W, sample_size)
             if isinstance(X, list):

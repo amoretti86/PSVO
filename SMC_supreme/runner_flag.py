@@ -130,6 +130,10 @@ smoothing_perc_factor = 2
 # whether use smoothing for inference or leaning
 FFBS_to_learn = False
 
+# --------------------- IWAE flags ---------------------- #
+# whether use IWAE or SVO
+IWAE = True
+
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs
 smooth_obs = True
@@ -303,6 +307,10 @@ flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
                    "determine how the percentage of smoothing loss in the total loss changes with epoch num, "
                    "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")
 flags.DEFINE_boolean("FFBS_to_learn", FFBS_to_learn, "whether use FFBS for leaning or inference")
+
+# --------------------- IWAE flags ----------------------- #
+
+flags.DEFINE_boolean("IWAE", IWAE, "whether use IWAE, i.e. no resampling, to train")
 
 # --------------------- smoother flags --------------------- #
 
