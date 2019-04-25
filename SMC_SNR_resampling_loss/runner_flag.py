@@ -21,16 +21,37 @@ print("\t tensorflow_probability version:", tfp.__version__)
 Dx = 2
 Dy = 1
 Di = 1
-n_particles = 2
+# if save_gradients = True, n_particles would be over written to NP_list[0]
+n_particles = 1
 
 batch_size = 1
-lr = 2e-4
+lr = 2e-3
 epoch = 300
 seed = 0
 
-# ------------------ loss type ---------------------- #
-loss_type = 'soft'
+# ----------------------- SNR experiment ----------------- #
+# save gradient should be set True
+save_gradient = True
 
+SNR_sample_num = 2
+
+#SNR_NP_list = [1, 8, 64, 128, 512]
+SNR_NP_list = [1, 2]
+
+SNR_collect_grads_points = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
+#SNR_collect_grads_points = [-700, -600,-500, -400, -350, -300, -250, -220]
+#SNR_collect_grads_points = [-700, -400, -350, -250, -220]
+#SNR_collect_grads_points = [-350, -250, -220]
+
+SNR_NP_list = ",".join([str(x) for x in SNR_NP_list])
+SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
+
+# --------------------- IWAE flags ---------------------- #
+# whether use IWAE or SVO
+IWAE = True
+
+# ------------------ loss type ---------------------- #
+loss_type = 'resampling'
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -67,6 +88,10 @@ g_sigma_init, g_sigma_min = 5, 1
 y_smoother_Dhs = [16]
 X0_smoother_Dhs = [16]
 
+# --------------------- IWAE flags ---------------------- #
+# whether use IWAE or SVO
+IWAE = True
+
 # ----------------------- FFN flags ------------------------ #
 
 # if q1 and f share the same network
@@ -98,9 +123,6 @@ dropout_rate = 0.2
 # whether emission uses Poisson distribution
 poisson_emission = False
 
-# ----------------------- IWAE flags ----------------------- #
-IWAE = False
-
 # ----------------------- FFBS flags ----------------------- #
 # filtering or smoothing
 FFBS = False
@@ -113,7 +135,7 @@ FFBS_to_learn = False
 
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs
-smooth_obs = True
+smooth_obs = False
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
@@ -147,14 +169,12 @@ print_freq = 1
 #   hidden trajectories
 #   k-step y-hat
 
-save_trajectory = True
-save_y_hat = True
+save_trajectory = False
+save_y_hat = False
 
-
-SNR_sample_num = 50
 
 # dir to save all results
-rslt_dir_name = "Allen_wI"
+rslt_dir_name = "SNR_0329_resampling_loss"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -199,6 +219,16 @@ flags.DEFINE_integer("epoch", epoch, "number of epoch")
 
 flags.DEFINE_integer("seed", seed, "random seed for np.random and tf")
 
+
+# ----------------------- SNR experiment ----------------- #
+flags.DEFINE_boolean("save_gradient", save_gradient, "whether to save gradients for SNR during training")
+flags.DEFINE_integer("SNR_sample_num", SNR_sample_num, "number of gradients to sample to calculate SNR")
+flags.DEFINE_string("SNR_NP_list", SNR_NP_list, "list of number of particles for SNR experiment")
+flags.DEFINE_string("SNR_collect_grads_points", SNR_collect_grads_points, "list of values of log_ZSMC to collect gradients")
+
+# --------------------- IWAE flags ----------------------- #
+
+flags.DEFINE_boolean("IWAE", IWAE, "whether use IWAE, i.e. no resampling, to train")
 
 # ------------------ loss type ---------------------- #
 flags.DEFINE_string("loss_type", loss_type, "loss type")
@@ -248,9 +278,6 @@ flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smo
                                                       "int seperated by comma")
 flags.DEFINE_string("X0_smoother_Dhs", X0_smoother_Dhs, "number of units for X0_smoother birdectional RNNs, "
                                                         "int seperated by comma")
-
-# --------------------- IWAE flags --------------------- #
-flags.DEFINE_boolean("IWAE", IWAE, "whether use IWAE, i.e. no resampling, to train")
 
 # --------------------- FFN flags --------------------- #
 flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether q1 and f share the same network, "
@@ -302,7 +329,6 @@ flags.DEFINE_boolean("save_y_hat", save_y_hat, "whether to save k-step y-hat dur
 
 flags.DEFINE_string("rslt_dir_name", rslt_dir_name, "dir to save all results")
 flags.DEFINE_integer("MSE_steps", MSE_steps, "number of steps to predict y-hat and calculate R_square")
-flags.DEFINE_integer("SNR_sample_num", SNR_sample_num, "number of gradients to sample to calculate SNR")
 
 flags.DEFINE_string("lattice_shape", lattice_shape, "lattice shape [# of rows, # of columns] "
                                                     "to draw arrows in quiver plot")

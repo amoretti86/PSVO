@@ -189,6 +189,10 @@ class trainer:
         self.hidden_train, self.hidden_test = hidden_train, hidden_test
         self.input_train,  self.input_test  = input_train,  input_test
 
+        original_loss_type = loss_type
+        if loss_type == 'resampling':
+            loss_type = 'full'
+
         self.log_ZSMC, log, resampling_loss = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input,
                                                                     loss_type=loss_type, n_particles=self.SNR_NP_list[0])
         print("build log_ZSMC for n_particles = ", self.SNR_NP_list[0])
@@ -206,9 +210,12 @@ class trainer:
                     log_ZSMC_np, log, resampling_loss_np = \
                         self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input,
                                               loss_type=loss_type, n_particles=n_particles)
-                    if loss_type == 'full':
+                    if original_loss_type == 'full':
                         loss_np = log_ZSMC_np + resampling_loss_np
+                    elif original_loss_type == 'resampling':
+                        loss_np = resampling_loss_np
                     else:
+                        # original_loss_type = 'main', or 'soft'
                         loss_np = log_ZSMC_np
 
                     list_of_loss_np.append(loss_np)
@@ -326,6 +333,9 @@ class trainer:
 
                             np_idx = 0
                             for gradients_dict in self.list_of_gradients_dict:
+                                if np_idx == 0:
+                                    np_idx += 1
+                                    continue
                                 gradients_val_dict = \
                                     self.evaluate_gradients(gradients_dict, gradients_feed_dict)
 

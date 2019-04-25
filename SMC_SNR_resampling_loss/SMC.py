@@ -159,8 +159,7 @@ class SMC:
                 log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_t")
 
                 # write to tensor arrays
-                #idxs = [t, t, t + 1, t, t]
-                idxs = [t-1, t-1, t, t-1, t-1]
+                idxs = [t - 1, t - 1, t, t - 1, t - 1]
                 log_contents = [X_prev, X_ancestor, log_W, f_t_all_log_prob, resample_idx]
                 log = [ta.write(idx, log_content) for ta, idx, log_content in zip(log, idxs, log_contents)]
 

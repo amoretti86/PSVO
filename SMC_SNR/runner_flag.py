@@ -33,16 +33,16 @@ seed = 0
 # save gradient should be set True
 save_gradient = True
 
-SNR_sample_num = 100
+SNR_sample_num = 2
 
 #SNR_NP_list = [1, 8, 64, 128, 512, 1024, 2048]
-SNR_NP_list = [1, 8, 64, 128, 512, 1024]
-#SNR_NP_list = [1, 2]
+#SNR_NP_list = [1, 8, 64, 128, 512, 1024]
+SNR_NP_list = [1, 2]
 
-#SNR_collect_grads_points = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
+SNR_collect_grads_points = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
 #SNR_collect_grads_points = [-700, -600,-500, -400, -350, -300, -250, -220]
 #SNR_collect_grads_points = [-700, -400, -350, -250, -220]
-SNR_collect_grads_points = [-350, -250, -220]
+#SNR_collect_grads_points = [-350, -250, -220]
 
 SNR_NP_list = ",".join([str(x) for x in SNR_NP_list])
 SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
@@ -50,7 +50,7 @@ SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
 
 
 # ------------------ loss type ---------------------- #
-loss_type = 'soft'
+loss_type = 'main'
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -86,6 +86,12 @@ g_sigma_init, g_sigma_min = 5, 1
 # bidirectional RNN
 y_smoother_Dhs = [16]
 X0_smoother_Dhs = [16]
+
+
+# IWAE
+IWAE = True
+if IWAE:
+    loss_type = 'main'
 
 # ----------------------- FFN flags ------------------------ #
 
@@ -169,7 +175,7 @@ save_y_hat = False
 
 
 # dir to save all results
-rslt_dir_name = "SNR_0328_soft_loss"
+rslt_dir_name = "IWAE"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -265,6 +271,9 @@ flags.DEFINE_float("q1_sigma_min", q1_sigma_min, "minimal value of q1_sigma")
 flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 flags.DEFINE_float("f_sigma_min", f_sigma_min, "minimal value of f_sigma")
 flags.DEFINE_float("g_sigma_min", g_sigma_min, "minimal value of g_sigma")
+
+# IWAE
+flags.DEFINE_boolean("IWAE", IWAE, "whether use IWAE or SVO")
 
 # bidirectional RNN
 flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smoother birdectional RNNs, "
