@@ -12,6 +12,8 @@ class SMC:
                  X0_use_separate_RNN=True,
                  use_stack_rnn=False,
                  FFBS=False,
+                 FFBS_score_loss=False,
+                 FFBS_particles=0,
                  FFBS_to_learn=False,
                  TFS=False,
                  name="log_ZSMC"):
@@ -51,6 +53,15 @@ class SMC:
 
         # FFBS
         self.FFBS = FFBS
+        self.FFBS_score_loss = FFBS_score_loss
+        self.FFBS_particles = FFBS_particles
+
+        if self.FFBS_score_loss:
+            assert self.FFBS == True
+
+        if self.FFBS:
+            assert self.FFBS_particles > 0
+
         self.FFBS_to_learn = FFBS_to_learn
         self.smoothing_perc = model.smoothing_perc
         if not self.FFBS_to_learn:
@@ -83,39 +94,164 @@ class SMC:
             # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
             X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs, forward=True)
 
-            # TFS
-            if self.TFS:
-                X_prevs_b, X_ancestors_b, log_Ws_b = self.SMC(Input, hidden, obs, forward=False)
-                log_Ws = self.TFS_reweight_log_Ws(log_Ws, log_Ws_b, X_prevs, X_prevs_b, Input)
-                X_ancestors = [self.resample_X(X, log_W, sample_size=n_particles)
-                               for X, log_W in zip(tf.unstack(X_prevs_b), tf.unstack(log_Ws))]
-                X_ancestors = tf.stack(X_ancestors)
-
             # FFBS
             if self.FFBS:
-                reweighted_log_Ws = self.FFBS_reweight_log_Ws(log_Ws, X_prevs, Input)
-                X_ancestors = [self.resample_X(X, log_W, sample_size=n_particles)
-                               for X, log_W in zip(tf.unstack(X_prevs), tf.unstack(reweighted_log_Ws))]
-                X_ancestors = tf.stack(X_ancestors)
-                if self.FFBS_to_learn:
-                    log_Ws = reweighted_log_Ws
+                bw_Xs, bw_log_weights = self.FFBS_simulation(X_prevs, log_Ws) # shape (time, M, batch_size, Dx)
 
-            # compute log_ZSMC
-            log_ZSMC = self.compute_log_ZSMC(log_Ws)
-            Xs = X_ancestors
+                score_loss = self.compute_FFBS_score_loss(bw_Xs, obs)
+                if self.FFBS_score_loss:
+                    log_ZSMC = score_loss
+                else:
+                    log_ZSMC = score_loss + tf.reduce_mean(bw_log_weights)
+                Xs = bw_Xs
 
-            # shape = (batch_size, time, n_particles, Dx)
+            else:
+                log_ZSMC = self.compute_log_ZSMC(log_Ws)
+                Xs = X_ancestors
+
+            # shape = (batch_size, time, n_particles or M, Dx)
             Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")
 
             log = {"Xs": Xs}
 
         return log_ZSMC, log
 
+
+    def FFBS_simulation(self, X, log_Ws):
+        """
+        :param obs: (batch_size, time, Dy)
+        :param X: shape (time, n_particles, batch_size, Dx)
+        :param log_Ws: shape (time, n_particles, batch_size)
+        :return: bw_Xs: M numebr of sample realizations, or the number of backward particles
+                bw_weights: M log weights associatied with M sample realizations
+        """
+
+        M = self.FFBS_particles
+
+        time, n_particles, batch_size, Dx = X.shape.as_list()
+
+        # store in reverse order
+        bw_Xs_ta = tf.TensorArray(tf.float32, size=time, name="backward_X_ta")
+
+        # T-1
+        # sample M particles from (n_particles, batch_size)
+        f_Tminus1_log_prob = tf.constant(0.0, dtype=tf.float32, shape=(M, n_particles, batch_size),
+                                         name='f_T-1_log_prob')
+        bw_X_Tminus1, bw_log_weights = self.get_backward_sample_and_weight(X[time - 1],
+                                                                           log_Ws[time - 1], f_Tminus1_log_prob, M)
+
+        bw_Xs_ta = bw_Xs_ta.write(time-1, bw_X_Tminus1)
+
+        #  from T-2 to 0
+        def while_cond(t, *unused_args):
+            return t >= 0
+
+        def while_body(t, bw_X_tplus1, bw_Xs_ta, bw_log_weights):
+            bw_X_tplu1_for_f_eval = tf.expand_dims(bw_X_tplus1, 1)  # (M, 1, batch_size, Dx)
+            bw_X_tplu1_for_f_eval = tf.tile(bw_X_tplu1_for_f_eval,
+                                            [1, n_particles, 1, 1])  # (M, n_particles, batch_size, Dx)
+
+            X_t_for_f_eval = X[t]  # shape (n_particles, batch_size, Dx)
+            X_t_for_f_eval = tf.expand_dims(X_t_for_f_eval, 0)  # (1, n_particles, batch_size, Dx)
+            X_t_for_f_eval = tf.tile(X_t_for_f_eval, [M, 1, 1, 1])  # (M, n_particles, batch_size, Dx)
+
+            f_t_log_prob = self.f.log_prob(X_t_for_f_eval, bw_X_tplu1_for_f_eval, name="f_t_log_prob")
+            
+            assert f_t_log_prob.shape == (M, n_particles, batch_size)
+
+            bw_X_t, bw_log_weights_t = self.get_backward_sample_and_weight(X[t], log_Ws[t], f_t_log_prob, M)
+
+            bw_Xs_ta = bw_Xs_ta.write(t, bw_X_t)
+
+            bw_log_weights = bw_log_weights + bw_log_weights_t
+
+            return t - 1, bw_X_t, bw_Xs_ta, bw_log_weights
+
+        # conduct the while loop
+        init_state = (time-2, bw_X_Tminus1, bw_Xs_ta, bw_log_weights)
+        t, bw_X_0, bw_Xs_ta , bw_log_weights = tf.while_loop(while_cond, while_body, init_state)
+
+        # transfer tensor arrays to tensors
+        bw_Xs = bw_Xs_ta.stack()
+
+        bw_Xs.set_shape((time, M, batch_size, Dx))
+
+        return bw_Xs, bw_log_weights
+
+    def compute_FFBS_score_loss(self, bw_Xs, obs):
+        """
+
+        :param bw_Xs: particles sampled from FFBSi, shape (time, M, batch_size, Dx)
+        :param obs: observations, shape (batch_size, time, Dy)
+        :return: 1 / M \sum_{i=1}^M p_\theta (x_{1:T}^{1:M}, y_{1:T}). shape ()
+        """
+
+        time, M, batch_size, Dx = bw_Xs.shape.as_list()
+        _, _, Dy = obs.shape.as_list()
+
+        assert self.pre_X0.shape == (batch_size, Dy)
+        assert bw_Xs[0].shape == (M, batch_size, Dx)
+
+        f_0_log_prob = self.q0.log_prob(self.pre_X0, bw_Xs[0], name="FFBS_f_0_log_prob")  # (M, batch_size)
+
+        f_rest_log_prob = self.f.log_prob(bw_Xs[:-1], bw_Xs[1:],
+                                          name="FFBS_f_rest_log_prob")  # (time-1, M,  batch_size)
+
+        f_log_prob_mean = tf.add(tf.reduce_mean(f_0_log_prob), tf.reduce_mean(f_rest_log_prob), name="FFBS_log_prob")
+
+        x_g_input = tf.transpose(bw_Xs, perm=(1, 2, 0, 3))  # (M, batch_size, time, Dx)
+        g_log_prob = self.g.log_prob(x_g_input, obs, name="FFBS_final_g_log_prob")  # (M, batch_size, time)
+        g_log_prob_mean = tf.reduce_mean(g_log_prob)
+
+        score_loss = f_log_prob_mean + g_log_prob_mean
+
+        return score_loss
+
+    @staticmethod
+    def get_backward_sample_and_weight(X_t, log_W_t, f_t_log_prob, M):
+        """
+        :param X_t: shape(n_particles, batch_size, Dx)
+        :param log_W_t: shape (n_particles, batch_size)
+        :param f: shape (M, n_particles, batch_size)
+        :param M: number of the backward samples
+        :return samples: M backward samples, shape (M, batch_size, Dx)
+                weights: associated weights with samples, shape (M, batch_size)
+        """
+        _, batch_size, _ = X_t.shape.as_list()
+
+        log_W_t = tf.expand_dims(log_W_t, 0)  # (1, n_particles, batch_size)
+        log_W_t = tf.tile(log_W_t, (M, 1, 1))  # (M, n_particles, batch_size)
+
+        log_weights = log_W_t + f_t_log_prob  # (M, n_particles, batch_size)
+        log_weights = tf.transpose(log_weights, perm=(2, 0, 1))  # (batch_size, M, n_particles)
+
+        categorical = tfd.Categorical(logits=log_weights, validate_args=True, name="Categorical")
+
+        sample_idx = categorical.sample()  # shape (batch_size, M)
+
+        sample_idx = tf.transpose(sample_idx)  # (M, batch_size)
+        samples = tf.gather_nd(X_t, sample_idx)  # (M, batch_size, Dx)
+
+        # normalized version
+        log_weights = tf.transpose(log_weights, perm=(1, 2, 0))  # (M, n_particles, batch_size)
+        normalization_constant = tf.transpose(tf.reduce_logsumexp(log_weights, axis=1))  # (M, batch_size)
+
+        idx_reformat = [(i, sample_idx[i][j], j) for i in range(M) for j in range(batch_size)]
+
+        sample_log_unnormalized_weights = tf.gather_nd(log_weights, idx_reformat)  # (M, batch_size)
+
+        sample_log_weights = sample_log_unnormalized_weights - normalization_constant
+
+        return samples, sample_log_weights
+
+
     def SMC(self, Input, hidden, obs, forward=True, q_cov=1.0):
         Dx, time, n_particles, batch_size = self.Dx, self.time, self.n_particles, self.batch_size
 
         # preprossing obs
         preprocessed_X0, preprocessed_obs = self.preprocess_obs(obs, forward)
+        self.pre_X0 = preprocessed_X0
+
         if forward:
             q0 = self.q0
             q1 = self.q1
@@ -145,12 +281,6 @@ class SMC:
                                                                         q_f_t_feed,
                                                                         preprocessed_obs[0],
                                                                         sample_size=n_particles)
-                if self.model.flow_transition:
-                    _, _, _ = self.sample_from_2_dist(q1,
-                                                      self.q2,
-                                                      X,
-                                                      preprocessed_obs[0],
-                                                      sample_size=())
             else:
                 X, q_t_log_prob = q0.sample_and_log_prob(q_f_t_feed,
                                                          sample_shape=n_particles,
@@ -236,6 +366,16 @@ class SMC:
         return X_prevs, X_ancestors, log_Ws
 
     def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size=()):
+        """
+
+        :param dist1:
+        :param dist2:
+        :param d1_input:
+        :param d2_input:
+        :param sample_size:
+        :return: X: (n_particles, batch_size, Dx), f_t_log_prob, q_t_log_prob: (n_particles, batch_size)
+        """
+
         d1_mvn = dist1.get_mvn(d1_input)
         d2_mvn = dist2.get_mvn(d2_input)
 
@@ -312,6 +452,12 @@ class SMC:
         return X, q_t_log_prob
 
     def resample_X(self, X, log_W, sample_size=()):
+        """
+        :param X: ancestors to select from. shape: (n_particles, batch_size, Dx)
+        :param log_W: log weights. shape (n_particles, batch_size)
+        :param sample_size:
+        :return: selected ancestors
+        """
         if self.IWAE:
             X_resampled = X
             return X_resampled
@@ -360,70 +506,6 @@ class SMC:
         resample_idx = tf.stack([idx] + batch_idx, axis=-1)
 
         return resample_idx
-
-    def TFS_reweight_log_Ws(self, log_Ws, log_Ws_b, X_prevs, X_prevs_b, Input):
-        # reweight weight of each particle (w_t^k) according to TFS formula9
-        n_particles, time = self.n_particles, self.time
-
-        log_Ws,  log_Ws_b  = tf.unstack(log_Ws),  tf.unstack(log_Ws_b)
-        X_prevs, X_prevs_b = tf.unstack(X_prevs), tf.unstack(X_prevs_b)
-
-        all_fs            = ["placeholder"] * time
-        reweighted_log_Ws = ["placeholder"] * time
-
-        for t in range(time - 1):
-            X_tile = tf.tile(tf.expand_dims(X_prevs_b[t + 1], axis=1), (1, n_particles, 1, 1), name="X_tile")
-
-            f_t_all_feed = X_prevs[t]
-            if self.use_input:
-                Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
-                f_t_all_feed = tf.concat([f_t_all_feed, Input_t_expanded], axis=-1)
-
-            # all_fs[t, i, j] = f(tilde{x}_{t + 1}^i | x_t^j)
-            all_fs[t] = self.f.log_prob(f_t_all_feed, X_tile, name="f_t_all_log_prob")
-
-        for t in range(time):
-            if t == 0:
-                reweighted_log_Ws[t] = log_Ws_b[t]
-            else:
-                reweight_factor = tf.reduce_logsumexp(log_Ws[t - 1] + all_fs[t - 1], axis=1)
-                reweighted_log_Ws[t] = log_Ws_b[t] + reweight_factor
-
-        reweighted_log_Ws = tf.stack(reweighted_log_Ws)
-        return reweighted_log_Ws
-
-    def FFBS_reweight_log_Ws(self, log_Ws, X_prevs, Input):
-        # reweight weight of each particle (w_t^k) according to FFBS formula
-        n_particles, time = self.n_particles, self.time
-
-        log_Ws, X_prevs = tf.unstack(log_Ws), tf.unstack(X_prevs)
-
-        all_fs            = ["placeholder"] * time
-        reweighted_log_Ws = ["placeholder"] * time
-
-        for t in range(time - 1):
-            X_tile = tf.tile(tf.expand_dims(X_prevs[t + 1], axis=1), (1, n_particles, 1, 1), name="X_tile")
-
-            f_t_all_feed = X_prevs[t]
-            if self.use_input:
-                Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
-                f_t_all_feed = tf.concat([f_t_all_feed, Input_t_expanded], axis=-1)
-
-            # all_fs[t, i, j] = f(x_{t + 1}^i | x_t^j)
-            all_fs[t] = self.f.log_prob(f_t_all_feed, X_tile, name="f_t_all_log_prob")
-
-        for t in reversed(range(time)):
-            if t == time - 1:
-                reweighted_log_Ws[t] = log_Ws[t]
-            else:
-                denominator = tf.reduce_logsumexp(log_Ws[t] + all_fs[t], axis=1)
-                reweight_factor = tf.reduce_logsumexp(
-                    tf.expand_dims(reweighted_log_Ws[t + 1] - denominator, axis=1) + all_fs[t],
-                    axis=0)
-                reweighted_log_Ws[t] = log_Ws[t] + self.smoothing_perc * reweight_factor
-
-        reweighted_log_Ws = tf.stack(reweighted_log_Ws)
-        return reweighted_log_Ws
 
     @staticmethod
     def compute_log_ZSMC(log_Ws):

@@ -48,7 +48,7 @@ n_test = 40 * batch_size
 
 # -------------------- model parameters -------------------- #
 # Feed-Forward Network (FFN)
-q0_layers = [64]        # q(x_1|y_1) or q(x_1|y_1:T)
+q0_layers = [64]        # q(x_1|preprocessed_x0)
 q1_layers = [64]        # q(x_t|x_{t-1})
 q2_layers = [64]        # q(x_t|y_t) or q(x_t|y_1:T)
 f_layers = [64]
@@ -122,7 +122,14 @@ TFS_use_diff_q0 = True
 
 # ----------------------- FFBS flags ----------------------- #
 # whether use Forward Filtering Backward Smoothing
-FFBS = False
+FFBS = True
+
+# number of backward particles
+
+FFBS_particles = 16
+
+# wheter to use score loss, or weighted loss
+FFBS_score_loss = False
 
 # how fast the model transfers from filtering to smoothing
 smoothing_perc_factor = 2
@@ -136,7 +143,7 @@ IWAE = True
 
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs
-smooth_obs = True
+smooth_obs = False
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
@@ -174,7 +181,11 @@ save_trajectory = True
 save_y_hat = True
 
 # dir to save all results
-rslt_dir_name = "Allen_wI"
+rslt_dir_name = "FFBSi"
+if FFBS_score_loss:
+    rslt_dir_name = rslt_dir_name + "/score_loss"
+else:
+    rslt_dir_name = rslt_dir_name + "/weighted_loss"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -303,6 +314,8 @@ flags.DEFINE_boolean("TFS_use_diff_q0", TFS_use_diff_q0, "whether backward filte
 # ----------------------- FFBS flags ----------------------- #
 
 flags.DEFINE_boolean("FFBS", FFBS, "whether use Forward Filtering Backward Smoothing")
+flags.DEFINE_integer("FFBS_particles", FFBS_particles, "numebr of backward particles")
+flags.DEFINE_boolean("FFBS_score_loss", FFBS_score_loss, "whether to use score loss or weighted loss")
 flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
                    "determine how the percentage of smoothing loss in the total loss changes with epoch num, "
                    "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")
