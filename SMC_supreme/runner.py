@@ -83,11 +83,8 @@ def main(_):
     # number of backward particles
     FFBS_particles = FLAGS.FFBS_particles
 
-    # whether to use score loss or weighted loss
-    FFBS_score_loss= FLAGS.FFBS_score_loss
-
-    # whether use vae or iwae <-- only useful when FFBS_score_loss=False
-    FFBS_vae = FLAGS.FFBS_vae
+    # whether to use score loss, vae loss or iwae loss
+    FFBS_loss_type = FLAGS.FFBS_loss_type
 
     # whether use FFBS for inference or leaning
     FFBS_to_learn = FLAGS.FFBS_to_learn
@@ -164,9 +161,8 @@ def main(_):
                     X0_use_separate_RNN=X0_use_separate_RNN,
                     use_stack_rnn=use_stack_rnn,
                     FFBS=FFBS,
-                    FFBS_score_loss=FFBS_score_loss,
+                    FFBS_loss_type=FFBS_loss_type,
                     FFBS_particles=FFBS_particles,
-                    FFBS_vae=FFBS_vae,
                     FFBS_to_learn=FFBS_to_learn,
                     TFS=TFS,
                     name="log_ZSMC_train")

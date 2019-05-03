@@ -128,11 +128,8 @@ FFBS = True
 
 FFBS_particles = 16
 
-# wheter to use score loss, or weighted loss
-FFBS_score_loss = False
-
-# whether use vae or iwae <-- only useful when FFBS_score_loss=False
-FFBS_vae = False
+# choose from 'score, 'vae' or 'iwae'
+FFBS_loss_type = 'score'
 
 # how fast the model transfers from filtering to smoothing
 smoothing_perc_factor = 2
@@ -318,9 +315,8 @@ flags.DEFINE_boolean("TFS_use_diff_q0", TFS_use_diff_q0, "whether backward filte
 
 flags.DEFINE_boolean("FFBS", FFBS, "whether use Forward Filtering Backward Smoothing")
 flags.DEFINE_integer("FFBS_particles", FFBS_particles, "numebr of backward particles")
-flags.DEFINE_boolean("FFBS_score_loss", FFBS_score_loss, "whether to use score loss or weighted loss")
-flags.DEFINE_boolean("FFBS_vae", FFBS_vae, "whether to use VAE type estimator, or IWAE type estimator. ONly consider "
-                                           "this option when FFBS_score_loss=False")
+flags.DEFINE_string("FFBS_loss_type", FFBS_loss_type, "whether to use score loss, vae loss or iwae loss")
+
 flags.DEFINE_float("smoothing_perc_factor", smoothing_perc_factor,
                    "determine how the percentage of smoothing loss in the total loss changes with epoch num, "
                    "the percentage of smoothing loss = 1 - (1 - current_epoch / total_epoch) ** smoothing_perc_factor")

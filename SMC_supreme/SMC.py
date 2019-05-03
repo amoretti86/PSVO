@@ -12,9 +12,8 @@ class SMC:
                  X0_use_separate_RNN=True,
                  use_stack_rnn=False,
                  FFBS=False,
-                 FFBS_score_loss=False,
+                 FFBS_loss_type='vae',
                  FFBS_particles=0,
-                 FFBS_vae=False,
                  FFBS_to_learn=False,
                  TFS=False,
                  name="log_ZSMC"):
@@ -54,12 +53,8 @@ class SMC:
 
         # FFBS
         self.FFBS = FFBS
-        self.FFBS_score_loss = FFBS_score_loss
+        self.FFBS_loss_type = FFBS_loss_type
         self.FFBS_particles = FFBS_particles
-        self.FFBS_vae = FFBS_vae
-
-        if self.FFBS_score_loss:
-            assert self.FFBS == True
 
         if self.FFBS:
             assert self.FFBS_particles > 0
@@ -101,10 +96,12 @@ class SMC:
                 bw_Xs, bw_log_weights = self.FFBS_simulation(X_prevs, log_Ws) # shape (time, M, batch_size, Dx)
 
                 score_loss = self.compute_FFBS_score_loss(bw_Xs, obs)
-                if self.FFBS_score_loss:
+                if self.FFBS_loss_type == 'score':
                     log_ZSMC = score_loss
-                else:
-                    log_ZSMC = score_loss - tf.reduce_mean(bw_log_weights)
+                elif self.FFBS_loss_type == 'vae':
+                    log_ZSMC = self.compute_FFBS_vae_loss(bw_Xs, obs, bw_log_weights)
+                elif self.FFBS_loss_type == 'iwae':
+                    log_ZSMC = self.compute_FFBS_iwae_loss(bw_Xs, obs, bw_log_weights)
                 Xs = bw_Xs
 
             else:
