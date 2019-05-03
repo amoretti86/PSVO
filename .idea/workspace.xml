@@ -3,6 +3,7 @@
   <component name="ChangeListManager">
     <list default="true" id="60015e54-40e7-47ce-8207-18dcb4d24994" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/SMC_supreme/SMC.py" beforeDir="false" afterPath="$PROJECT_DIR$/SMC_supreme/SMC.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_gather_nd.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_gather_nd.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -11,8 +12,8 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="CoverageDataManager">
-    <SUITE FILE_PATH="coverage/VISMC$runner_flag.coverage" NAME="runner_flag Coverage Results" MODIFIED="1556597555309" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/SMC_supreme" />
-    <SUITE FILE_PATH="coverage/VISMC$test_gather_nd.coverage" NAME="test_gather_nd Coverage Results" MODIFIED="1556588022451" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/VISMC$runner_flag.coverage" NAME="runner_flag Coverage Results" MODIFIED="1556854631172" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/SMC_supreme" />
+    <SUITE FILE_PATH="coverage/VISMC$test_gather_nd.coverage" NAME="test_gather_nd Coverage Results" MODIFIED="1556859344742" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
   </component>
   <component name="FUSProjectUsageTrigger">
     <session id="-1960529280">
@@ -40,13 +41,13 @@
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
           <entry key="dummy" value="5" />
-          <entry key="py" value="7627" />
+          <entry key="py" value="9641" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
           <entry key="PLAIN_TEXT" value="5" />
-          <entry key="Python" value="7627" />
+          <entry key="Python" value="9641" />
         </counts>
       </usages-collector>
     </session>
@@ -56,13 +57,13 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/SMC_supreme/SMC.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="255">
-              <caret line="191" column="45" selection-start-line="191" selection-start-column="45" selection-end-line="191" selection-end-column="45" />
+            <state relative-caret-position="299">
+              <caret line="233" column="45" lean-forward="true" selection-start-line="233" selection-start-column="45" selection-end-line="233" selection-end-column="45" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
-                <marker date="1556850791772" expanded="true" signature="3590:9161" ph="..." />
-                <marker date="1556850791772" expanded="true" signature="6253:7440" ph="..." />
-                <marker date="1556850791772" expanded="true" signature="9220:9229" ph="..." />
+                <marker date="1556859395056" expanded="true" signature="3590:9259" ph="..." />
+                <marker date="1556859395056" expanded="true" signature="6253:7440" ph="..." />
+                <marker date="1556859395056" expanded="true" signature="9318:9327" ph="..." />
               </folding>
             </state>
           </provider>
@@ -71,7 +72,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/SMC_supreme/model.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2835">
+            <state relative-caret-position="154">
               <caret line="189" column="50" selection-start-line="189" selection-start-column="48" selection-end-line="189" selection-end-column="50" />
               <folding>
                 <element signature="e#0#23#0" expanded="true" />
@@ -95,7 +96,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/SMC_supreme/runner_flag.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="5250">
+            <state relative-caret-position="705">
               <caret line="350" column="80" selection-start-line="350" selection-start-column="80" selection-end-line="350" selection-end-column="80" />
               <folding>
                 <element signature="e#0#23#0" expanded="true" />
@@ -105,45 +106,13 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/score_loss/D190430_001116_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/log_ZSMC.png">
-          <provider selected="true" editor-type-id="images" />
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/score_loss/D190430_001116_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/R_square/epoch_300.png">
-          <provider selected="true" editor-type-id="images" />
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/weighted_loss/D190430_001243_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/log_ZSMC.png">
-          <provider selected="true" editor-type-id="images" />
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/weighted_loss/D190430_001243_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/R_square/epoch_245.png">
-          <provider selected="true" editor-type-id="images" />
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/tests/test_gather_nd.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="420">
-              <caret line="28" column="39" selection-start-line="28" selection-start-column="39" selection-end-line="28" selection-end-column="39" />
+            <state relative-caret-position="317">
+              <caret line="55" lean-forward="true" selection-start-line="55" selection-end-line="55" />
               <folding>
                 <element signature="e#0#23#0" expanded="true" />
-                <marker date="1556588022441" expanded="true" signature="790:791" ph="..." />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/SMC_supreme/distribution/mvn.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1515">
-              <caret line="101" selection-start-line="101" selection-end-line="101" />
-              <folding>
-                <element signature="e#0#18#0" expanded="true" />
+                <marker date="1556859344733" expanded="true" signature="2056:2057" ph="..." />
               </folding>
             </state>
           </provider>
@@ -160,8 +129,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>log_prob</find>
-      <find>sample_from_2_dist</find>
       <find>model</find>
       <find>smooth</find>
       <find>use_boot</find>
@@ -190,6 +157,8 @@
       <find>FFBS_simulation</find>
       <find>def FFBS</find>
       <find>get_backward_sample_and_weight</find>
+      <find>normalization_constant</find>
+      <find>f_0_log_prob</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -198,9 +167,9 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/tests/test_gather_nd.py" />
         <option value="$PROJECT_DIR$/SMC_supreme/runner.py" />
         <option value="$PROJECT_DIR$/SMC_supreme/runner_flag.py" />
+        <option value="$PROJECT_DIR$/tests/test_gather_nd.py" />
         <option value="$PROJECT_DIR$/SMC_supreme/SMC.py" />
       </list>
     </option>
@@ -272,7 +241,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.runner_flag">
+  <component name="RunManager" selected="Python.test_gather_nd">
     <configuration name="runner_flag" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="VISMC" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -323,8 +292,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.runner_flag" />
         <item itemvalue="Python.test_gather_nd" />
+        <item itemvalue="Python.runner_flag" />
       </list>
     </recent_temporary>
   </component>
@@ -345,13 +314,13 @@
     <frame x="50" y="23" width="1390" height="877" extended-state="0" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2574184" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2574184" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.3299363" />
-      <window_info anchor="bottom" id="Run" order="2" weight="0.3821656" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.30828026" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.33375797" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.31464967" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
@@ -378,11 +347,6 @@
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/SMC_supreme/SMC.py</url>
-          <line>277</line>
-          <option name="timeStamp" value="34" />
-        </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/SMC_supreme/SMC.py</url>
           <line>98</line>
@@ -487,16 +451,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/SMC_supreme/model.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2835">
-          <caret line="189" column="50" selection-start-line="189" selection-start-column="48" selection-end-line="189" selection-end-column="50" />
-          <folding>
-            <element signature="e#0#23#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/SMC_supreme/trainer.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="525">
@@ -507,9 +461,21 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/score_loss/D190430_001116_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/R_square/epoch_300.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/weighted_loss/D190430_001243_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/log_ZSMC.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/weighted_loss/D190430_001243_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/R_square/epoch_245.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/score_loss/D190430_001116_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/log_ZSMC.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
     <entry file="file://$PROJECT_DIR$/SMC_supreme/runner_flag.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5250">
+        <state relative-caret-position="705">
           <caret line="350" column="80" selection-start-line="350" selection-start-column="80" selection-end-line="350" selection-end-column="80" />
           <folding>
             <element signature="e#0#23#0" expanded="true" />
@@ -517,18 +483,19 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/score_loss/D190430_001116_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/log_ZSMC.png">
-      <provider selected="true" editor-type-id="images" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/score_loss/D190430_001116_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/R_square/epoch_300.png">
-      <provider selected="true" editor-type-id="images" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/weighted_loss/D190430_001243_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/log_ZSMC.png">
-      <provider selected="true" editor-type-id="images" />
+    <entry file="file://$PROJECT_DIR$/SMC_supreme/model.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="154">
+          <caret line="189" column="50" selection-start-line="189" selection-start-column="48" selection-end-line="189" selection-end-column="50" />
+          <folding>
+            <element signature="e#0#23#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/SMC_supreme/distribution/mvn.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1515">
+        <state relative-caret-position="312">
           <caret line="101" selection-start-line="101" selection-end-line="101" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
@@ -536,29 +503,26 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/SMC_supreme/rslts/FFBSi/weighted_loss/D190430_001243_np_32_t_200_bs_1_lr_0.0002_epoch_300_seed_0/R_square/epoch_245.png">
-      <provider selected="true" editor-type-id="images" />
-    </entry>
     <entry file="file://$PROJECT_DIR$/tests/test_gather_nd.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="420">
-          <caret line="28" column="39" selection-start-line="28" selection-start-column="39" selection-end-line="28" selection-end-column="39" />
+        <state relative-caret-position="317">
+          <caret line="55" lean-forward="true" selection-start-line="55" selection-end-line="55" />
           <folding>
             <element signature="e#0#23#0" expanded="true" />
-            <marker date="1556588022441" expanded="true" signature="790:791" ph="..." />
+            <marker date="1556859344733" expanded="true" signature="2056:2057" ph="..." />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/SMC_supreme/SMC.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="255">
-          <caret line="191" column="45" selection-start-line="191" selection-start-column="45" selection-end-line="191" selection-end-column="45" />
+        <state relative-caret-position="299">
+          <caret line="233" column="45" lean-forward="true" selection-start-line="233" selection-start-column="45" selection-end-line="233" selection-end-column="45" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
-            <marker date="1556850791772" expanded="true" signature="3590:9161" ph="..." />
-            <marker date="1556850791772" expanded="true" signature="6253:7440" ph="..." />
-            <marker date="1556850791772" expanded="true" signature="9220:9229" ph="..." />
+            <marker date="1556859395056" expanded="true" signature="3590:9259" ph="..." />
+            <marker date="1556859395056" expanded="true" signature="6253:7440" ph="..." />
+            <marker date="1556859395056" expanded="true" signature="9318:9327" ph="..." />
           </folding>
         </state>
       </provider>

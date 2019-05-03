@@ -230,13 +230,14 @@ class SMC:
         sample_idx = categorical.sample()  # shape (batch_size, M)
 
         sample_idx = tf.transpose(sample_idx)  # (M, batch_size)
-        samples = tf.gather_nd(X_t, sample_idx)  # (M, batch_size, Dx)
+        sample_idx_reformat = [[[sample_idx[i][j], j] for j in range(batch_size)] for i in range(M)]
+        samples = tf.gather_nd(X_t, sample_idx_reformat)  # (M, batch_size, Dx)
 
         # normalized version
         log_weights = tf.transpose(log_weights, perm=(1, 2, 0))  # (M, n_particles, batch_size)
-        normalization_constant = tf.transpose(tf.reduce_logsumexp(log_weights, axis=1))  # (M, batch_size)
+        normalization_constant = tf.reduce_logsumexp(log_weights, axis=1)  # (M, batch_size)
 
-        idx_reformat = [(i, sample_idx[i][j], j) for i in range(M) for j in range(batch_size)]
+        idx_reformat = [[(i, sample_idx[i][j], j) for j in range(batch_size)] for i in range(M)]
 
         sample_log_unnormalized_weights = tf.gather_nd(log_weights, idx_reformat)  # (M, batch_size)
 
