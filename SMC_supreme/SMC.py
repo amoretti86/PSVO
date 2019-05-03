@@ -151,11 +151,7 @@ class SMC:
             bw_X_tplu1_for_f_eval = tf.tile(bw_X_tplu1_for_f_eval,
                                             [1, n_particles, 1, 1])  # (M, n_particles, batch_size, Dx)
 
-            X_t_for_f_eval = X[t]  # shape (n_particles, batch_size, Dx)
-            X_t_for_f_eval = tf.expand_dims(X_t_for_f_eval, 0)  # (1, n_particles, batch_size, Dx)
-            X_t_for_f_eval = tf.tile(X_t_for_f_eval, [M, 1, 1, 1])  # (M, n_particles, batch_size, Dx)
-
-            f_t_log_prob = self.f.log_prob(X_t_for_f_eval, bw_X_tplu1_for_f_eval, name="f_t_log_prob")
+            f_t_log_prob = self.f.log_prob(X[t], bw_X_tplu1_for_f_eval, name="f_t_log_prob")
             
             assert f_t_log_prob.shape == (M, n_particles, batch_size)
 
@@ -180,7 +176,6 @@ class SMC:
 
     def compute_FFBS_score_loss(self, bw_Xs, obs):
         """
-
         :param bw_Xs: particles sampled from FFBSi, shape (time, M, batch_size, Dx)
         :param obs: observations, shape (batch_size, time, Dy)
         :return: 1 / M \sum_{i=1}^M p_\theta (x_{1:T}^{1:M}, y_{1:T}). shape ()
@@ -211,15 +206,12 @@ class SMC:
         """
         :param X_t: shape(n_particles, batch_size, Dx)
         :param log_W_t: shape (n_particles, batch_size)
-        :param f: shape (M, n_particles, batch_size)
+        :param f_t_log_prob: shape (M, n_particles, batch_size)
         :param M: number of the backward samples
         :return samples: M backward samples, shape (M, batch_size, Dx)
                 weights: associated weights with samples, shape (M, batch_size)
         """
         _, batch_size, _ = X_t.shape.as_list()
-
-        log_W_t = tf.expand_dims(log_W_t, 0)  # (1, n_particles, batch_size)
-        log_W_t = tf.tile(log_W_t, (M, 1, 1))  # (M, n_particles, batch_size)
 
         log_weights = log_W_t + f_t_log_prob  # (M, n_particles, batch_size)
         log_weights = tf.transpose(log_weights, perm=(2, 0, 1))  # (batch_size, M, n_particles)
