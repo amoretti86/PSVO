@@ -102,7 +102,7 @@ class SMC:
                 if self.FFBS_score_loss:
                     log_ZSMC = score_loss
                 else:
-                    log_ZSMC = score_loss + tf.reduce_mean(bw_log_weights)
+                    log_ZSMC = score_loss - tf.reduce_mean(bw_log_weights)
                 Xs = bw_Xs
 
             else:
@@ -192,12 +192,11 @@ class SMC:
         assert self.pre_X0.shape == (batch_size, Dy)
         assert bw_Xs[0].shape == (M, batch_size, Dx)
 
-        f_0_log_prob = self.q0.log_prob(self.pre_X0, bw_Xs[0], name="FFBS_f_0_log_prob")  # (M, batch_size)
+        f_0_log_prob = self.q0.log_prob(self.pre_X0, bw_Xs[0], name="FFBS_f_0_log_prob") # (M, batch_size)
 
-        f_rest_log_prob = self.f.log_prob(bw_Xs[:-1], bw_Xs[1:],
-                                          name="FFBS_f_rest_log_prob")  # (time-1, M,  batch_size)
+        f_rest_log_prob = self.f.log_prob(bw_Xs[:-1], bw_Xs[1:], name="FFBS_f_rest_log_prob") # (time-1, M,  batch_size)
 
-        f_log_prob_mean = tf.add(tf.reduce_mean(f_0_log_prob), tf.reduce_mean(f_rest_log_prob), name="FFBS_log_prob")
+        f_log_prob_mean = tf.reduce_mean(f_0_log_prob + tf.reduce_sum(f_rest_log_prob, axis=0), name="FFBS_log_prob")
 
         x_g_input = tf.transpose(bw_Xs, perm=(1, 2, 0, 3))  # (M, batch_size, time, Dx)
         g_log_prob = self.g.log_prob(x_g_input, obs, name="FFBS_final_g_log_prob")  # (M, batch_size, time)
