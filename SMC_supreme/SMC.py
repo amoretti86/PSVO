@@ -14,6 +14,7 @@ class SMC:
                  FFBS=False,
                  FFBS_score_loss=False,
                  FFBS_particles=0,
+                 FFBS_vae=False,
                  FFBS_to_learn=False,
                  TFS=False,
                  name="log_ZSMC"):
@@ -55,6 +56,7 @@ class SMC:
         self.FFBS = FFBS
         self.FFBS_score_loss = FFBS_score_loss
         self.FFBS_particles = FFBS_particles
+        self.FFBS_vae = FFBS_vae
 
         if self.FFBS_score_loss:
             assert self.FFBS == True
@@ -171,8 +173,29 @@ class SMC:
         bw_Xs = bw_Xs_ta.stack()
 
         bw_Xs.set_shape((time, M, batch_size, Dx))
+        bw_log_weights.set_shape((time, M, batch_size))
 
         return bw_Xs, bw_log_weights
+
+    def _get_f_g(self, bw_Xs, obs):
+        """
+        sum over time
+        :param bw_Xs: particles sampled from FFBSi, shape (time, M, batch_size, Dx)
+        :param obs: observations, shape (batch_size, time, Dy)
+        :return: f_log_prob, g_log_prob, each of shape (M, batch_size)
+        """
+        f_0_log_prob = self.q0.log_prob(self.pre_X0, bw_Xs[0], name="FFBS_f_0_log_prob")  # (M, batch_size)
+
+        f_rest_log_prob = self.f.log_prob(bw_Xs[:-1], bw_Xs[1:],
+                                          name="FFBS_f_rest_log_prob")  # (time-1, M,  batch_size)
+
+        f_log_prob = tf.add(f_0_log_prob, tf.reduce_sum(f_rest_log_prob, axis=0), name="FFBS_log_prob")
+
+        x_g_input = tf.transpose(bw_Xs, perm=(1, 2, 0, 3))  # (M, batch_size, time, Dx)
+        g_log_prob = self.g.log_prob(x_g_input, obs)  # (M, batch_size, time)
+        g_log_prob = tf.reduce_sum(g_log_prob, axis=2, name="FFBS_g_log_prob") # (M, batch_size)
+
+        return f_log_prob, g_log_prob
 
     def compute_FFBS_score_loss(self, bw_Xs, obs):
         """
@@ -181,25 +204,49 @@ class SMC:
         :return: 1 / M \sum_{i=1}^M p_\theta (x_{1:T}^{1:M}, y_{1:T}). shape ()
         """
 
-        time, M, batch_size, Dx = bw_Xs.shape.as_list()
-        _, _, Dy = obs.shape.as_list()
+        #assert self.pre_X0.shape == (batch_size, Dy)
+        #assert bw_Xs[0].shape == (M, batch_size, Dx)
 
-        assert self.pre_X0.shape == (batch_size, Dy)
-        assert bw_Xs[0].shape == (M, batch_size, Dx)
+        f_log_prob, g_log_prob = self._get_f_g(bw_Xs, obs)  # each of shape (M, batch_size)
 
-        f_0_log_prob = self.q0.log_prob(self.pre_X0, bw_Xs[0], name="FFBS_f_0_log_prob") # (M, batch_size)
+        f_log_prob_mean = tf.reduce_mean(f_log_prob)
 
-        f_rest_log_prob = self.f.log_prob(bw_Xs[:-1], bw_Xs[1:], name="FFBS_f_rest_log_prob") # (time-1, M,  batch_size)
-
-        f_log_prob_mean = tf.reduce_mean(f_0_log_prob + tf.reduce_sum(f_rest_log_prob, axis=0), name="FFBS_log_prob")
-
-        x_g_input = tf.transpose(bw_Xs, perm=(1, 2, 0, 3))  # (M, batch_size, time, Dx)
-        g_log_prob = self.g.log_prob(x_g_input, obs, name="FFBS_final_g_log_prob")  # (M, batch_size, time)
         g_log_prob_mean = tf.reduce_mean(g_log_prob)
 
         score_loss = f_log_prob_mean + g_log_prob_mean
 
         return score_loss
+
+    def compute_FFBS_vae_loss(self, bw_Xs, obs, bw_log_weights):
+        """
+
+        :param bw_Xs:
+        :param obs:
+        :param bw_log_weights: shape: (time, M, batch_size)
+        :return: vae_loss = 1/M \sum_{m=1}^M [log p_m - log q_m],
+        where log p_m = log f_m + log g_m ,and log q_m = log weight_m
+        """
+        score_loss = self.compute_FFBS_score_loss(bw_Xs, obs)
+        log_weights = tf.reduce_mean(tf.reduce_sum(bw_log_weights, axis=0))
+        return score_loss - log_weights
+
+    def compute_FFBS_iwae_loss(self, bw_Xs, obs, bw_log_weights):
+        """
+
+        :param bw_Xs:
+        :param obs:
+        :param bw_log_weights:  shape: (time, M, batch_size)
+        :return: iwae_loss = log {1/M \sum_{m=1}^M [p_m / q_m]  },
+        where p_m / q_m = e^{log p_m - log q_m} = e^ {log f_m + log g_m - log weight_m}
+        """
+        _, M, _ = bw_log_weights.shape.as_list()
+
+        f_log_prob, g_log_prob = self._get_f_g(bw_Xs, obs)  # each of shape (M, batch_size)
+        log_weights = tf.reduce_sum(bw_log_weights, axis=0)  # (M, batch_size)
+        p_over_q = f_log_prob + g_log_prob - log_weights # (M, batch_size)
+        iwae_loss = tf.reduce_logsumexp(p_over_q, axis=0) - tf.log(tf.cast(M, tf.float32))  # (batch_size, )
+        iwae_loss = tf.reduce_mean(iwae_loss)  # over batch_size
+        return iwae_loss
 
     @staticmethod
     def get_backward_sample_and_weight(X_t, log_W_t, f_t_log_prob, M):
