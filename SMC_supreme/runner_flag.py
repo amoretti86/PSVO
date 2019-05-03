@@ -129,7 +129,7 @@ FFBS = True
 FFBS_particles = 16
 
 # choose from 'score, 'vae' or 'iwae'
-FFBS_loss_type = 'score'
+FFBS_loss_type = 'iwae'
 
 # how fast the model transfers from filtering to smoothing
 smoothing_perc_factor = 2

@@ -32,9 +32,12 @@ Then the gradient is  $\frac{1}{M} \sum_{i=1}^M  \nabla \log p_\theta(\tilde{x}_
 
 (In runner_flag.py, set the flag FFBS_score_loss=False)
 
-Compute the surrogate loss as $\frac{1}{M} \sum_{i=1}^M [\log  p_\theta(\tilde{x}_{1:T}^i, y_{1:T}) - \log \tilde{w}^i]​$
+Compute the surrogate loss as $\frac{1}{M} \sum_{i=1}^M [\log  p_\theta(\tilde{x}_{1:T}^i, y_{1:T}) - \log \tilde{w}^i] $
 
 Then directly evaluate the gradient.
+
+- approximation to what?
+- 
 
 
 
@@ -47,3 +50,12 @@ But if it is this case, using Jensen's inequality,
 $\tilde{w}^i \sum_{i=1}^M [\log  p_\theta(\tilde{x}_{1:T}^i, y_{1:T}) - \log \tilde{w}^i] \leq \log \sum_{i=1}^m \tilde{w}^i \frac{p_\theta(\tilde{x}^i_{1:T},y_{1:T})}{\tilde{w}^i} $
 
 the RHS is just FFBS_score_loss
+
+
+
+----
+
+IWAE has tighter bound
+
+- the support of Q is not large enough
+- backward pass, discrete?

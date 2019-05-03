@@ -239,7 +239,7 @@ class SMC:
         :return: iwae_loss = log {1/M \sum_{m=1}^M [p_m / q_m]  },
         where p_m / q_m = e^{log p_m - log q_m} = e^ {log f_m + log g_m - log weight_m}
         """
-        _, M, _ = bw_log_weights.shape.as_list()
+        M, _ = bw_log_weights.shape.as_list()
 
         f_log_prob, g_log_prob = self._get_f_g(bw_Xs, obs)  # each of shape (M, batch_size)
         p_over_q = f_log_prob + g_log_prob - bw_log_weights # (M, batch_size)
