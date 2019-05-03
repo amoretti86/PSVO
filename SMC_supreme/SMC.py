@@ -244,7 +244,6 @@ class SMC:
 
         return samples, sample_log_weights
 
-
     def SMC(self, Input, hidden, obs, forward=True, q_cov=1.0):
         Dx, time, n_particles, batch_size = self.Dx, self.time, self.n_particles, self.batch_size
 
