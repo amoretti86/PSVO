@@ -122,7 +122,7 @@ class SMC:
         :param X: shape (time, n_particles, batch_size, Dx)
         :param log_Ws: shape (time, n_particles, batch_size)
         :return: bw_Xs: M numebr of sample realizations, or the number of backward particles
-                bw_weights: M log weights associatied with M sample realizations
+                bw_weights: M log weights associatied with M sample realizations -- shape (M, batch_size)
         """
 
         M = self.FFBS_particles
@@ -170,7 +170,6 @@ class SMC:
         bw_Xs = bw_Xs_ta.stack()
 
         bw_Xs.set_shape((time, M, batch_size, Dx))
-        bw_log_weights.set_shape((time, M, batch_size))
 
         return bw_Xs, bw_log_weights
 
@@ -219,28 +218,31 @@ class SMC:
 
         :param bw_Xs:
         :param obs:
-        :param bw_log_weights: shape: (time, M, batch_size)
+        :param bw_log_weights: shape: (M, batch_size)
         :return: vae_loss = 1/M \sum_{m=1}^M [log p_m - log q_m],
         where log p_m = log f_m + log g_m ,and log q_m = log weight_m
         """
         score_loss = self.compute_FFBS_score_loss(bw_Xs, obs)
-        log_weights = tf.reduce_mean(tf.reduce_sum(bw_log_weights, axis=0))
-        return score_loss - log_weights
+        assert len(score_loss.shape.as_list()) == 0
+
+        vae_loss = score_loss - tf.reduce_mean(bw_log_weights)
+        assert len(vae_loss.shape.as_list()) == 0
+
+        return vae_loss
 
     def compute_FFBS_iwae_loss(self, bw_Xs, obs, bw_log_weights):
         """
 
         :param bw_Xs:
         :param obs:
-        :param bw_log_weights:  shape: (time, M, batch_size)
+        :param bw_log_weights:  shape: (M, batch_size)
         :return: iwae_loss = log {1/M \sum_{m=1}^M [p_m / q_m]  },
         where p_m / q_m = e^{log p_m - log q_m} = e^ {log f_m + log g_m - log weight_m}
         """
         _, M, _ = bw_log_weights.shape.as_list()
 
         f_log_prob, g_log_prob = self._get_f_g(bw_Xs, obs)  # each of shape (M, batch_size)
-        log_weights = tf.reduce_sum(bw_log_weights, axis=0)  # (M, batch_size)
-        p_over_q = f_log_prob + g_log_prob - log_weights # (M, batch_size)
+        p_over_q = f_log_prob + g_log_prob - bw_log_weights # (M, batch_size)
         iwae_loss = tf.reduce_logsumexp(p_over_q, axis=0) - tf.log(tf.cast(M, tf.float32))  # (batch_size, )
         iwae_loss = tf.reduce_mean(iwae_loss)  # over batch_size
         return iwae_loss
