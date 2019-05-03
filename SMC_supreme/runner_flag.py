@@ -182,10 +182,8 @@ save_y_hat = True
 
 # dir to save all results
 rslt_dir_name = "FFBSi"
-if FFBS_score_loss:
-    rslt_dir_name = rslt_dir_name + "/score_loss"
-else:
-    rslt_dir_name = rslt_dir_name + "/weighted_loss"
+
+rslt_dir_name = rslt_dir_name + "/" + FFBS_loss_type
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30

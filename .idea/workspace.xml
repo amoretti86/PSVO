@@ -256,7 +256,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.test_gather_nd">
+  <component name="RunManager" selected="Python.runner_flag">
     <configuration name="runner_flag" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="VISMC" />
       <option name="INTERPRETER_OPTIONS" value="" />
