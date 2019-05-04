@@ -27,6 +27,9 @@ class SMC:
         self.q_uses_true_X = FLAGS.q_uses_true_X
         self.use_input = FLAGS.use_input
 
+        # IWAE
+        self.IWAE = FLAGS.IWAE
+
         # bidirectional RNN as full sequence observations encoder
         self.X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
         self.use_stack_rnn = FLAGS.use_stack_rnn
@@ -361,6 +364,10 @@ class SMC:
         return X, q_t_log_prob
 
     def resample_X(self, X, log_W, sample_size=()):
+        if self.IWAE:
+            X_resampled = X
+            return X_resampled
+
         if log_W.shape.as_list()[0] != 1:
             resample_idx = self.get_resample_idx(log_W, sample_size)
             if isinstance(X, list):
