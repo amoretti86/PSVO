@@ -133,8 +133,8 @@ class trainer:
             optimizer = tf.train.AdamOptimizer(lr)
             train_op = optimizer.minimize(-self.log_ZSMC)
             # gradients, variables = zip(*optimizer.compute_gradients(-self.log_ZSMC))
-            # gradients, _ = tf.clip_by_global_norm(gradients, self.clip_norm)
-            # train_op = optimizer.apply_gradients(zip(gradients, variables))
+            # gradients_clipped, _ = tf.clip_by_global_norm(gradients, self.clip_norm)
+            # train_op = optimizer.apply_gradients(zip(gradients_clipped, variables))
 
         init = tf.global_variables_initializer()
 
@@ -160,9 +160,10 @@ class trainer:
         for i in range(self.epoch):
             start = time.time()
 
-            # FFBS interpolation
-            if i < self.epoch * 3 / 4:
-                smoothing_perc_epoch = 1 - (1 - i / self.epoch) ** self.smoothing_perc_factor
+            # TFS & FFBS interpolation
+            threshold = self.epoch * 3 / 4
+            if i < threshold:
+                smoothing_perc_epoch = 1 - (1 - i / threshold) ** self.smoothing_perc_factor
             else:
                 smoothing_perc_epoch = 1
 
@@ -208,6 +209,13 @@ class trainer:
                         y_hat_dict = {"y_hat": y_hat_val}
                         with open(self.epoch_data_DIR + "y_hat_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(y_hat_dict, f)
+
+                    if self.FLAGS.TFS:
+                        Xs_f_val, Xs_b_val = self.evaluate([log["Xs_f"], log["Xs_b"]],
+                                                           self.saving_feed_dict, average=False)
+                        TFS_Xs_dict = {"Xs_f": Xs_f_val, "Xs_b": Xs_b_val}
+                        with open(self.epoch_data_DIR + "TFS_Xs_{}.p".format(i + 1), "wb") as f:
+                            pickle.dump(TFS_Xs_dict, f)
 
                     if self.draw_quiver_during_training:
                         if self.Dx == 2:

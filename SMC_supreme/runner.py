@@ -32,78 +32,20 @@ def main(_):
     # should q use true_X to sample? (useful for debugging)
     q_uses_true_X = FLAGS.q_uses_true_X
 
-    # do q and f use the same network?
-    use_bootstrap = FLAGS.use_bootstrap
-
-    # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
-    # if True, use_bootstrap will be overwritten as True
-    #          q_takes_y as False
-    #          q_uses_true_X as False
-    use_2_q = FLAGS.use_2_q
-
     # whether use input in q and f
     use_input = FLAGS.use_input
-
-    # whether emission uses Poisson distribution
-    poisson_emission = FLAGS.poisson_emission
-
-    # whether transitions (q1 and f) use Normalizing Flow
-    flow_transition = FLAGS.flow_transition
-
-    # --------------------- FFN flags --------------------- #
-    # if f and q use residual
-    use_residual = FLAGS.use_residual
-
-    # if q, f and g networks also output covariance (sigma)
-    output_cov = FLAGS.output_cov
-
-    # if the networks only output diagonal value of cov matrix
-    diag_cov = FLAGS.diag_cov
-
-    # -------------------------------- NF flags --------------------------------- #
-    # whether only the shift term shall be computed
-    shift_only = FLAGS.shift_only
-
-    # whether clip the gradients of log scale term
-    log_scale_clip_gradient = FLAGS.log_scale_clip_gradient
-
-    # -------------------------------- TFS flags -------------------------------- #
-
-    # whether use Two Filter Smoothing
-    TFS = FLAGS.TFS
-
-    # whether backward filtering in TFS uses different q0
-    TFS_use_diff_q0 = FLAGS.TFS_use_diff_q0
-
-    # -------------------------------- FFBS flags ------------------------------- #
-
-    # whether use Forward Filtering Backward Smoothing
-    FFBS = FLAGS.FFBS
-
-    # whether use FFBS for inference or leaning
-    FFBS_to_learn = FLAGS.FFBS_to_learn
-
-    # ------------------------------ smoother flags ----------------------------- #
-
-    # whether smooth observations with birdectional RNNs (bRNN) or self-attention encoders
-    smooth_obs = FLAGS.smooth_obs
-
-    # whether use a separate RNN for getting X0
-    X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
-
-    # whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn or tf.nn.bidirectional_dynamic_rnn
-    # check https://stackoverflow.com/a/50552539 for differences between them
-    use_stack_rnn = FLAGS.use_stack_rnn
 
     # --------------------- printing and data saving params --------------------- #
 
     print_freq = FLAGS.print_freq
 
     if FLAGS.use_input:
-        FLAGS.use_residual = use_residual = False
+        FLAGS.use_residual = False
     if FLAGS.use_2_q:
         FLAGS.q_uses_true_X = q_uses_true_X = False
     if FLAGS.flow_transition:
+        FLAGS.use_input = use_input = False
+    if FLAGS.TFS:
         FLAGS.use_input = use_input = False
 
     tf.set_random_seed(FLAGS.seed)
@@ -124,39 +66,15 @@ def main(_):
 
     # clip saving_num to avoid it > n_train or n_test
     FLAGS.MSE_steps  = min(FLAGS.MSE_steps, FLAGS.time - 1)
-    FLAGS.saving_num = min(FLAGS.saving_num, FLAGS.n_train, FLAGS.n_test)
-    saving_num = FLAGS.saving_num
+    FLAGS.saving_num = saving_num = min(FLAGS.saving_num, FLAGS.n_train, FLAGS.n_test)
 
     print("finished preparing dataset")
 
     # ============================================== model part ============================================== #
-    SSM_model = SSM(FLAGS,
-                    use_residual=use_residual,
-                    output_cov=output_cov,
-                    diag_cov=diag_cov,
-                    use_bootstrap=use_bootstrap,
-                    use_2_q=use_2_q,
-                    flow_transition=flow_transition,
-                    poisson_emission=poisson_emission,
-                    shift_only=shift_only,
-                    log_scale_clip_gradient=log_scale_clip_gradient,
-                    TFS=TFS,
-                    TFS_use_diff_q0=TFS_use_diff_q0,
-                    smooth_obs=smooth_obs,
-                    X0_use_separate_RNN=X0_use_separate_RNN,
-                    use_stack_rnn=use_stack_rnn)
+    SSM_model = SSM(FLAGS)
 
     # SMC class to calculate loss
-    SMC_train = SMC(SSM_model,
-                    FLAGS.n_particles,
-                    q_uses_true_X=q_uses_true_X,
-                    use_input=use_input,
-                    X0_use_separate_RNN=X0_use_separate_RNN,
-                    use_stack_rnn=use_stack_rnn,
-                    FFBS=FFBS,
-                    FFBS_to_learn=FFBS_to_learn,
-                    TFS=TFS,
-                    name="log_ZSMC_train")
+    SMC_train = SMC(SSM_model, FLAGS, name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
     # create dir to save results

@@ -33,12 +33,12 @@ seed = 0
 generateTrainingData = False
 
 # if reading data from file
-datadir = "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
+datadir = "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
-isPython2 = True
+isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
 time = 200
@@ -47,11 +47,11 @@ n_test = 40 * batch_size
 
 # -------------------- model parameters -------------------- #
 # Feed-Forward Network (FFN)
-q0_layers = [64]        # q(x_1|y_1) or q(x_1|y_1:T)
-q1_layers = [64]        # q(x_t|x_{t-1})
-q2_layers = [64]        # q(x_t|y_t) or q(x_t|y_1:T)
-f_layers = [64]
-g_layers = [64]
+q0_layers = [16]        # q(x_1|y_1) or q(x_1|y_1:T)
+q1_layers = [16]        # q(x_t|x_{t-1})
+q2_layers = [16]        # q(x_t|y_t) or q(x_t|y_1:T)
+f_layers = [16]
+g_layers = [16]
 
 q0_sigma_init, q0_sigma_min = 5, 1
 q1_sigma_init, q1_sigma_min = 5, 1
@@ -60,14 +60,14 @@ f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
 
 # Normalizing Flow (NF)
-q1_flow_layers  = 2
-f_flow_layers   = 2
+q1_flow_layers  = 4
+f_flow_layers   = 4
 flow_sample_num = 25
-flow_type       = "MAF"
+flow_type       = "RealNVP"
 
 # bidirectional RNN
-y_smoother_Dhs = [64]
-X0_smoother_Dhs = [64]
+y_smoother_Dhs = [16]
+X0_smoother_Dhs = [16]
 
 # ----------------------- SSM flags ------------------------ #
 
@@ -114,10 +114,13 @@ log_scale_clip_gradient = True
 
 # ----------------------- TFS flags ------------------------ #
 # whether use Two Filter Smoothing
-TFS = False
+TFS = True
 
 # whether backward filtering in TFS uses different q0
 TFS_use_diff_q0 = True
+
+# the number of particles gamma uses to approximate prior at each time step
+n_particles_for_gamma = 500
 
 # ----------------------- FFBS flags ----------------------- #
 # whether use Forward Filtering Backward Smoothing
@@ -155,7 +158,7 @@ lr_reduce_factor = 1 / np.sqrt(2)
 min_lr = lr / 10
 
 # The clipping ratio of gradient based on global L2 norm
-clip_norm = 10.0
+clip_norm = 10
 
 # --------------------- printing and data saving params --------------------- #
 # frequency to evaluate testing loss & other metrics and save results
@@ -294,6 +297,8 @@ flags.DEFINE_boolean("log_scale_clip_gradient", log_scale_clip_gradient,
 
 flags.DEFINE_boolean("TFS", TFS, "whether use Two Filter Smoothing")
 flags.DEFINE_boolean("TFS_use_diff_q0", TFS_use_diff_q0, "whether backward filtering in TFS uses different q0")
+flags.DEFINE_integer("n_particles_for_gamma", n_particles_for_gamma,
+                     "the number of particles gamma uses to approximate prior at each time step")
 
 # ----------------------- FFBS flags ----------------------- #
 

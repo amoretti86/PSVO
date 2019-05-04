@@ -4,16 +4,7 @@ from tensorflow_probability import distributions as tfd
 
 
 class SMC:
-    def __init__(self, model,
-                 n_particles,
-                 q_uses_true_X=False,
-                 use_input=False,
-                 X0_use_separate_RNN=True,
-                 use_stack_rnn=False,
-                 FFBS=False,
-                 FFBS_to_learn=False,
-                 TFS=False,
-                 name="log_ZSMC"):
+    def __init__(self, model, FLAGS, name="log_ZSMC"):
 
         self.model = model
 
@@ -24,20 +15,21 @@ class SMC:
         self.f  = model.f_dist
         self.g  = model.g_dist
 
-        if TFS:
+        if FLAGS.TFS:
             self.q1_inv = model.q1_inv_dist
             self.f_inv = model.f_inv_dist
             if model.TFS_use_diff_q0:
                 self.TFS_q0 = model.TFS_q0_dist
 
-        self.n_particles = n_particles
+        self.n_particles = FLAGS.n_particles
+        self.n_particles_for_gamma = FLAGS.n_particles_for_gamma
 
-        self.q_uses_true_X = q_uses_true_X
-        self.use_input = use_input
+        self.q_uses_true_X = FLAGS.q_uses_true_X
+        self.use_input = FLAGS.use_input
 
         # bidirectional RNN as full sequence observations encoder
-        self.X0_use_separate_RNN = X0_use_separate_RNN
-        self.use_stack_rnn = use_stack_rnn
+        self.X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
+        self.use_stack_rnn = FLAGS.use_stack_rnn
 
         if model.bRNN is not None:
             self.smooth_obs = True
@@ -46,16 +38,16 @@ class SMC:
             self.smooth_obs = False
 
         # FFBS
-        self.FFBS = FFBS
-        self.FFBS_to_learn = FFBS_to_learn
+        self.FFBS = FLAGS.FFBS
+        self.FFBS_to_learn = FLAGS.FFBS_to_learn
         self.smoothing_perc = model.smoothing_perc
         if not self.FFBS_to_learn:
             self.smoothing_perc = 1
 
         # TFS
-        self.TFS = TFS
+        self.TFS = FLAGS.TFS
 
-        assert not (FFBS and TFS), "cannot use FFBS and TFS at the same time"
+        assert not (FLAGS.FFBS and FLAGS.TFS), "cannot use FFBS and TFS at the same time"
 
         self.name = name
 
@@ -76,16 +68,18 @@ class SMC:
 
         with tf.variable_scope(self.name):
 
+            log = {}
+
             # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
-            X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs, forward=True)
+            X_prevs, X_ancestors, log_Ws, _ = self.SMC(Input, hidden, obs, forward=True)
 
             # TFS
             if self.TFS:
-                X_prevs_b, X_ancestors_b, log_Ws_b = self.SMC(Input, hidden, obs, forward=False)
-                log_Ws = self.TFS_reweight_log_Ws(log_Ws, log_Ws_b, X_prevs, X_prevs_b, Input)
-                X_ancestors = [self.resample_X(X, log_W, sample_size=n_particles)
-                               for X, log_W in zip(tf.unstack(X_prevs_b), tf.unstack(log_Ws))]
-                X_ancestors = tf.stack(X_ancestors)
+                X_prevs_b, X_ancestors_b, log_Ws_b, gamma = self.SMC(Input, hidden, obs, forward=False)
+                reweighted_log_Ws = self.TFS_reweight_log_Ws(log_Ws, log_Ws_b, X_prevs, X_prevs_b, gamma)
+                X_ancestors_resampled = [self.resample_X(X, log_W, sample_size=n_particles)
+                                         for X, log_W in zip(tf.unstack(X_prevs_b), tf.unstack(log_Ws))]
+                X_ancestors_resampled = tf.stack(X_ancestors_resampled)
 
             # FFBS
             if self.FFBS:
@@ -97,21 +91,38 @@ class SMC:
                     log_Ws = reweighted_log_Ws
 
             # compute log_ZSMC
-            log_ZSMC = self.compute_log_ZSMC(log_Ws)
-            Xs = X_ancestors
+            if self.TFS:
+                log_ZSMC = \
+                    (1 - self.smoothing_perc) * (self.compute_log_ZSMC(log_Ws) + self.compute_log_ZSMC(log_Ws_b)) \
+                    + self.smoothing_perc * self.compute_log_ZSMC(reweighted_log_Ws)
+                Xs_f = tf.transpose(X_ancestors, perm=[2, 0, 1, 3], name="Xs_f")
+                Xs_b = tf.transpose(X_ancestors_b, perm=[2, 0, 1, 3], name="Xs_b")
+                Xs   = X_ancestors_resampled
+                log["Xs_f"], log["Xs_b"] = Xs_f, Xs_b
+                log["log_ZSMC_f"], log["log_ZSMC_b"] = self.compute_log_ZSMC(log_Ws), self.compute_log_ZSMC(log_Ws_b)
+                log["Xs_f"], log["Xs_b"] = Xs_f, Xs_b
+            else:
+                log_ZSMC = self.compute_log_ZSMC(log_Ws)
+                Xs = X_ancestors
 
             # shape = (batch_size, time, n_particles, Dx)
             Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")
 
-            log = {"Xs": Xs}
+            log["Xs"] = Xs
 
         return log_ZSMC, log
 
     def SMC(self, Input, hidden, obs, forward=True, q_cov=1.0):
         Dx, time, n_particles, batch_size = self.Dx, self.time, self.n_particles, self.batch_size
 
+        # for backward filter, approximate artificial distributions gamma 1:T-1 with many particles
+        if not forward:
+            gamma_Xs = self.approximate_artificial_dist_w_samples(hidden, q_cov)
+
         # preprossing obs
         preprocessed_X0, preprocessed_obs = self.preprocess_obs(obs, forward)
+        if forward:
+            self.preprocessed_X0_f = preprocessed_X0
         if forward:
             q0 = self.q0
             q1 = self.q1
@@ -122,13 +133,14 @@ class SMC:
             obs    = obs[:, ::-1, :]
             q0 = self.TFS_q0 if self.model.TFS_use_diff_q0 else self.q0
             q1 = self.q1_inv
-            f  = self.f_inv
+            f  = self.f
 
-        # t = 0
+        # -------------------------------------- t = 0 -------------------------------------- #
         q_f_t_feed = preprocessed_X0
         if self.use_input:
             q_f_t_feed = tf.concat([q_f_t_feed, Input[:, 0, :]], axis=-1)
 
+        # proposal
         if self.q_uses_true_X:
             X, q_t_log_prob = self.sample_from_true_X(hidden[:, 0, :],
                                                       q_cov,
@@ -151,33 +163,58 @@ class SMC:
                 X, q_t_log_prob = q0.sample_and_log_prob(q_f_t_feed,
                                                          sample_shape=n_particles,
                                                          name="q_{}_sample_and_log_prob".format(0))
+        # transition log probability
+        if forward:
+            # only when use_bootstrap and use_2_q, f_t_log_prob has been calculated
+            if not (self.model.use_bootstrap and self.model.use_2_q):
+                f_t_log_prob = f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(0))
+        else:
+            # calculate gamma_t(X_t) according to equ 34 of "Smoothing algorithms for state–space models"
+            f_t_log_prob = self.gamma_log_prob(gamma_Xs[0], X)
 
-        # only when use_bootstrap and use_2_q, f_t_log_prob has been calculated
-        if not (self.model.use_bootstrap and self.model.use_2_q):
-            f_t_log_prob = f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(0))
-
+        # emission log probability and log weights
         g_t_log_prob = self.g.log_prob(X, obs[:, 0], name="g_{}_log_prob".format(0))
         log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_{}".format(0))
 
-        # t = 1, ..., T - 1
+        # -------------------------------------- t = 1, ..., T - 1 -------------------------------------- #
         # prepare tensor arrays
+        # tensor arrays to read
         preprocessed_obs_ta = \
             tf.TensorArray(tf.float32, size=time, name="preprocessed_obs_ta").unstack(preprocessed_obs)
+        if not forward:
+            gamma_Xs_ta = \
+                tf.TensorArray(tf.float32, size=time, name="gamma_Xs_ta").unstack(gamma_Xs)
+
+        # tensor arrays to write
+        # particles, resampled particles (mean), log weights of particles
         log_names = ["X_prevs", "X_ancestors", "log_Ws"]
-        log = [tf.TensorArray(tf.float32, size=time, name="{}_ta".format(name)) for name in log_names]
+        if not forward:
+            log_names += ["gamma"]  # gamma_t(X_t)
+        log = [tf.TensorArray(tf.float32, size=time, clear_after_read=False, name="{}_ta".format(name))
+               for name in log_names]
+
+        # write results for t = 0 into tensor arrays
         log[2] = log[2].write(0, log_W)
+        if not forward:
+            log[3] = log[3].write(0, f_t_log_prob)
 
         def while_cond(t, *unused_args):
             return t < time
 
         def while_body(t, X_prev, log_W, log):
-            X_ancestor = self.resample_X(X_prev, log_W, sample_size=n_particles)
-            q_f_t_feed = X_ancestor
+            # resampling
+            if forward:
+                X_ancestor = self.resample_X(X_prev, log_W, sample_size=n_particles)
+            else:
+                gamma_prev = log[3].read(t - 1)  # read gamma_t+1(X_t+1) from previous loop
+                X_ancestor, gamma_ancestor = self.resample_X([X_prev, gamma_prev], log_W, sample_size=n_particles)
 
+            q_f_t_feed = X_ancestor
             if self.use_input:
                 Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
                 q_f_t_feed = tf.concat([q_f_t_feed, Input_t_expanded], axis=-1)
 
+            # proposal
             if self.q_uses_true_X:
                 X, q_t_log_prob = self.sample_from_true_X(hidden[:, t, :],
                                                           q_cov,
@@ -195,15 +232,26 @@ class SMC:
                                                              sample_shape=(),
                                                              name="q_t_sample_and_log_prob")
 
-            if not (self.model.use_bootstrap and self.model.use_2_q):
-                f_t_log_prob = f.log_prob(q_f_t_feed, X, name="f_t_log_prob")
+            # transition log probability
+            if forward:
+                if not (self.model.use_bootstrap and self.model.use_2_q):
+                    f_t_log_prob = f.log_prob(q_f_t_feed, X, name="f_t_log_prob")
+            else:
+                f_t_log_prob = f.log_prob(X, X_ancestor, name="f_t_log_prob")
+                # calculate gamma_t(X_t) according to equ 34 of "Smoothing algorithms for state–space models"
+                gamma_t = self.gamma_log_prob(gamma_Xs_ta.read(t), X)
+                f_t_log_prob = f_t_log_prob + gamma_t - gamma_ancestor
 
+            # emission log probability and log weights
             g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_t_log_prob")
             log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_t")
 
-            # write to tensor arrays
+            # write results in this loop to tensor arrays
             idxs = [t - 1, t - 1, t]
             log_contents = [X_prev, X_ancestor, log_W]
+            if not forward:
+                idxs += [t]
+                log_contents += [gamma_t]
             log = [ta.write(idx, log_content) for ta, idx, log_content in zip(log, idxs, log_contents)]
 
             return (t + 1, X, log_W, log)
@@ -214,22 +262,27 @@ class SMC:
 
         # write final results at t = T - 1 to tensor arrays
         X_T_resampled = self.resample_X(X_T, log_W, sample_size=n_particles)
-        log_contents = [X_T, X_T_resampled, log_W]
-        log = [ta.write(t_final - 1, log_content) if i != 2 else ta
-               for ta, log_content, i in zip(log, log_contents, range(3))]
+        log[0] = log[0].write(t_final - 1, X_T)
+        log[1] = log[1].write(t_final - 1, X_T_resampled)
 
-        # transfer tensor arrays to tensors
+        # convert tensor arrays to tensors
         log_shapes = [(time, n_particles, batch_size, Dx)] * 2 + [(time, n_particles, batch_size)]
+        if not forward:
+            log_shapes += [(time, n_particles, batch_size)]
+
         log = [ta.stack(name=name) for ta, name in zip(log, log_names)]
         for tensor, shape in zip(log, log_shapes):
             tensor.set_shape(shape)
 
+        # reverse the results back for backward filter
         if not forward:
             log = [tf.stack(list(reversed(tf.unstack(tensor, axis=0)))) for tensor in log]
+        else:
+            log += ["placeholder_for_gamma"]
 
-        X_prevs, X_ancestors, log_Ws = log
+        X_prevs, X_ancestors, log_Ws, gamma = log
 
-        return X_prevs, X_ancestors, log_Ws
+        return X_prevs, X_ancestors, log_Ws, gamma
 
     def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size=()):
         d1_mvn = dist1.get_mvn(d1_input)
@@ -353,33 +406,37 @@ class SMC:
 
         return resample_idx
 
-    def TFS_reweight_log_Ws(self, log_Ws, log_Ws_b, X_prevs, X_prevs_b, Input):
-        # reweight weight of each particle (w_t^k) according to TFS formula9
+    def gamma_log_prob(self, gamma_X, X):
+        n_particles_for_gamma = self.n_particles_for_gamma
+        X_tile = tf.tile(tf.expand_dims(X, axis=1), (1, n_particles_for_gamma, 1, 1))
+        f_t_all_log_prob = self.f.log_prob(gamma_X, X_tile)
+        gamma_log_prob = \
+            tf.reduce_logsumexp(f_t_all_log_prob, axis=1) - tf.log(tf.constant(n_particles_for_gamma, dtype=tf.float32))
+        return gamma_log_prob
+
+    def TFS_reweight_log_Ws(self, log_Ws, log_Ws_b, X_prevs, X_prevs_b, gamma):
+        # reweight weight of each particle (w_t^k) according to TFS formula
         n_particles, time = self.n_particles, self.time
 
         log_Ws,  log_Ws_b  = tf.unstack(log_Ws),  tf.unstack(log_Ws_b)
         X_prevs, X_prevs_b = tf.unstack(X_prevs), tf.unstack(X_prevs_b)
+        gamma              = tf.unstack(gamma)
 
         all_fs            = ["placeholder"] * time
         reweighted_log_Ws = ["placeholder"] * time
 
         for t in range(time - 1):
-            X_tile = tf.tile(tf.expand_dims(X_prevs_b[t + 1], axis=1), (1, n_particles, 1, 1), name="X_tile")
-
-            f_t_all_feed = X_prevs[t]
-            if self.use_input:
-                Input_t_expanded = tf.tile(tf.expand_dims(Input[:, t, :], axis=0), (n_particles, 1, 1))
-                f_t_all_feed = tf.concat([f_t_all_feed, Input_t_expanded], axis=-1)
+            X_b_tile = tf.tile(tf.expand_dims(X_prevs_b[t + 1], axis=1), (1, n_particles, 1, 1), name="X_tile")
 
             # all_fs[t, i, j] = f(tilde{x}_{t + 1}^i | x_t^j)
-            all_fs[t] = self.f.log_prob(f_t_all_feed, X_tile, name="f_t_all_log_prob")
+            all_fs[t] = self.f.log_prob(X_prevs[t], X_b_tile, name="f_t_all_log_prob")
 
         for t in range(time):
             if t == 0:
                 reweighted_log_Ws[t] = log_Ws_b[t]
             else:
                 reweight_factor = tf.reduce_logsumexp(log_Ws[t - 1] + all_fs[t - 1], axis=1)
-                reweighted_log_Ws[t] = log_Ws_b[t] + reweight_factor
+                reweighted_log_Ws[t] = log_Ws_b[t] + reweight_factor - gamma[t]
 
         reweighted_log_Ws = tf.stack(reweighted_log_Ws)
         return reweighted_log_Ws
@@ -424,8 +481,8 @@ class SMC:
         time, n_particles, batch_size = log_Ws.get_shape().as_list()
 
         log_ZSMC = tf.reduce_logsumexp(log_Ws, axis=1)
-        log_ZSMC = tf.reduce_sum(log_ZSMC, name="log_ZSMC")
-        log_ZSMC -= tf.log(tf.constant(n_particles, dtype=tf.float32)) * time * batch_size
+        log_ZSMC = tf.reduce_sum(tf.reduce_mean(log_ZSMC, axis=1), name="log_ZSMC")
+        log_ZSMC -= tf.log(tf.constant(n_particles, dtype=tf.float32)) * time
 
         return log_ZSMC
 
@@ -538,6 +595,62 @@ class SMC:
             y_vars = tf.stack(y_vars, name="y_vars")     # (n_steps + 1, Dy)
 
             return MSE_ks, y_means, y_vars, y_hat_N_BxTxDy
+
+    def approximate_artificial_dist_w_samples(self, hidden, q_cov=1.0):
+        Dx, time, n_particles_for_gamma, batch_size = self.Dx, self.time, self.n_particles_for_gamma, self.batch_size
+
+        # get cached mu(x0 | y0)
+        preprocessed_X0 = self.preprocessed_X0_f
+
+        # t = 0
+        if self.q_uses_true_X:
+            X, _ = self.sample_from_true_X(hidden[:, 0, :],
+                                           q_cov,
+                                           sample_shape=n_particles_for_gamma,
+                                           name="q_{}_sample_and_log_prob".format(0))
+        else:
+            if self.model.use_bootstrap:
+                X, _ = self.q0.sample_and_log_prob(preprocessed_X0, sample_shape=n_particles_for_gamma)
+            else:
+                X, _ = self.f.sample_and_log_prob(preprocessed_X0, sample_shape=n_particles_for_gamma)
+
+        # t = 1, ..., T - 1
+        # prepare tensor arrays
+        Xs_ta = tf.TensorArray(tf.float32, size=time - 1, clear_after_read=False, name="Xs_ta")
+        Xs_ta = Xs_ta.write(0, X)
+
+        def while_cond(t, *unused_args):
+            return t < time - 1
+
+        def while_body(t, Xs_ta):
+            if self.q_uses_true_X:
+                X, q_t_log_prob = self.sample_from_true_X(hidden[:, t, :],
+                                                          q_cov,
+                                                          sample_shape=(),
+                                                          name="q_t_sample_and_log_prob")
+            else:
+                f_t_feed = Xs_ta.read(t - 1)
+                X, _ = self.f.sample_and_log_prob(f_t_feed, sample_shape=(), name="f_t_log_prob")
+
+            # write to tensor arrays
+            Xs_ta = Xs_ta.write(t, X)
+
+            return (t + 1, Xs_ta)
+
+        # conduct the while loop
+        init_state = (1, Xs_ta)
+        t_final, Xs_ta = tf.while_loop(while_cond, while_body, init_state)
+
+        # transfer tensor arrays to tensors
+        Xs = Xs_ta.stack(name="gamma_Xs")
+        Xs.set_shape((time - 1, n_particles_for_gamma, batch_size, Dx))
+
+        # reverse Xs
+        # after reversion Xs[0] are sampled at T - 2, Xs[1] are sampled at T - 3, ..., Xs[T - 2] are sampled at 0
+        # Xs[T - 1] is used to calculate gamma_0, but since gamma0 is never used, Xs[T - 1] can be some dummy particles
+        Xs = list(reversed(tf.unstack(Xs))) + [tf.zeros((n_particles_for_gamma, batch_size, Dx))]
+
+        return Xs
 
     def get_nextX(self, X):
         # only used for drawing 2D quiver plot
