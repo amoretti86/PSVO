@@ -5,9 +5,9 @@ import numpy as np
 
 from runner import main
 
-np.warnings.filterwarnings('ignore')
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # to avoid lots of log about the device
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'  # hack to avoid OS bug...
+np.warnings.filterwarnings('ignore')          # to avoid np deprecation warning
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"      # to avoid lots of log about the device
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'   # hack to avoid OS bug...
 
 print("the code is written in:")
 print("\t tensorflow version: 1.12.0")
@@ -41,17 +41,17 @@ datadict = "datadict"
 isPython2 = False
 
 # time, n_train and n_test will be overwritten if loading data from the file
-time = 100
-n_train = 2 * batch_size
-n_test = 2 * batch_size
+time = 200
+n_train = 200 * batch_size
+n_test = 40 * batch_size
 
 # -------------------- model parameters -------------------- #
 # Feed-Forward Network (FFN)
-q0_layers = [16]        # q(x_1|y_1) or q(x_1|y_1:T)
-q1_layers = [16]        # q(x_t|x_{t-1})
-q2_layers = [16]        # q(x_t|y_t) or q(x_t|y_1:T)
-f_layers = [16]
-g_layers = [16]
+q0_layers = [32]        # q(x_1|y_1) or q(x_1|y_1:T)
+q1_layers = [32]        # q(x_t|x_{t-1})
+q2_layers = [32]        # q(x_t|y_t) or q(x_t|y_1:T)
+f_layers = [32]
+g_layers = [32]
 
 q0_sigma_init, q0_sigma_min = 5, 1
 q1_sigma_init, q1_sigma_min = 5, 1
@@ -60,8 +60,8 @@ f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
 
 # bidirectional RNN
-y_smoother_Dhs = [16]
-X0_smoother_Dhs = [16]
+y_smoother_Dhs = [32]
+X0_smoother_Dhs = [32]
 
 # ----------------------- SSM flags ------------------------ #
 
