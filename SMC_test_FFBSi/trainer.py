@@ -121,11 +121,12 @@ class trainer:
         self.hidden_train, self.hidden_test = hidden_train, hidden_test
         self.input_train,  self.input_test  = input_train,  input_test
 
-        self.log_ZSMC, log = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input)
+        self.log_ZSMC_SVO, log = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input, FFBS=False)
+        self.log_ZSMC_FFBS, log = self.SMC.get_log_ZSMC(self.obs, self.hidden, self.Input, FFBS=True)
 
         save_gradient = False
         if save_gradient:
-            self.list_of_gradients_dict = self.set_up_gradient([self.log_ZSMC])
+            self.list_of_gradients_dict = self.set_up_gradient([self.log_ZSMC_SVO])
 
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
@@ -134,8 +135,10 @@ class trainer:
 
         with tf.variable_scope("train"):
             lr = tf.placeholder(tf.float32, name="lr")
-            optimizer = tf.train.AdamOptimizer(lr)
-            train_op = optimizer.minimize(-self.log_ZSMC)
+            optimizer_svo = tf.train.AdamOptimizer(lr)
+            optimizer_FFBS = tf.train.AdamOptimizer(lr)
+            train_op_svo = optimizer_svo.minimize(-self.log_ZSMC_SVO)
+            train_op_FFBS = optimizer_FFBS.minimize(-self.log_ZSMC_FFBS)
             #gradients, variables = zip(*optimizer.compute_gradients(-self.log_ZSMC))
             #gradients, _ = tf.clip_by_global_norm(gradients, self.clip_norm)
             #train_op = optimizer.apply_gradients(zip(gradients, variables))
@@ -167,8 +170,12 @@ class trainer:
             # FFBS interpolation
             if i < self.epoch * 2 / 3:
                 smoothing_perc_epoch = 1 - (1 - i / self.epoch) ** self.smoothing_perc_factor
+                train_op = train_op_svo
+                self.log_ZSMC = self.log_ZSMC_SVO
             else:
                 smoothing_perc_epoch = 1
+                train_op = train_op_FFBS
+                self.log_ZSMC = self.log_ZSMC_FFBS
 
             if i == 0:
                 log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test = \
