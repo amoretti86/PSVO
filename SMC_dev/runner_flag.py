@@ -25,7 +25,7 @@ n_particles = 32
 
 batch_size = 1
 lr = 2e-4
-epoch = 5
+epoch = 200
 seed = 0
 
 # ------------------- data set parameters ------------------ #
@@ -91,8 +91,14 @@ diag_cov = False
 # whether use Forward Filtering Backward Simulation
 FFBSimulation = True
 
-# whether Forward Filtering Backward Simulation sample new particles from proposal or use existing particles
-BSimulation_sample_new_particles = True
+# whether Backward Simulation sample new particles from proposal or use existing particles
+BSim_sample_new_particles = True
+
+# whether Backward Simulation proposal use unidirectional RNN or bidirectional RNN
+BSim_use_single_RNN = True
+
+# whether Forward Filtering proposal use bRNN
+FF_use_bRNN = False
 
 # --------------------- IWAE flags ---------------------- #
 # whether use IWAE or SVO
@@ -244,9 +250,12 @@ flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output dia
 # --------------------- FFBSimulation flags --------------------- #
 
 flags.DEFINE_boolean("FFBSimulation", FFBSimulation, "whether use Forward Filtering Backward Simulation")
-flags.DEFINE_boolean("BSimulation_sample_new_particles", BSimulation_sample_new_particles,
+flags.DEFINE_boolean("BSim_sample_new_particles", BSim_sample_new_particles,
                      "whether Forward Filtering Backward Simulation sample new particles from proposal "
                      "or use existing particles")
+flags.DEFINE_boolean("BSim_use_single_RNN", BSim_use_single_RNN, "whether Backward Simulation proposal "
+                                                                 "use unidirectional RNN or bidirectional RNN")
+flags.DEFINE_boolean("FF_use_bRNN", FF_use_bRNN, "whether Forward Filtering proposal use bRNN")
 
 # --------------------- IWAE flags ----------------------- #
 

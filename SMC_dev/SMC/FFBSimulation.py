@@ -8,9 +8,15 @@ from SMC.SMC_base import SMC
 class FFBSimulation(SMC):
     def __init__(self, model, FLAGS, name="log_ZSMC"):
         SMC.__init__(self, model, FLAGS, name="log_ZSMC")
-        self.BSimulation_sample_new_particles = FLAGS.BSimulation_sample_new_particles
-        if self.BSimulation_sample_new_particles:
+        self.BSim_sample_new_particles = FLAGS.BSim_sample_new_particles
+        if self.BSim_sample_new_particles:
             self.q1_inv = model.q1_inv_dist
+            self.smooth_obs = self.FF_use_bRNN = FLAGS.FF_use_bRNN
+            self.BSim_use_single_RNN = FLAGS.BSim_use_single_RNN
+            if self.FF_use_bRNN and not self.BSim_use_single_RNN:
+                self.BSim_q2 = model.q2_dist
+            else:
+                self.BSim_q2 = model.BSim_q2_dist
 
     def get_log_ZSMC(self, obs, hidden):
         """
@@ -31,7 +37,7 @@ class FFBSimulation(SMC):
 
             # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
             X_prevs, _, log_Ws = self.SMC(hidden, obs)
-            if self.BSimulation_sample_new_particles:
+            if self.BSim_sample_new_particles:
                 bw_Xs, bw_log_Ws, f_log_probs, g_log_probs = self.backward_simulation_w_proposal(X_prevs, log_Ws, obs)
 
             log_ZSMC = self.compute_log_ZSMC(bw_log_Ws, f_log_probs, g_log_probs)
@@ -80,8 +86,9 @@ class FFBSimulation(SMC):
         bw_Xs_ta = bw_Xs_ta.write(time - 1, bw_X_Tm1)
         bw_log_Ws_ta = bw_log_Ws_ta.write(time - 1, bw_log_W_Tm1)
         g_log_probs_ta = g_log_probs_ta.write(time - 1, g_Tm1_log_prob)
+        preprocessed_obs = self.BS_preprocess_obs(obs)
         preprocessed_obs_ta = \
-            tf.TensorArray(tf.float32, size=time, name="preprocessed_obs_ta").unstack(self.preprocessed_obs)
+            tf.TensorArray(tf.float32, size=time, name="preprocessed_obs_ta").unstack(preprocessed_obs)
 
         #  from t = T - 2 to 1
         def while_cond(t, *unused_args):
@@ -91,7 +98,7 @@ class FFBSimulation(SMC):
             # proposal q(x_t | x_t+1, y_t)
             # bw_X_t.shape = (M, n_particles, batch_size, Dx)
             # bw_q_log_prob.shape = (M, n_particles, batch_size)
-            bw_X_t, bw_q_log_prob, _ = self.sample_from_2_dist(self.q1_inv, self.q2,
+            bw_X_t, bw_q_log_prob, _ = self.sample_from_2_dist(self.q1_inv, self.BSim_q2,
                                                                bw_X_tp1, preprocessed_obs_ta.read(t),
                                                                sample_size=M)
 
@@ -128,14 +135,14 @@ class FFBSimulation(SMC):
         # t = 0
         # bw_X_t.shape = (M, n_particles, batch_size, Dx)
         # bw_q_log_prob.shape = (M, n_particles, batch_size)
-        bw_X_0, bw_q_log_prob, _ = self.sample_from_2_dist(self.q1_inv, self.q2,
-                                                           bw_X_1, self.preprocessed_obs[0],
+        bw_X_0, bw_q_log_prob, _ = self.sample_from_2_dist(self.q1_inv, self.BSim_q2,
+                                                           bw_X_1, preprocessed_obs[0],
                                                            sample_size=M)
 
         f_0_log_prob = self.f.log_prob(bw_X_0, bw_X_1)          # (M, n_particles, batch_size)
         g_0_log_prob = self.g.log_prob(bw_X_0, obs[:, 0])       # (M, n_particles, batch_size)
 
-        # self.preprocessed_X0_f is in from self.SMC()
+        # self.preprocessed_X0_f is from self.SMC()
         mu_0 = self.preprocessed_X0
         if not (self.model.use_bootstrap and self.model.use_2_q):
             f_init_log_prob = self.f.log_prob(mu_0, bw_X_0)     # (M, n_particles, batch_size)
@@ -169,3 +176,29 @@ class FFBSimulation(SMC):
         g_log_probs.set_shape((time, n_particles, batch_size))
 
         return bw_Xs, bw_log_Ws, f_log_probs, g_log_probs
+
+    def BS_preprocess_obs(self, obs):
+        # if self.smooth_obs, smooth obs with bidirectional RNN
+        if self.FF_use_bRNN and not self.BSim_use_single_RNN:
+            return self.preprocessed_obs
+
+        with tf.variable_scope("smooth_obs"):
+            if self.BSim_use_single_RNN:
+                cells = tf.nn.rnn_cell.MultiRNNCell(self.y_smoother_f)
+                preprocessed_obs, _ = tf.nn.static_rnn(cells, tf.unstack(obs, axis=1), dtype=tf.float32)
+            else:
+                if self.use_stack_rnn:
+                    outputs, state_fw, state_bw = \
+                        tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                                       self.y_smoother_b,
+                                                                       obs,
+                                                                       dtype=tf.float32)
+                else:
+                    outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                                                    self.y_smoother_b,
+                                                                                    obs,
+                                                                                    dtype=tf.float32)
+                smoothed_obs = tf.concat(outputs, axis=-1)
+                preprocessed_obs = tf.unstack(smoothed_obs, axis=1)
+
+        return preprocessed_obs
