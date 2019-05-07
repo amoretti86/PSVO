@@ -85,15 +85,27 @@ class SMC:
         n_particles = self.n_particles
         batch_size, time, _ = obs.get_shape().as_list()
         self.Dx, self.batch_size, self.time = self.model.Dx, batch_size, time
+        Dx = self.Dx
 
         with tf.variable_scope(self.name):
 
-            # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
-            X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs, forward=True)
-
             # FFBS
             if self.FFBS:
-                bw_Xs, bw_log_weights = self.FFBS_simulation(X_prevs, log_Ws) # shape (time, M, batch_size, Dx)
+                bw_Xs = []
+                bw_log_weights = []
+                M = self.FFBS_particles
+                for i in range(M):
+                    bw_X, bw_log_weight = self.get_one_FFBS_pass(Input, hidden, obs)
+                    bw_Xs.append(bw_X)
+                    bw_log_weights.append(bw_log_weight)
+
+                bw_Xs = tf.stack(bw_Xs)  # (M, time, batch_size, Dx)
+                assert bw_Xs.shape.as_list() == (M, time, batch_size, Dx)
+                bw_Xs = tf.transpose(bw_Xs, perm=[1, 0, 2, 3])
+                assert bw_Xs.shape.as_list() == (time, M, batch_size, Dx)
+
+                bw_log_weights = tf.stack(bw_log_weights)
+                assert bw_log_weights.shape.as_list() == (M, batch_size)
 
                 if self.FFBS_loss_type == 'score':
                     log_ZSMC = self.compute_FFBS_score_loss(bw_Xs, obs)
@@ -104,6 +116,8 @@ class SMC:
                 Xs = bw_Xs
 
             else:
+                # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
+                X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs, forward=True)
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
                 Xs = X_ancestors
 
@@ -114,16 +128,34 @@ class SMC:
 
         return log_ZSMC, log
 
-    def FFBS_simulation(self, X, log_Ws):
+    def get_one_FFBS_pass(self, Input, hidden, obs):
+        """
+
+        :param Input:
+        :param hidden:
+        :param obs:
+        :return: one sample trajectory: bw_X -- (time, batch_size, Dx), and the loss,
+        and the associated weight: bw_log_weight -- (batch_size, )
+        """
+        assert self.FFBS == True
+
+        X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs, forward=True)
+        bw_Xs, bw_log_weights = self.FFBS_simulation(X_prevs, log_Ws, M=1)  # shape (time, 1, batch_size, Dx)
+
+        bw_X = tf.squeeze(bw_Xs, axis=1)
+        bw_log_weight = tf.squeeze(bw_log_weights, axis=1)
+
+        return bw_X, bw_log_weight
+
+    def FFBS_simulation(self, X, log_Ws, M=1):
         """
         :param obs: (batch_size, time, Dy)
         :param X: shape (time, n_particles, batch_size, Dx)
         :param log_Ws: shape (time, n_particles, batch_size)
+        :param M: number of backward trajectories
         :return: bw_Xs: M numebr of sample realizations, or the number of backward particles --(time, M, batch_size, Dx)
                 bw_weights: M log weights associatied with M sample realizations --(M, batch_size)
         """
-
-        M = self.FFBS_particles
 
         time, n_particles, batch_size, Dx = X.shape.as_list()
 
@@ -162,7 +194,7 @@ class SMC:
 
         # conduct the while loop
         init_state = (time-2, bw_X_Tminus1, bw_Xs_ta, bw_log_weights)
-        t, bw_X_0, bw_Xs_ta, bw_log_weights = tf.while_loop(while_cond, while_body, init_state)
+        t, bw_X_0, bw_Xs_ta , bw_log_weights = tf.while_loop(while_cond, while_body, init_state)
 
         # transfer tensor arrays to tensors
         bw_Xs = bw_Xs_ta.stack()

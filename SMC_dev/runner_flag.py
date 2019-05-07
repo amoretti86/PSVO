@@ -126,7 +126,7 @@ FFBS = True
 
 # number of backward particles
 
-FFBS_particles = 16
+FFBS_particles = 2
 
 # choose from 'score, 'vae' or 'iwae'
 FFBS_loss_type = 'iwae'

@@ -59,3 +59,49 @@ IWAE has tighter bound
 
 - the support of Q is not large enough
 - backward pass, discrete?
+
+
+
+TO DISCUSS:
+
+- SMOOTHING, use which X? X_prevs or X_ancestors?
+
+
+
+-----
+
+problems with SMC
+
+- Path degeneracy 
+
+
+
+---------
+
+TODO:
+
+- Gumbel softmax
+- iid training —> forward and backward multiple times
+- check gradients
+
+
+
+----
+
+TODO:
+
+- Forward proposal: use filtering proposal, and
+  - backward proposal: use $p(x_t |x_{t+1}, y_{1:T}) ​$
+  - backward proposal: use $p(x_t |x_{t+1}, y_{1:t}) ​$
+
+- Run forward-and-backward pass $M$ times
+- Run use AESMC for training first, then train LOSS
+- 
+
+
+
+-----
+
+IWAE multi-tests
+
+- 0506: submit experiment for allen, lorenz and fhn.
