@@ -1,5 +1,6 @@
-# VISMC
-Bare bones variational inference on sequential monte carlo objective functions. One dimensional observation is used to recover two dimensional latent dynamics.
+# Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo
+
+An implementation of the paper "Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo."
 
 | Original | Inferred |
 |-----------|----------|
