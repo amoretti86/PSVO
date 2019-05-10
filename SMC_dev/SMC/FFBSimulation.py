@@ -184,7 +184,9 @@ class FFBSimulation(SMC):
 
         with tf.variable_scope("smooth_obs"):
             if self.BSim_use_single_RNN:
-                cells = tf.nn.rnn_cell.MultiRNNCell(self.y_smoother_f)
+                cells = self.y_smoother_f
+                if isinstance(self.y_smoother_f, list):
+                    cells = tf.nn.rnn_cell.MultiRNNCell(self.y_smoother_f)
                 preprocessed_obs, _ = tf.nn.static_rnn(cells, tf.unstack(obs, axis=1), dtype=tf.float32)
             else:
                 if self.use_stack_rnn:
