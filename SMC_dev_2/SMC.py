@@ -15,7 +15,6 @@ class SMC:
                  FFBS_loss_type='vae',
                  FFBS_particles=0,
                  FFBS_to_learn=False,
-                 TFS=False,
                  name="log_ZSMC"):
 
         self.model = model
@@ -26,12 +25,6 @@ class SMC:
         self.q2 = model.q2_dist
         self.f  = model.f_dist
         self.g  = model.g_dist
-
-        if TFS:
-            self.q1_inv = model.q1_inv_dist
-            self.f_inv = model.f_inv_dist
-            if model.TFS_use_diff_q0:
-                self.TFS_q0 = model.TFS_q0_dist
 
         self.n_particles = n_particles
 
@@ -64,24 +57,18 @@ class SMC:
         if not self.FFBS_to_learn:
             self.smoothing_perc = 1
 
-        # TFS
-        self.TFS = TFS
-
-        assert not (FFBS and TFS), "cannot use FFBS and TFS at the same time"
-
         self.name = name
 
     def get_log_ZSMC(self, obs, hidden, Input):
         """
         Get log_ZSMC from obs y_1:T
-        Input:
-            obs.shape = (batch_size, time, Dy)
-            hidden.shape = (batch_size, time, Dz)
-            Input.shape = (batch_size, time, Di)
-        Output:
-            log_ZSMC: shape = scalar
+        :param obs: (batch_size, time, Dy)
+        :param hidden: (batch_size, time, Dx)
+        :param Input: (batch_size, time, Di)
+        :return: log_ZSMC: shape = scalar
             log: stuff to debug
         """
+
         n_particles = self.n_particles
         batch_size, time, _ = obs.get_shape().as_list()
         self.Dx, self.batch_size, self.time = self.model.Dx, batch_size, time
@@ -92,36 +79,36 @@ class SMC:
             # FFBS
             if self.FFBS:
                 bw_Xs = []
-                bw_log_weights = []
+                FFBS_log_probs = []
                 M = self.FFBS_particles
                 for i in range(M):
-                    bw_X, bw_log_weight = self.get_one_FFBS_pass(Input, hidden, obs)
+                    bw_X, FFBS_log_prob = self.get_one_FFBS_pass(Input, hidden, obs)
                     bw_Xs.append(bw_X)
-                    bw_log_weights.append(bw_log_weight)
+                    FFBS_log_probs.append(FFBS_log_prob)
 
                 bw_Xs = tf.stack(bw_Xs)  # (M, time, batch_size, Dx)
                 assert bw_Xs.shape.as_list() == [M, time, batch_size, Dx]
                 bw_Xs = tf.transpose(bw_Xs, perm=[1, 0, 2, 3])
                 assert bw_Xs.shape.as_list() == [time, M, batch_size, Dx]
 
-                bw_log_weights = tf.stack(bw_log_weights)
-                assert bw_log_weights.shape.as_list() == [M, batch_size]
+                FFBS_log_probs = tf.stack(FFBS_log_probs)  # (M, batch_size)
+                assert FFBS_log_probs.shape.as_list() == [M, batch_size]
 
                 if self.FFBS_loss_type == 'score':
                     log_ZSMC = self.compute_FFBS_score_loss(bw_Xs, obs)
                 elif self.FFBS_loss_type == 'vae':
-                    log_ZSMC = self.compute_FFBS_vae_loss(bw_Xs, obs, bw_log_weights)
+                    log_ZSMC = self.compute_FFBS_vae_loss(bw_Xs, obs, FFBS_log_probs)
                 elif self.FFBS_loss_type == 'iwae':
-                    log_ZSMC = self.compute_FFBS_iwae_loss(bw_Xs, obs, bw_log_weights)
+                    log_ZSMC = self.compute_FFBS_iwae_loss(bw_Xs, obs, FFBS_log_probs)
                 Xs = bw_Xs
 
             else:
-                # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
-                X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs, forward=True)
+                # SVO
+                X_prevs, X_ancestors, log_Ws, _ = self.SMC(Input, hidden, obs)
                 log_ZSMC = self.compute_log_ZSMC(log_Ws)
                 Xs = X_ancestors
 
-            # shape = (batch_size, time, n_particles or M, Dx)
+            # shape = (batch_size, time, n_particles(or M), Dx)
             Xs = tf.transpose(Xs, perm=[2, 0, 1, 3], name="Xs")
 
             log = {"Xs": Xs}
@@ -131,21 +118,30 @@ class SMC:
     def get_one_FFBS_pass(self, Input, hidden, obs):
         """
 
-        :param Input:
-        :param hidden:
-        :param obs:
-        :return: one sample trajectory: bw_X -- (time, batch_size, Dx), and the loss,
-        and the associated weight: bw_log_weight -- (batch_size, )
+        :param Input: (batch_size, time, Di)
+        :param hidden: (batch_size, time, Dx)
+        :param obs: (batch_size, time, Dy)
+        :return: bw_X: one sample trajectory, shape: (time, batch_size, Dx)
+        FFBS_log_prob: the log probability for one fw-bw sample (X_{1:T}^{1:K}, a_{1:T-1}^{1:K}, \tilde{X}_{1:T})
         """
         assert self.FFBS == True
 
-        X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs, forward=True)
-        bw_Xs, bw_log_weights = self.FFBS_simulation(X_prevs, log_Ws, M=1)  # shape (time, 1, batch_size, Dx)
+        batch_size, time, Dx = hidden.shape.as_list()
 
-        bw_X = tf.squeeze(bw_Xs, axis=1)
-        bw_log_weight = tf.squeeze(bw_log_weights, axis=1)
+        X_prevs, X_ancestors, fw_log_Ws, fw_log_prob = self.SMC(Input, hidden, obs)
+        # fw_log_prob: shape (batch_size, )
 
-        return bw_X, bw_log_weight
+        bw_Xs, bw_log_weights = self.FFBS_simulation(X_prevs, fw_log_Ws, M=1)  # shape (time, 1, batch_size, Dx)
+
+        bw_X = tf.squeeze(bw_Xs, axis=1)  # (time, batch_size, Dx)
+        assert bw_X.shape.as_list() == [time, batch_size, Dx]
+        bw_log_weight = tf.squeeze(bw_log_weights, axis=1)  # (batch_size, )
+        assert bw_log_weight.shape.as_list() == [batch_size, ]
+
+        FFBS_log_prob = fw_log_prob + bw_log_weight  # (batch_size, )
+        assert FFBS_log_prob.shape.as_list() == [batch_size, ]
+
+        return bw_X, FFBS_log_prob
 
     def FFBS_simulation(self, X, log_Ws, M=1):
         """
@@ -154,7 +150,7 @@ class SMC:
         :param log_Ws: shape (time, n_particles, batch_size)
         :param M: number of backward trajectories
         :return: bw_Xs: M numebr of sample realizations, or the number of backward particles --(time, M, batch_size, Dx)
-                bw_weights: M log weights associatied with M sample realizations --(M, batch_size)
+                bw_log_weights: M log weights associatied with M sample realizations --(M, batch_size)
         """
 
         time, n_particles, batch_size, Dx = X.shape.as_list()
@@ -243,36 +239,36 @@ class SMC:
 
         return score_loss
 
-    def compute_FFBS_vae_loss(self, bw_Xs, obs, bw_log_weights):
+    def compute_FFBS_vae_loss(self, bw_Xs, obs, FFBS_log_probs):
         """
 
         :param bw_Xs:
         :param obs:
-        :param bw_log_weights: shape: (M, batch_size)
+        :param FFBS_log_probs: shape: (M, batch_size)
         :return: vae_loss = 1/M \sum_{m=1}^M [log p_m - log q_m],
         where log p_m = log f_m + log g_m ,and log q_m = log weight_m
         """
         score_loss = self.compute_FFBS_score_loss(bw_Xs, obs)
         assert len(score_loss.shape.as_list()) == 0
 
-        vae_loss = score_loss - tf.reduce_mean(bw_log_weights)
+        vae_loss = score_loss - tf.reduce_mean(FFBS_log_probs)
         assert len(vae_loss.shape.as_list()) == 0
 
         return vae_loss
 
-    def compute_FFBS_iwae_loss(self, bw_Xs, obs, bw_log_weights):
+    def compute_FFBS_iwae_loss(self, bw_Xs, obs, FFBS_log_probs):
         """
 
         :param bw_Xs:
         :param obs:
-        :param bw_log_weights:  shape: (M, batch_size)
+        :param FFBS_log_probs:  shape: (M, batch_size)
         :return: iwae_loss = log {1/M \sum_{m=1}^M [p_m / q_m]  },
         where p_m / q_m = e^{log p_m - log q_m} = e^ {log f_m + log g_m - log weight_m}
         """
-        M, _ = bw_log_weights.shape.as_list()
+        M, _ = FFBS_log_probs.shape.as_list()
 
         f_log_prob, g_log_prob = self._get_f_g(bw_Xs, obs)  # each of shape (M, batch_size)
-        p_over_q = f_log_prob + g_log_prob - bw_log_weights # (M, batch_size)
+        p_over_q = f_log_prob + g_log_prob - FFBS_log_probs # (M, batch_size)
         iwae_loss = tf.reduce_logsumexp(p_over_q, axis=0) - tf.log(tf.cast(M, tf.float32))  # (batch_size, )
         iwae_loss = tf.reduce_mean(iwae_loss)  # over batch_size
         return iwae_loss
@@ -312,24 +308,28 @@ class SMC:
 
         return samples, sample_log_weights
 
-    def SMC(self, Input, hidden, obs, forward=True, q_cov=1.0):
+    def SMC(self, Input, hidden, obs, q_cov=1.0):
+        """
+        Run one forward filtering pass
+        :param Input:
+        :param hidden:
+        :param obs:
+        :param forward:
+        :param q_cov:
+        :return: X_prevs: forward particles X_{1:T}^{1:K}, shape: (time, n_particles, batch_size, Dx)
+        X_ancestors: forward particles that are chosen as ancestors, shape: (time, n_particles, batch_size, Dx)
+        log_Ws: log weights w_{1:T}^{1:K}, shape: (time, n_particles, batch_size)
+        forward_log_probs: log Q(x_{1:T}^{1:K}, a_{1:T-1}^{1:K}), shape: (batch_size, )
+        """
         Dx, time, n_particles, batch_size = self.Dx, self.time, self.n_particles, self.batch_size
 
         # preprossing obs
-        preprocessed_X0, preprocessed_obs = self.preprocess_obs(obs, forward)
+        preprocessed_X0, preprocessed_obs = self.preprocess_obs(obs)
         self.pre_X0 = preprocessed_X0
 
-        if forward:
-            q0 = self.q0
-            q1 = self.q1
-            f  = self.f
-        else:
-            Input  = Input[:, ::-1, :]
-            hidden = hidden[:, ::-1, :]
-            obs    = obs[:, ::-1, :]
-            q0 = self.TFS_q0 if self.model.TFS_use_diff_q0 else self.q0
-            q1 = self.q1_inv
-            f  = self.f_inv
+        q0 = self.q0
+        q1 = self.q1
+        f  = self.f
 
         # t = 0
         q_f_t_feed = preprocessed_X0
@@ -359,20 +359,23 @@ class SMC:
 
         g_t_log_prob = self.g.log_prob(X, obs[:, 0], name="g_{}_log_prob".format(0))
         log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_{}".format(0))
+        forward_log_prob = tf.reduce_sum(q_t_log_prob, axis=0, name="forward_log_prob_{}".format(0))  # (batch_size, )
+        assert forward_log_prob.shape.as_list() == [batch_size, ]
 
         # t = 1, ..., T - 1
         # prepare tensor arrays
         preprocessed_obs_ta = \
             tf.TensorArray(tf.float32, size=time, name="preprocessed_obs_ta").unstack(preprocessed_obs)
-        log_names = ["X_prevs", "X_ancestors", "log_Ws"]
+        log_names = ["X_prevs", "X_ancestors", "log_Ws", "forward_log_probs"]
         log = [tf.TensorArray(tf.float32, size=time, name="{}_ta".format(name)) for name in log_names]
         log[2] = log[2].write(0, log_W)
+        log[3] = log[3].write(0, forward_log_prob)
 
         def while_cond(t, *unused_args):
             return t < time
 
         def while_body(t, X_prev, log_W, log):
-            X_ancestor = self.resample_X(X_prev, log_W, sample_size=n_particles)
+            X_ancestor, resample_idx_log_prob = self.resample_X(X_prev, log_W, sample_size=n_particles)
             q_f_t_feed = X_ancestor
 
             if self.use_input:
@@ -401,10 +404,11 @@ class SMC:
 
             g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_t_log_prob")
             log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_t")
-
+            forward_log_prob = tf.reduce_sum(q_t_log_prob + resample_idx_log_prob, axis=0,
+                                             name="forward_log_prob_t")
             # write to tensor arrays
-            idxs = [t - 1, t - 1, t]
-            log_contents = [X_prev, X_ancestor, log_W]
+            idxs = [t - 1, t - 1, t, t]
+            log_contents = [X_prev, X_ancestor, log_W, forward_log_prob]
             log = [ta.write(idx, log_content) for ta, idx, log_content in zip(log, idxs, log_contents)]
 
             return (t + 1, X, log_W, log)
@@ -414,23 +418,24 @@ class SMC:
         t_final, X_T, log_W, log = tf.while_loop(while_cond, while_body, init_state)
 
         # write final results at t = T - 1 to tensor arrays
-        X_T_resampled = self.resample_X(X_T, log_W, sample_size=n_particles)
-        log_contents = [X_T, X_T_resampled, log_W]
-        log = [ta.write(t_final - 1, log_content) if i != 2 else ta
-               for ta, log_content, i in zip(log, log_contents, range(3))]
+        X_T_resampled, _ = self.resample_X(X_T, log_W, sample_size=n_particles)
+
+        log_contents = [X_T, X_T_resampled, log_W, 0]
+        log = [ta.write(t_final - 1, log_content) if i != 2 and i !=3 else ta
+               for ta, log_content, i in zip(log, log_contents, range(4))]
 
         # transfer tensor arrays to tensors
-        log_shapes = [(time, n_particles, batch_size, Dx)] * 2 + [(time, n_particles, batch_size)]
+        log_shapes = [(time, n_particles, batch_size, Dx)] * 2 + [(time, n_particles, batch_size)] \
+                     + [(time, batch_size)]
         log = [ta.stack(name=name) for ta, name in zip(log, log_names)]
         for tensor, shape in zip(log, log_shapes):
             tensor.set_shape(shape)
 
-        if not forward:
-            log = [tf.stack(list(reversed(tf.unstack(tensor, axis=0)))) for tensor in log]
+        X_prevs, X_ancestors, log_Ws, forward_log_probs = log
+        forward_log_prob = tf.reduce_sum(forward_log_probs, axis=0, name="forward_log_prob")  # (batch_size, )
+        assert forward_log_prob.shape.as_list() == [batch_size, ]
 
-        X_prevs, X_ancestors, log_Ws = log
-
-        return X_prevs, X_ancestors, log_Ws
+        return X_prevs, X_ancestors, log_Ws, forward_log_prob
 
     def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size=()):
         """
@@ -522,15 +527,16 @@ class SMC:
         """
         :param X: ancestors to select from. shape: (n_particles, batch_size, Dx)
         :param log_W: log weights. shape (n_particles, batch_size)
-        :param sample_size:
-        :return: selected ancestors
+        :param sample_size: ussually n_particles
+        :return: selected ancestors of shape
+        and resampled_idx_log_probs of shape (n_particles, batch_size)
         """
         if self.IWAE:
             X_resampled = X
-            return X_resampled
+            return X_resampled, 0
 
         if log_W.shape.as_list()[0] != 1:
-            resample_idx = self.get_resample_idx(log_W, sample_size)
+            resample_idx, resample_idx_log_prob = self.get_resample_idx(log_W, sample_size)
             if isinstance(X, list):
                 X_resampled = [tf.gather_nd(item, resample_idx) for item in X]
             else:
@@ -539,12 +545,17 @@ class SMC:
             assert sample_size == 1
             X_resampled = X
 
-        return X_resampled
+        return X_resampled, resample_idx_log_prob
 
     def get_resample_idx(self, log_W, sample_size=()):
-        # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
-        nb_classes  = log_W.shape.as_list()[0]
+        """
+        :param log_W: shape (n_particles, batch_size)
+        :param sample_size:
+        :return: get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K), and the associated log_probs
+        """
+        n_particles = log_W.shape.as_list()[0]
         batch_shape = log_W.shape.as_list()[1:]
+        batch_size = log_W.shape.as_list()[1]
         perm = list(range(1, len(batch_shape) + 1)) + [0]
 
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
@@ -556,23 +567,25 @@ class SMC:
             idx_shape = batch_shape
         else:
             assert isinstance(sample_size, int), "sample_size should be int, {} is given".format(sample_size)
-            idx_shape = [sample_size] + batch_shape
+            idx_shape = [sample_size] + batch_shape  # (n_particles, batch_size)
 
-        idx = tf.ones(idx_shape, dtype=tf.int32) * nb_classes
+        idx = tf.ones(idx_shape, dtype=tf.int32) * n_particles  # shape (n_particles, batch_size), value: n_particles
         for _ in range(1):
-            fixup_idx = categorical.sample(sample_size)
-            idx = tf.where(idx >= nb_classes, fixup_idx, idx)
+            fixup_idx = categorical.sample(sample_size) # shape (n_particles, batch_size)
+            idx = tf.where(idx >= n_particles, fixup_idx, idx)  # shape (n_particles, batch_size)
 
         # if still got idx out of range, replace them with idx from uniform distribution
-        final_fixup = tf.random.uniform(idx_shape, maxval=nb_classes, dtype=tf.int32)
-        idx = tf.where(idx >= nb_classes, final_fixup, idx)
+        final_fixup = tf.random.uniform(idx_shape, maxval=n_particles, dtype=tf.int32)
+        idx = tf.where(idx >= n_particles, final_fixup, idx)
+
+        resample_idx_log_prob = categorical.log_prob(idx)  # shape (n_particles, batch_size)
 
         batch_idx = np.meshgrid(*[range(i) for i in idx_shape], indexing='ij')
         if sample_size != ():
             batch_idx = batch_idx[1:]
         resample_idx = tf.stack([idx] + batch_idx, axis=-1)
 
-        return resample_idx
+        return resample_idx, resample_idx_log_prob
 
     @staticmethod
     def compute_log_ZSMC(log_Ws):
@@ -586,14 +599,12 @@ class SMC:
 
         return log_ZSMC
 
-    def preprocess_obs(self, obs, forward=True):
+    def preprocess_obs(self, obs):
         # if self.smooth_obs, smooth obs with bidirectional RNN
 
         with tf.variable_scope("smooth_obs"):
             if not self.smooth_obs:
                 preprocessed_obs = tf.unstack(obs, axis=1)
-                if not forward:
-                    preprocessed_obs = list(reversed(preprocessed_obs))
                 preprocessed_X0 = preprocessed_obs[0]
 
             else:
@@ -629,10 +640,6 @@ class SMC:
                     outputs_fw, outputs_bw = outputs
                 output_fw_list, output_bw_list = tf.unstack(outputs_fw, axis=1), tf.unstack(outputs_bw, axis=1)
                 preprocessed_X0 = tf.concat([output_fw_list[-1], output_bw_list[0]], axis=-1)
-
-                if not forward:
-                    preprocessed_obs = list(reversed(preprocessed_obs))
-                    preprocessed_X0 = tf.concat([output_bw_list[0], output_fw_list[-1]], axis=-1)
 
             if not (self.model.use_bootstrap and self.model.use_2_q):
                 preprocessed_X0 = self.model.X0_transformer(preprocessed_X0)

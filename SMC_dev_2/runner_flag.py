@@ -22,7 +22,7 @@ print("\t tensorflow_probability version:", tfp.__version__)
 Dx = 2
 Dy = 1
 Di = 1
-n_particles = 32
+n_particles = 16
 
 batch_size = 1
 lr = 2e-4
@@ -60,12 +60,6 @@ q2_sigma_init, q2_sigma_min = 5, 1
 f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
 
-# Normalizing Flow (NF)
-q1_flow_layers  = 2
-f_flow_layers   = 2
-flow_sample_num = 25
-flow_type       = "MAF"
-
 # bidirectional RNN
 y_smoother_Dhs = [64]
 X0_smoother_Dhs = [64]
@@ -89,9 +83,6 @@ use_input = False
 # whether emission uses Poisson distribution
 poisson_emission = False
 
-# whether transitions (q1 and f) use Normalizing Flow
-flow_transition = False
-
 # ----------------------- FFN flags ------------------------ #
 
 # if f and q use residual
@@ -112,13 +103,6 @@ shift_only = True
 
 # whether clip the gradients of log scale term
 log_scale_clip_gradient = True
-
-# ----------------------- TFS flags ------------------------ #
-# whether use Two Filter Smoothing
-TFS = False
-
-# whether backward filtering in TFS uses different q0
-TFS_use_diff_q0 = True
 
 # ----------------------- FFBS flags ----------------------- #
 # whether use Forward Filtering Backward Smoothing
@@ -268,12 +252,6 @@ flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 flags.DEFINE_float("f_sigma_min",  f_sigma_min,  "minimal value of f_sigma")
 flags.DEFINE_float("g_sigma_min",  g_sigma_min,  "minimal value of g_sigma")
 
-# Normalizing Flow
-flags.DEFINE_integer("q1_flow_layers",  q1_flow_layers,  "number of layers of q1 normalizing flow")
-flags.DEFINE_integer("f_flow_layers",   f_flow_layers,   "number of layers of f normalizing flow")
-flags.DEFINE_integer("flow_sample_num", flow_sample_num, "number of samples used to determine the mean of flow")
-flags.DEFINE_string("flow_type",        flow_type,       "type of flow to use: MAF, IAF or RealNVP")
-
 # bidirectional RNN
 flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smoother birdectional RNNs, "
                                                       "int seperated by comma")
@@ -288,7 +266,6 @@ flags.DEFINE_boolean("q_uses_true_X", q_uses_true_X, "whether q1 uses true hidde
 flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t), "
                                          "if True, q_uses_true_X will be overwritten as False")
 flags.DEFINE_boolean("use_input", use_input, "whether use input in q and f")
-flags.DEFINE_boolean("flow_transition", flow_transition, "whether transitions (q1 and f) use Normalizing Flow")
 flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission uses Poisson distribution")
 
 # --------------------- FFN flags --------------------- #
@@ -303,11 +280,6 @@ flags.DEFINE_float("dropout_rate", dropout_rate, "dropout rate for FFN")
 flags.DEFINE_boolean("shift_only", shift_only, "whether only the shift term shall be computed")
 flags.DEFINE_boolean("log_scale_clip_gradient", log_scale_clip_gradient,
                      "whether clip the gradients of log scale term")
-
-# ----------------------- TFS flags ------------------------ #
-
-flags.DEFINE_boolean("TFS", TFS, "whether use Two Filter Smoothing")
-flags.DEFINE_boolean("TFS_use_diff_q0", TFS_use_diff_q0, "whether backward filtering in TFS uses different q0")
 
 # ----------------------- FFBS flags ----------------------- #
 

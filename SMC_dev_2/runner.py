@@ -47,9 +47,6 @@ def main(_):
     # whether emission uses Poisson distribution
     poisson_emission = FLAGS.poisson_emission
 
-    # whether transitions (q1 and f) use Normalizing Flow
-    flow_transition = FLAGS.flow_transition
-
     # --------------------- FFN flags --------------------- #
     # if f and q use residual
     use_residual = FLAGS.use_residual
@@ -66,14 +63,6 @@ def main(_):
 
     # whether clip the gradients of log scale term
     log_scale_clip_gradient = FLAGS.log_scale_clip_gradient
-
-    # -------------------------------- TFS flags -------------------------------- #
-
-    # whether use Two Filter Smoothing
-    TFS = FLAGS.TFS
-
-    # whether backward filtering in TFS uses different q0
-    TFS_use_diff_q0 = FLAGS.TFS_use_diff_q0
 
     # -------------------------------- FFBS flags ------------------------------- #
 
@@ -109,8 +98,6 @@ def main(_):
         FLAGS.use_residual = use_residual = False
     if FLAGS.use_2_q:
         FLAGS.q_uses_true_X = q_uses_true_X = False
-    if FLAGS.flow_transition:
-        FLAGS.use_input = use_input = False
 
     tf.set_random_seed(FLAGS.seed)
     np.random.seed(FLAGS.seed)
@@ -142,12 +129,9 @@ def main(_):
                     diag_cov=diag_cov,
                     use_bootstrap=use_bootstrap,
                     use_2_q=use_2_q,
-                    flow_transition=flow_transition,
                     poisson_emission=poisson_emission,
                     shift_only=shift_only,
                     log_scale_clip_gradient=log_scale_clip_gradient,
-                    TFS=TFS,
-                    TFS_use_diff_q0=TFS_use_diff_q0,
                     smooth_obs=smooth_obs,
                     X0_use_separate_RNN=X0_use_separate_RNN,
                     use_stack_rnn=use_stack_rnn)
@@ -164,7 +148,6 @@ def main(_):
                     FFBS_loss_type=FFBS_loss_type,
                     FFBS_particles=FFBS_particles,
                     FFBS_to_learn=FFBS_to_learn,
-                    TFS=TFS,
                     name="log_ZSMC_train")
 
     # =========================================== data saving part =========================================== #
