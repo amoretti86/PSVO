@@ -157,13 +157,11 @@ def main(_):
     with open(RLT_DIR + "history.json", "w") as f:
         json.dump(history, f, indent=4, cls=NumpyEncoder)
 
-    Xs, y_hat = log["Xs"], log["y_hat"]
+    Xs = log["Xs"]
     Xs_val = mytrainer.evaluate(Xs, mytrainer.saving_feed_dict)
-    y_hat_val = mytrainer.evaluate(y_hat, mytrainer.saving_feed_dict)
     print("finish evaluating training results")
 
     plot_training_data(RLT_DIR, hidden_train, obs_train, saving_num=saving_num)
-    plot_y_hat(RLT_DIR, y_hat_val, obs_test, saving_num=saving_num)
 
     if Dx == 2:
         plot_fhn_results(RLT_DIR, Xs_val)
@@ -172,8 +170,7 @@ def main(_):
 
     testing_data_dict = {"hidden_test": hidden_test[0:saving_num],
                          "obs_test": obs_test[0:saving_num]}
-    learned_model_dict = {"Xs_val": Xs_val,
-                          "y_hat_val": y_hat_val}
+    learned_model_dict = {"Xs_val": Xs_val}
     data_dict = {"testing_data_dict": testing_data_dict,
                  "learned_model_dict": learned_model_dict}
 
