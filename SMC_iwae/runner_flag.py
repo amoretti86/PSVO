@@ -106,7 +106,7 @@ log_scale_clip_gradient = True
 
 # --------------------- IWAE flags ---------------------- #
 # whether use IWAE or SVO
-IWAE = True
+IWAE = False
 
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs
@@ -149,6 +149,10 @@ save_y_hat = True
 
 # dir to save all results
 rslt_dir_name = "test"
+if IWAE:
+    rslt_dir_name += "/IWAE"
+else:
+    rslt_dir_name += "/SVO"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30

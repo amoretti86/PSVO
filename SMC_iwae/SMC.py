@@ -55,7 +55,7 @@ class SMC:
             log = {}
 
             # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
-            X_prevs, X_ancestors, log_Ws, _ = self.SMC(Input, hidden, obs)
+            X_prevs, X_ancestors, log_Ws = self.SMC(Input, hidden, obs)
 
             log_ZSMC = self.compute_log_ZSMC(log_Ws)
             Xs = X_ancestors
@@ -107,7 +107,13 @@ class SMC:
 
         # emission log probability and log weights
         g_t_log_prob = self.g.log_prob(X, obs[:, 0], name="g_{}_log_prob".format(0))
-        log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_{}".format(0))
+
+        log_alpha = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_alpha_{}".format(0))
+        log_weight = tf.add(log_alpha, - tf.log(tf.constant(n_particles, dtype=tf.float32)),
+                            name="log_weight_{}".format(0)) # (n_particles, batch_size)
+
+        log_normalized_weight = tf.add(log_weight, - tf.reduce_logsumexp(log_weight, axis=0),
+                                       name="log_noramlized_weight_{}".format(0))
 
         # -------------------------------------- t = 1, ..., T - 1 -------------------------------------- #
         # prepare tensor arrays
@@ -117,20 +123,20 @@ class SMC:
 
         # tensor arrays to write
         # particles, resampled particles (mean), log weights of particles
-        log_names = ["X_prevs", "X_ancestors", "log_Ws"]
+        log_names = ["X_prevs", "X_ancestors", "log_weight"]
 
         log = [tf.TensorArray(tf.float32, size=time, clear_after_read=False, name="{}_ta".format(name))
                for name in log_names]
 
         # write results for t = 0 into tensor arrays
-        log[2] = log[2].write(0, log_W)
+        log[2] = log[2].write(0, log_weight)
 
         def while_cond(t, *unused_args):
             return t < time
 
-        def while_body(t, X_prev, log_W, log):
+        def while_body(t, X_prev, log_normalized_weight_tminus1, log):
             # resampling
-            X_ancestor = self.resample_X(X_prev, log_W, sample_size=n_particles)
+            X_ancestor = self.resample_X(X_prev, log_normalized_weight_tminus1, sample_size=n_particles)
 
             q_f_t_feed = X_ancestor
             if self.use_input:
@@ -161,21 +167,34 @@ class SMC:
 
             # emission log probability and log weights
             g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_t_log_prob")
-            log_W = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_W_t")
+
+            log_alpha_t = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_alpha_t")
+            # (n_particles, batch_size)
+
+            log_weight_t = tf.add(log_alpha_t, log_normalized_weight_tminus1, name="log_weight_t")
+            # (n_particles, batch_size)
+
+            if self.IWAE:
+                log_normalized_weight_t = tf.add(log_weight_t, - tf.reduce_logsumexp(log_weight_t, axis=0),
+                                                name="log_normalized_weight_t")
+            else:
+                log_normalized_weight_t = tf.negative(tf.log(tf.constant(n_particles, dtype=tf.float32,
+                                                             shape=(n_particles, batch_size),
+                                                             )), name="log_normalized_weight_t")
 
             # write results in this loop to tensor arrays
             idxs = [t - 1, t - 1, t]
-            log_contents = [X_prev, X_ancestor, log_W]
+            log_contents = [X_prev, X_ancestor, log_weight_t]
             log = [ta.write(idx, log_content) for ta, idx, log_content in zip(log, idxs, log_contents)]
 
-            return (t + 1, X, log_W, log)
+            return (t + 1, X, log_normalized_weight_t, log)
 
         # conduct the while loop
-        init_state = (1, X, log_W, log)
-        t_final, X_T, log_W, log = tf.while_loop(while_cond, while_body, init_state)
+        init_state = (1, X, log_normalized_weight, log)
+        t_final, X_T, log_normalized_weight_T, log = tf.while_loop(while_cond, while_body, init_state)
 
         # write final results at t = T - 1 to tensor arrays
-        X_T_resampled = self.resample_X(X_T, log_W, sample_size=n_particles)
+        X_T_resampled = self.resample_X(X_T, log_normalized_weight_T, sample_size=n_particles)
         log[0] = log[0].write(t_final - 1, X_T)
         log[1] = log[1].write(t_final - 1, X_T_resampled)
 
@@ -186,12 +205,9 @@ class SMC:
         for tensor, shape in zip(log, log_shapes):
             tensor.set_shape(shape)
 
-        # reverse the results back for backward filter
-        log += ["placeholder_for_gamma"]
+        X_prevs, X_ancestors, log_Ws = log
 
-        X_prevs, X_ancestors, log_Ws, gamma = log
-
-        return X_prevs, X_ancestors, log_Ws, gamma
+        return X_prevs, X_ancestors, log_Ws
 
     def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size=()):
         d1_mvn = dist1.get_mvn(d1_input)
@@ -269,13 +285,13 @@ class SMC:
 
         return X, q_t_log_prob
 
-    def resample_X(self, X, log_W, sample_size=()):
+    def resample_X(self, X, log_normalized_weight, sample_size=()):
         if self.IWAE:
             X_resampled = X
             return X_resampled
 
-        if log_W.shape.as_list()[0] != 1:
-            resample_idx = self.get_resample_idx(log_W, sample_size)
+        if log_normalized_weight.shape.as_list()[0] != 1:
+            resample_idx = self.get_resample_idx(log_normalized_weight, sample_size)
             if isinstance(X, list):
                 X_resampled = [tf.gather_nd(item, resample_idx) for item in X]
             else:
@@ -286,14 +302,14 @@ class SMC:
 
         return X_resampled
 
-    def get_resample_idx(self, log_W, sample_size=()):
+    def get_resample_idx(self, log_normalized_weight, sample_size=()):
         # get resample index a_t^k ~ Categorical(w_t^1, ..., w_t^K)
-        nb_classes  = log_W.shape.as_list()[0]
-        batch_shape = log_W.shape.as_list()[1:]
+        nb_classes  = log_normalized_weight.shape.as_list()[0]
+        batch_shape = log_normalized_weight.shape.as_list()[1:]
         perm = list(range(1, len(batch_shape) + 1)) + [0]
 
-        log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
-        log_W = tf.transpose(log_W - log_W_max, perm=perm)
+        log_W_max = tf.stop_gradient(tf.reduce_max(log_normalized_weight, axis=0))
+        log_W = tf.transpose(log_normalized_weight - log_W_max, perm=perm)
         categorical = tfd.Categorical(logits=log_W, validate_args=True, name="Categorical")
 
         # sample multiple times to remove idx out of range
@@ -321,13 +337,13 @@ class SMC:
 
     @staticmethod
     def compute_log_ZSMC(log_Ws):
-        # log_Ws: tensor of log_W for t = 0, ..., T - 1
-        # compute loss
-        time, n_particles, batch_size = log_Ws.get_shape().as_list()
+        """
 
-        log_ZSMC = tf.reduce_logsumexp(log_Ws, axis=1)
+        :param log_Ws: shape (time, n_particles, batch_size)
+        :return: loss, shape ()
+        """
+        log_ZSMC = tf.reduce_logsumexp(log_Ws, axis=1)  # (time, batch_size)
         log_ZSMC = tf.reduce_sum(tf.reduce_mean(log_ZSMC, axis=1), name="log_ZSMC")
-        log_ZSMC -= tf.log(tf.constant(n_particles, dtype=tf.float32)) * time
 
         return log_ZSMC
 
