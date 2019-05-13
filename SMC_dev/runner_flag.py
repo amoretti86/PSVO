@@ -22,10 +22,10 @@ print("\t tensorflow_probability version:", tfp.__version__)
 Dx = 2
 Dy = 1
 Di = 1
-n_particles = 32
+n_particles = 16
 
 batch_size = 1
-lr = 2e-4
+lr = 3e-5
 epoch = 300
 seed = 0
 
@@ -158,10 +158,10 @@ use_stack_rnn = True
 early_stop_patience = 200
 
 # reduce learning rate when testing loss doesn't improve for some time
-lr_reduce_patience = 30
+lr_reduce_patience = 40
 
 # the factor to reduce lr, new_lr = old_lr * lr_reduce_factor
-lr_reduce_factor = 1 / np.sqrt(2)
+lr_reduce_factor = 0.7
 
 # minimum lr
 min_lr = lr / 10
@@ -171,7 +171,7 @@ clip_norm = 10.0
 
 # --------------------- printing and data saving params --------------------- #
 # frequency to evaluate testing loss & other metrics and save results
-print_freq = 10
+print_freq = 5
 
 # whether to save the followings during training
 #   hidden trajectories
