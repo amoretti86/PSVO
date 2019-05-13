@@ -21,7 +21,7 @@ print("\t tensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 2
 Dy = 1
-n_particles = 32
+n_particles = 8
 
 batch_size = 1
 lr = 2e-4
@@ -33,8 +33,8 @@ seed = 0
 generateTrainingData = False
 
 # if reading data from file
-datadir = "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
-# "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
+#datadir = "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
+datadir = "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
 # "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
 datadict = "datadict"
@@ -91,6 +91,8 @@ diag_cov = False
 # whether use Forward Filtering Backward Simulation
 FFBSimulation = True
 
+FFBSimulationMix = True
+
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
 
@@ -141,7 +143,7 @@ save_trajectory = True
 save_y_hat = True
 
 # dir to save all results
-rslt_dir_name = "test"
+rslt_dir_name = "test_FFBS_mix"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -256,6 +258,8 @@ flags.DEFINE_boolean("BSim_sample_new_particles", BSim_sample_new_particles,
 flags.DEFINE_boolean("BSim_use_single_RNN", BSim_use_single_RNN, "whether Backward Simulation proposal "
                                                                  "use unidirectional RNN or bidirectional RNN")
 flags.DEFINE_boolean("FF_use_bRNN", FF_use_bRNN, "whether Forward Filtering proposal use bRNN")
+
+flags.DEFINE_boolean("FFBSimulationMix", FFBSimulationMix, "whether use FFBSimulationMix")
 
 # --------------------- IWAE flags ----------------------- #
 

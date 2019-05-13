@@ -5,7 +5,7 @@ from tensorflow_probability import distributions as tfd
 from SMC.SMC_base import SMC
 
 
-class FFBSimulation(SMC):
+class FFBSimulationMix(SMC):
     def __init__(self, model, FLAGS, name="log_ZSMC"):
         SMC.__init__(self, model, FLAGS, name="log_ZSMC")
         self.BSim_sample_new_particles = FLAGS.BSim_sample_new_particles
@@ -38,9 +38,9 @@ class FFBSimulation(SMC):
             # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
             X_prevs, _, log_Ws = self.SMC(hidden, obs)
             if self.BSim_sample_new_particles:
-                bw_Xs, bw_log_Ws, f_log_probs, g_log_probs = self.backward_simulation_w_proposal(X_prevs, log_Ws, obs)
+                bw_Xs, FFBS_log_weights = self.backward_simulation_w_proposal(X_prevs, log_Ws, obs)
 
-            log_ZSMC = self.compute_log_ZSMC(bw_log_Ws, f_log_probs, g_log_probs)
+            log_ZSMC = self.compute_log_ZSMC(FFBS_log_weights)
             Xs = bw_Xs
 
             # shape = (batch_size, time, n_particles, Dx)
@@ -51,41 +51,38 @@ class FFBSimulation(SMC):
         return log_ZSMC, log
 
     @staticmethod
-    def compute_log_ZSMC(bw_log_Ws, f_log_probs, g_log_probs):
+    def compute_log_ZSMC(log_Ws):
         """
-        Input:
-            bw_log_Ws.shape = (time, n_particles, batch_size)
-            f_log_probs.shape = (time, n_particles, batch_size)
-            g_log_probs.shape = (time, n_particles, batch_size)
+        :param log_Ws: shape (time, n_particles, batch_size)
+        :return: loss, shape ()
         """
-        time, n_particles, batch_size = bw_log_Ws.get_shape().as_list()
-
-        joint = tf.reduce_sum(f_log_probs + g_log_probs, axis=0)
-        proposal = tf.reduce_sum(bw_log_Ws, axis=0)
-        log_ZSMC = tf.reduce_logsumexp(joint - proposal, axis=0) - tf.log(tf.constant(n_particles, dtype=tf.float32))
-        log_ZSMC = tf.reduce_mean(log_ZSMC)
+        log_ZSMC = tf.reduce_logsumexp(log_Ws, axis=1)  # (time, batch_size)
+        log_ZSMC = tf.reduce_sum(tf.reduce_mean(log_ZSMC, axis=1), name="log_ZSMC")
 
         return log_ZSMC
 
     def backward_simulation_w_proposal(self, Xs, log_Ws, obs):
+        """
+
+        :param Xs: shape (time, n_particles, batch_size, Dx)
+        :param log_Ws: shape (time, n_particles, batch_size)
+        :param obs: shpae (batch_size, time, Dy)
+        :return:
+        """
         Dx, time, n_particles, batch_size = self.Dx, self.time, self.n_particles, self.batch_size
-        M = 3
+        M = 4
 
         # store in reverse order
         bw_Xs_ta = tf.TensorArray(tf.float32, size=time, name="backward_X_ta")
-        bw_log_Ws_ta = tf.TensorArray(tf.float32, size=time, name="backward_log_W_ta")
-        f_log_probs_ta = tf.TensorArray(tf.float32, size=time, name="joint_f_log_probs")
-        g_log_probs_ta = tf.TensorArray(tf.float32, size=time, name="joint_g_log_probs")
+        FFBS_log_weights_ta = tf.TensorArray(tf.float32, size=time, name="FFBS_log_weights_ta")
 
         # t = T - 1
-        # sample n_particles particles
+        # sample M particles
         X_Tm1, log_Tm1 = Xs[-1], log_Ws[-1] - tf.reduce_logsumexp(log_Ws[-1], axis=0)
-        bw_X_Tm1, bw_log_W_Tm1 = self.resample_X([X_Tm1, log_Tm1], log_Tm1, sample_size=n_particles) # shape:（n_particles, batch_size, Dx)
-        g_Tm1_log_prob = self.g.log_prob(bw_X_Tm1, obs[:, time - 1])  # shape (n_particles, batch_size)
+        bw_X_Tm1, bw_log_W_Tm1 = self.resample_X([X_Tm1, log_Tm1], log_Tm1, sample_size=n_particles)
+        g_Tm1_log_prob = self.g.log_prob(bw_X_Tm1, obs[:, time - 1])
 
         bw_Xs_ta = bw_Xs_ta.write(time - 1, bw_X_Tm1)
-        bw_log_Ws_ta = bw_log_Ws_ta.write(time - 1, bw_log_W_Tm1)
-        g_log_probs_ta = g_log_probs_ta.write(time - 1, g_Tm1_log_prob)
         preprocessed_obs = self.BS_preprocess_obs(obs)
         preprocessed_obs_ta = \
             tf.TensorArray(tf.float32, size=time, name="preprocessed_obs_ta").unstack(preprocessed_obs)
@@ -94,7 +91,7 @@ class FFBSimulation(SMC):
         def while_cond(t, *unused_args):
             return t >= 1
 
-        def while_body(t, bw_X_tp1, bw_Xs_ta, bw_log_Ws_ta, f_log_probs_ta, g_log_probs_ta):
+        def while_body(t, bw_X_tp1, bw_log_W_tp1, bw_Xs_ta, FFBS_log_weights_ta):
             # proposal q(x_t | x_t+1, y_t)
             # bw_X_t.shape = (M, n_particles, batch_size, Dx)
             # bw_q_log_prob.shape = (M, n_particles, batch_size)
@@ -110,26 +107,36 @@ class FFBSimulation(SMC):
             f_tm1_log_prob = self.f.log_prob(Xs[t - 1], bw_X_t_tiled)   # (M, n_particles, n_particles, batch_size)
             g_t_log_prob = self.g.log_prob(bw_X_t, obs[:, t])           # (M, n_particles, batch_size)
 
+            # p (x_t | y_{1:t})
             log_W_tm1 = log_Ws[t - 1] - tf.reduce_logsumexp(log_Ws[t - 1], axis=0)
             log_W_t = tf.reduce_logsumexp(f_tm1_log_prob + log_W_tm1, axis=2) + g_t_log_prob
+            assert log_W_t.shape.as_list() == [M, n_particles, batch_size]
 
             # p(x_t | x_{t+1:T}, y_{1:T})
             bw_log_W_t = log_W_t + f_t_log_prob - bw_q_log_prob
             bw_log_W_t = bw_log_W_t - tf.reduce_logsumexp(bw_log_W_t, axis=0)
+            assert bw_log_W_t.shape.as_list() == [M, n_particles, batch_size]
 
-            bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob = \
-                self.resample_X([bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob], bw_log_W_t, sample_size=())
+            bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob, selected_fw_log_normalized_W_t = \
+                self.resample_X([bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob, log_W_t],
+                                bw_log_W_t, sample_size=())
+
+            assert bw_X_t.shape.as_list() == [n_particles, batch_size, Dx]
+
+            selected_g_log_prob_tp1 = self.g.log_prob(bw_X_tp1, obs[:, t+1])
+            assert selected_g_log_prob_tp1.shape.as_list() == [n_particles, batch_size]
+
+            FFBS_log_weights_t = tf.add(selected_fw_log_normalized_W_t + f_t_log_prob + selected_g_log_prob_tp1 \
+                                        - bw_log_W_tp1, -bw_log_W_t, name="FFBS_log_weights_t")
 
             bw_Xs_ta = bw_Xs_ta.write(t, bw_X_t)
-            bw_log_Ws_ta = bw_log_Ws_ta.write(t, bw_log_W_t)
-            f_log_probs_ta = f_log_probs_ta.write(t + 1, f_t_log_prob)
-            g_log_probs_ta = g_log_probs_ta.write(t, g_t_log_prob)
+            FFBS_log_weights_ta = FFBS_log_weights_ta.write(t+1, FFBS_log_weights_t)
 
-            return t - 1, bw_X_t, bw_Xs_ta, bw_log_Ws_ta, f_log_probs_ta, g_log_probs_ta
+            return t - 1, bw_X_t, bw_log_W_t, bw_Xs_ta, FFBS_log_weights_ta
 
         # conduct the while loop
-        init_state = (time - 2, bw_X_Tm1, bw_Xs_ta, bw_log_Ws_ta, f_log_probs_ta, g_log_probs_ta)
-        t, bw_X_1, bw_Xs_ta, bw_log_weights, f_log_probs_ta, g_log_probs_ta = \
+        init_state = (time - 2, bw_X_Tm1, bw_log_W_Tm1, bw_Xs_ta, FFBS_log_weights_ta)
+        t, bw_X_1, bw_log_W_1, bw_Xs_ta, FFBS_log_weights_ta = \
             tf.while_loop(while_cond, while_body, init_state)
 
         # t = 0
@@ -153,29 +160,35 @@ class FFBSimulation(SMC):
 
         bw_log_W_0 = log_W_0 + f_0_log_prob - bw_q_log_prob
         bw_log_W_0 = bw_log_W_0 - tf.reduce_logsumexp(bw_log_W_0, axis=0)
-        bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob = \
-            self.resample_X([bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob],
+        bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob, selected_fw_log_normalized_W_0 = \
+            self.resample_X([bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob, log_W_0],
                             bw_log_W_0,
                             sample_size=())
 
+        selected_g_log_prob_1 = self.g.log_prob(bw_X_1, obs[:, 1])
+        FFBS_log_weights_1 = tf.add(selected_fw_log_normalized_W_0 + f_0_log_prob + selected_g_log_prob_1 \
+                                    - bw_log_W_1, -bw_log_W_0, name="FFBS_log_weights_1")
+
         bw_Xs_ta = bw_Xs_ta.write(0, bw_X_0)
-        bw_log_Ws_ta = bw_log_Ws_ta.write(0, bw_log_W_0)
-        f_log_probs_ta = f_log_probs_ta.write(1, f_0_log_prob)
-        f_log_probs_ta = f_log_probs_ta.write(0, f_init_log_prob)
-        g_log_probs_ta = g_log_probs_ta.write(0, g_0_log_prob)
+        FFBS_log_weights_ta = FFBS_log_weights_ta.write(1, FFBS_log_weights_1)
+
+        # t=0 for FFBS_log_weights
+        selected_f_log_prob_0 = self.q0.log_prob(mu_0, bw_X_0, name="selected_f_log_prob_0")
+        selected_g_log_prob_0 = self.g.log_prob(bw_X_0, obs[:, 0], name="selected_g_lor_prob_0")
+
+        FFBS_log_weights_0 = tf.add(selected_f_log_prob_0 + selected_g_log_prob_0, - bw_log_W_0,
+                                    name="FFBS_log_weights_0")
+        FFBS_log_weights_ta = FFBS_log_weights_ta.write(0, FFBS_log_weights_0)
+
 
         # transfer tensor arrays to tensors
         bw_Xs = bw_Xs_ta.stack()
-        bw_log_Ws = bw_log_Ws_ta.stack()
-        f_log_probs = f_log_probs_ta.stack()
-        g_log_probs = g_log_probs_ta.stack()
+        FFBS_log_weights = FFBS_log_weights_ta.stack()
 
         bw_Xs.set_shape((time, n_particles, batch_size, Dx))
-        bw_log_Ws.set_shape((time, n_particles, batch_size))
-        f_log_probs.set_shape((time, n_particles, batch_size))
-        g_log_probs.set_shape((time, n_particles, batch_size))
+        FFBS_log_weights.set_shape((time, n_particles, batch_size))
 
-        return bw_Xs, bw_log_Ws, f_log_probs, g_log_probs
+        return bw_Xs, FFBS_log_weights
 
     def BS_preprocess_obs(self, obs):
         # if self.smooth_obs, smooth obs with bidirectional RNN
