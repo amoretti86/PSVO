@@ -21,10 +21,10 @@ print("\t tensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 2
 Dy = 1
-n_particles = 8
+n_particles = 2
 
 batch_size = 1
-lr = 2e-4
+lr = 3e-3
 epoch = 200
 seed = 0
 
@@ -91,10 +91,13 @@ diag_cov = False
 # whether use Forward Filtering Backward Simulation
 FFBSimulation = True
 
-FFBSimulationMix = True
+# When FFBSimulaitonMix is True, FFBSimulation must be True
+FFBSimulationMix = False
 
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
+
+n_particles_for_BSim_proposal = n_particles
 
 # whether Backward Simulation proposal use unidirectional RNN or bidirectional RNN
 BSim_use_single_RNN = True
@@ -255,6 +258,9 @@ flags.DEFINE_boolean("FFBSimulation", FFBSimulation, "whether use Forward Filter
 flags.DEFINE_boolean("BSim_sample_new_particles", BSim_sample_new_particles,
                      "whether Forward Filtering Backward Simulation sample new particles from proposal "
                      "or use existing particles")
+flags.DEFINE_integer("n_particles_for_BSim_proposal", n_particles_for_BSim_proposal, "number of particles used for"
+                                                                                     " each trajectory in "
+                                                                                     "backward simulation proposal")
 flags.DEFINE_boolean("BSim_use_single_RNN", BSim_use_single_RNN, "whether Backward Simulation proposal "
                                                                  "use unidirectional RNN or bidirectional RNN")
 flags.DEFINE_boolean("FF_use_bRNN", FF_use_bRNN, "whether Forward Filtering proposal use bRNN")

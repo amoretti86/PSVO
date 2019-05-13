@@ -10,6 +10,8 @@ class FFBSimulation(SMC):
         SMC.__init__(self, model, FLAGS, name="log_ZSMC")
         self.BSim_sample_new_particles = FLAGS.BSim_sample_new_particles
         if self.BSim_sample_new_particles:
+            self.n_particles_for_BSim_proposal = FLAGS.n_particles_for_BSim_proposal
+
             self.q1_inv = model.q1_inv_dist
             self.smooth_obs = self.FF_use_bRNN = FLAGS.FF_use_bRNN
             self.BSim_use_single_RNN = FLAGS.BSim_use_single_RNN
@@ -69,7 +71,8 @@ class FFBSimulation(SMC):
 
     def backward_simulation_w_proposal(self, Xs, log_Ws, obs):
         Dx, time, n_particles, batch_size = self.Dx, self.time, self.n_particles, self.batch_size
-        M = 3
+
+        M = self.n_particles_for_BSim_proposal
 
         # store in reverse order
         bw_Xs_ta = tf.TensorArray(tf.float32, size=time, name="backward_X_ta")
