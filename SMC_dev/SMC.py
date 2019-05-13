@@ -143,7 +143,7 @@ class SMC:
         bw_Xs, bw_log_weights = self.FFBS_simulation(X_prevs, log_Ws, M=1)  # shape (time, 1, batch_size, Dx)
 
         bw_X = tf.squeeze(bw_Xs, axis=1)
-        bw_log_weight = tf.squeeze(bw_log_weights, axis=1)
+        bw_log_weight = tf.squeeze(bw_log_weights, axis=0)
 
         return bw_X, bw_log_weight
 
