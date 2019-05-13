@@ -180,7 +180,7 @@ class SMC:
             f_t_log_prob = self.f.log_prob(X[t], bw_X_tplu1_for_f_eval, name="f_t_log_prob")
             # f_t_log_prob: (M, n_particles, batch_size)
 
-            bw_X_t, bw_log_weights_t, selected_fw_log_weights_t, selected_f_log_prob_tplus1 \
+            bw_X_t, bw_log_weights_t, selected_fw_log_normalized_weights_t, selected_f_log_prob_tplus1 \
                 = self.get_backward_sample_and_weight(X[t], log_Ws[t], f_t_log_prob, M)
 
             # X shape: (M, batch_size, Dx)
@@ -189,7 +189,7 @@ class SMC:
 
             # p(x_t|y_1:t) f(x_t+1 | x_t) g(y_t+1 | x_t+1) / \tilde{w}_t+1 \tilde{w}_t
             FFBS_log_weights_t = \
-                tf.add(selected_fw_log_weights_t + selected_f_log_prob_tplus1 + selected_g_log_prob_tplus1 \
+                tf.add(selected_fw_log_normalized_weights_t + selected_f_log_prob_tplus1 + selected_g_log_prob_tplus1 \
                             - bw_log_weights_tplus1, - bw_log_weights_t, name="FFBS_log_weights_t")  # (M, batch_size)
 
             bw_Xs_ta = bw_Xs_ta.write(t, bw_X_t)
@@ -303,7 +303,7 @@ class SMC:
         :param M: number of the backward samples
         :return samples: M backward samples, shape (M, batch_size, Dx)
                 log_bw_weights: associated weights with samples, shape (M, batch_size)
-                selected_fw_log_weights: shape (M, batch_size)
+                selected_fw_log_normalized_weights: shape (M, batch_size)
                 selected_f_log_prob: shape (M, batch_size)
                 selected_g_log_prob: shape (M, batch_size)
         """
@@ -321,11 +321,12 @@ class SMC:
         samples = tf.gather_nd(X_t, sample_idx_reformat_1, name="gather_particles")  # (M, batch_size, Dx)
 
         if last_timestep:
-            selected_fw_log_weights = None
+            selected_fw_log_normalized_weights = None
             selected_f_log_prob = None
         else:
             sample_idx_reformat_2 = [[(sample_idx[i][j], j) for j in range(batch_size)] for i in range(M)]
             selected_fw_log_weights = tf.gather_nd(log_W_t, sample_idx_reformat_2, name="gather_fw_log_weights")  # (M, batch_size)
+            selected_fw_log_normalized_weights = selected_fw_log_weights - tf.reduce_logsumexp(log_W_t, axis=0)
 
             sample_idx_reformat_3 = [[(i, sample_idx[i][j], j) for j in range(batch_size)] for i in range(M)]
             selected_f_log_prob = tf.gather_nd(f_t_log_prob, sample_idx_reformat_3, name="gather_f_log_prob")
@@ -337,7 +338,7 @@ class SMC:
         sample_log_unnormalized_weights = tf.gather_nd(log_weights, idx_reformat_4, name="gather_log_weights")  # (M, batch_size)
         sample_log_weights = sample_log_unnormalized_weights - normalization_constant
 
-        return samples, sample_log_weights, selected_fw_log_weights, selected_f_log_prob
+        return samples, sample_log_weights, selected_fw_log_normalized_weights, selected_f_log_prob
 
     def SMC(self, Input, hidden, obs, forward=True, q_cov=1.0):
         Dx, time, n_particles, batch_size = self.Dx, self.time, self.n_particles, self.batch_size
