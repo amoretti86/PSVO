@@ -80,7 +80,7 @@ class FFBSimulationMix(SMC):
         FFBS_log_weights_ta = tf.TensorArray(tf.float32, size=time, name="FFBS_log_weights_ta")
 
         # t = T - 1
-        # sample M particles
+        # sample n_particles particles
         X_Tm1, log_Tm1 = Xs[-1], log_Ws[-1] - tf.reduce_logsumexp(log_Ws[-1], axis=0)
         bw_X_Tm1, bw_log_W_Tm1 = self.resample_X([X_Tm1, log_Tm1], log_Tm1, sample_size=n_particles)
         g_Tm1_log_prob = self.g.log_prob(bw_X_Tm1, obs[:, time - 1])

@@ -21,7 +21,7 @@ print("\t tensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 2
 Dy = 1
-n_particles = 2
+n_particles = 32
 
 batch_size = 1
 lr = 3e-3
@@ -70,7 +70,7 @@ X0_smoother_Dhs = [32]
 use_bootstrap = True
 
 # should q use true_X to sample? (useful for debugging)
-q_uses_true_X = False
+q_uses_true_X = True
 
 # if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
 # if True, q_uses_true_X will be overwritten as False
@@ -92,7 +92,7 @@ diag_cov = False
 FFBSimulation = True
 
 # When FFBSimulaitonMix is True, FFBSimulation must be True
-FFBSimulationMix = False
+FFBSimulationMix = True
 
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
@@ -103,7 +103,7 @@ n_particles_for_BSim_proposal = n_particles
 BSim_use_single_RNN = True
 
 # whether Forward Filtering proposal use bRNN
-FF_use_bRNN = False
+FF_use_bRNN = True
 
 # --------------------- IWAE flags ---------------------- #
 # whether use IWAE or SVO
