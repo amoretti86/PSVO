@@ -92,7 +92,7 @@ diag_cov = False
 FFBSimulation = True
 
 # When FFBSimulaitonMix is True, FFBSimulation must be True
-FFBSimulationMix = True
+FFBSimulationMix = False
 
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
