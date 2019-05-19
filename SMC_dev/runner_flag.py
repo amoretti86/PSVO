@@ -21,12 +21,12 @@ print("\t tensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 2
 Dy = 1
-n_particles = 32
+n_particles = 8
 
 batch_size = 1
 lr = 3e-3
 epoch = 200
-seed = 0
+seed = 10
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -91,9 +91,6 @@ diag_cov = False
 # whether use Forward Filtering Backward Simulation
 FFBSimulation = True
 
-# When FFBSimulaitonMix is True, FFBSimulation must be True
-FFBSimulationMix = True
-
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
 
@@ -105,13 +102,13 @@ BSim_use_single_RNN = True
 # whether Forward Filtering proposal use bRNN
 FF_use_bRNN = True
 
-# --------------------- IWAE flags ---------------------- #
+# --------------------- IW_AE flags ---------------------- #
 # whether use IWAE or SVO
 IWAE = False
 
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs
-smooth_obs = False
+smooth_obs = True
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
@@ -146,7 +143,7 @@ save_trajectory = True
 save_y_hat = True
 
 # dir to save all results
-rslt_dir_name = "test_FFBS_mix"
+rslt_dir_name = "test_FFBSim"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -265,7 +262,6 @@ flags.DEFINE_boolean("BSim_use_single_RNN", BSim_use_single_RNN, "whether Backwa
                                                                  "use unidirectional RNN or bidirectional RNN")
 flags.DEFINE_boolean("FF_use_bRNN", FF_use_bRNN, "whether Forward Filtering proposal use bRNN")
 
-flags.DEFINE_boolean("FFBSimulationMix", FFBSimulationMix, "whether use FFBSimulationMix")
 
 # --------------------- IWAE flags ----------------------- #
 

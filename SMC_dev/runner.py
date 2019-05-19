@@ -15,7 +15,6 @@ from trainer import trainer
 from SMC.IWAE import IWAE
 from SMC.SMC_base import SMC
 from SMC.FFBSimulation import FFBSimulation
-from SMC.FFBSimulationMix import FFBSimulationMix
 
 from rslts_saving.rslts_saving import *
 from rslts_saving.fhn_rslts_saving import *
@@ -71,10 +70,7 @@ def main(_):
     if FLAGS.IWAE:
         SMC_train = IWAE(SSM_model, FLAGS)
     elif FLAGS.FFBSimulation:
-        if FLAGS.FFBSimulationMix:
-            SMC_train = FFBSimulationMix(SSM_model, FLAGS)
-        else:
-            SMC_train = FFBSimulation(SSM_model, FLAGS)
+        SMC_train = FFBSimulation(SSM_model, FLAGS)
     else:
         SMC_train = SMC(SSM_model, FLAGS)
 
