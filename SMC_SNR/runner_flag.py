@@ -50,7 +50,7 @@ SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
 
 
 # ------------------ loss type ---------------------- #
-loss_type = 'main'
+loss_type = 'full'
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -86,12 +86,6 @@ g_sigma_init, g_sigma_min = 5, 1
 # bidirectional RNN
 y_smoother_Dhs = [16]
 X0_smoother_Dhs = [16]
-
-
-# IWAE
-IWAE = True
-if IWAE:
-    loss_type = 'main'
 
 # ----------------------- FFN flags ------------------------ #
 
@@ -172,10 +166,7 @@ print_freq = 1
 
 save_trajectory = False
 save_y_hat = False
-
-
-# dir to save all results
-rslt_dir_name = "IWAE"
+rslt_dir_name = "test_SNR"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -272,8 +263,6 @@ flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 flags.DEFINE_float("f_sigma_min", f_sigma_min, "minimal value of f_sigma")
 flags.DEFINE_float("g_sigma_min", g_sigma_min, "minimal value of g_sigma")
 
-# IWAE
-flags.DEFINE_boolean("IWAE", IWAE, "whether use IWAE or SVO")
 
 # bidirectional RNN
 flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smoother birdectional RNNs, "

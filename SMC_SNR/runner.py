@@ -123,7 +123,6 @@ def main(_):
                     FLAGS.n_particles,
                     q_uses_true_X=q_uses_true_X,
                     use_input=use_input,
-                    IWAE = FLAGS.IWAE,
                     X0_use_separate_RNN=X0_use_separate_RNN,
                     use_stack_rnn=use_stack_rnn,
                     FFBS=FFBS,

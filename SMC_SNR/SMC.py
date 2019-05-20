@@ -7,7 +7,6 @@ class SMC:
                  n_particles,
                  q_uses_true_X=False,
                  use_input=False,
-                 IWAE=False,
                  X0_use_separate_RNN=True,
                  use_stack_rnn=False,
                  FFBS=False,
@@ -27,8 +26,6 @@ class SMC:
 
         self.q_uses_true_X = q_uses_true_X
         self.use_input = use_input
-
-        self.IWAE = IWAE
 
         # bidirectional RNN as full sequence observations encoder
         self.X0_use_separate_RNN = X0_use_separate_RNN
@@ -313,10 +310,6 @@ class SMC:
 
     def resample_X(self, X, log_W, loss_type='main'):
         n_particles, batch_size = log_W.get_shape().as_list()
-
-        if self.IWAE:
-            recover_idx = tf.reshape(tf.range(0, n_particles), (n_particles, batch_size))
-            return X, recover_idx
 
         if loss_type == 'soft':
             return self.soft_sample_X(X, log_W)
