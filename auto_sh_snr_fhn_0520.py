@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
 
     # ------------------ loss type ---------------------- #
-    params_dict["loss_type"] = ['soft', 'soft2']
+    params_dict["loss_type"] = ['soft', 'soft2', 'main', 'full']
 
     # --------------------- data set parameters --------------------- #
     params_dict["generateTrainingData"] = [False]
