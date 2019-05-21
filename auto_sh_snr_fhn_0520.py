@@ -6,8 +6,8 @@ import time
 # This is design for python 2.6
 if __name__ == "__main__":
 
-    mem = 128                        # memory in Gb
-    sh_time = 200                    # time in hour
+    mem = 60                        # memory in Gb
+    sh_time = 60                    # time in hour
     task_name = "fhn_SNR"            # name of the task
     conda_path = "/ifs/scratch/c2b2/ip_lab/lw2827/miniconda3/bin/"
     env_name = "aesmc_env"
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     params_dict["batch_size"] = [1]
     params_dict["lr"] = [2e-3]
     params_dict["epoch"] = [300]
-    params_dict["seed"] = [0]
+    params_dict["seed"] = [0,20,30]
 
     # ----------------------- SNR experiment ----------------- #
     # save gradient should be set True
@@ -37,18 +37,18 @@ if __name__ == "__main__":
     params_dict["SNR_sample_num"] = [100]
 
     #SNR_NP_list = [1, 8, 64, 128, 512, 1024, 2048]
-    params_dict["SNR_NP_list"] = [[1, 8, 64, 128, 512, 1024]]
+    params_dict["SNR_NP_list"] = [[1,2,4, 8,16, 32, 64, 128,256, 512, 1024,2048]]
     #SNR_NP_list = [1, 2]
 
-    #SNR_collect_grads_point = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
-    #SNR_collect_grads_point = [-700, -600,-500, -400, -350, -300, -250, -220]
-    #params_dict["SNR_collect_grads_point"] = [[-700, -400, -350, -250, -220]]
-    params_dict["SNR_collect_grads_point"] = [[-700, -400]]
-    #params_dict["SNR_collect_grads_point"] = [[-350, -250, -220]]
+    #SNR_collect_grads_points = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
+    #SNR_collect_grads_points = [-700, -600,-500, -400, -350, -300, -250, -220]
+    #params_dict["SNR_collect_grads_points"] = [[-700, -400, -350, -250, -220]]
+    #params_dict["SNR_collect_grads_points"] = [[-700, -400]]
+    params_dict["SNR_collect_grads_points"] = [[-350]]
 
 
     # ------------------ loss type ---------------------- #
-    params_dict["loss_type"] = ['soft', 'full', 'main']
+    params_dict["loss_type"] = ['soft', 'soft2']
 
     # --------------------- data set parameters --------------------- #
     params_dict["generateTrainingData"] = [False]
@@ -157,8 +157,8 @@ if __name__ == "__main__":
             args += "--{0}={1} ".format(param_name, param_val)
 
         # some ad hoc way to define rslt_dir_name, feel free to delete/comment out it
-        rslt_dir_name = "fhn_SNR_0320/"
-        rslt_dir_name += arg_dict["datadir"].split("/")[-2]
+        rslt_dir_name = "fhn_SNR_0520/"
+        #rslt_dir_name += arg_dict["datadir"].split("/")[-2]
         if arg_dict["smooth_obs"]:
             rslt_dir_name += "/" + ("RNN" if arg_dict["use_RNN"] else "attention")
         else:

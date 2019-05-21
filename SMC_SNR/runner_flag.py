@@ -27,7 +27,7 @@ n_particles = 1
 batch_size = 1
 lr = 2e-3
 epoch = 300
-seed = 0
+seed = 1
 
 # ----------------------- SNR experiment ----------------- #
 # save gradient should be set True
@@ -38,11 +38,13 @@ SNR_sample_num = 2
 #SNR_NP_list = [1, 8, 64, 128, 512, 1024, 2048]
 #SNR_NP_list = [1, 8, 64, 128, 512, 1024]
 SNR_NP_list = [1, 2]
+#SNR_NP_list = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
 
 SNR_collect_grads_points = [-1750, -650,-600, -550, -500, -450, -400, -350, -300, -250, -220]
 #SNR_collect_grads_points = [-700, -600,-500, -400, -350, -300, -250, -220]
 #SNR_collect_grads_points = [-700, -400, -350, -250, -220]
 #SNR_collect_grads_points = [-350, -250, -220]
+#SNR_collect_grads_points = [-350]
 
 SNR_NP_list = ",".join([str(x) for x in SNR_NP_list])
 SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
@@ -50,7 +52,7 @@ SNR_collect_grads_points = ",".join([str(x) for x in SNR_collect_grads_points])
 
 
 # ------------------ loss type ---------------------- #
-loss_type = 'full'
+loss_type = 'soft2'
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -166,7 +168,7 @@ print_freq = 1
 
 save_trajectory = False
 save_y_hat = False
-rslt_dir_name = "test_SNR"
+rslt_dir_name = "test"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30

@@ -311,8 +311,8 @@ class SMC:
     def resample_X(self, X, log_W, loss_type='main'):
         n_particles, batch_size = log_W.get_shape().as_list()
 
-        if loss_type == 'soft':
-            return self.soft_sample_X(X, log_W)
+        if loss_type == 'soft' or loss_type == 'soft2':
+            return self.soft_sample_X(X, log_W, loss_type)
 
         if n_particles > 1:
             resample_idx = self.get_resample_idx(log_W)  # (n_particles, batch_size, 2)
@@ -326,7 +326,7 @@ class SMC:
 
         return X_resampled, recover_idx
 
-    def soft_sample_X(self, X, log_W):
+    def soft_sample_X(self, X, log_W, soft_loss_type):
 
         n_particles, batch_size = log_W.get_shape().as_list()
 
@@ -334,8 +334,10 @@ class SMC:
         log_W_max = tf.stop_gradient(tf.reduce_max(log_W, axis=0))
         log_W = tf.transpose(log_W - log_W_max)  # shape (batch_size, n_particles)
 
-        #soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=0.2)
-        soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=1/n_particles)
+        if soft_loss_type == 'soft2':
+            soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=0.2)
+        elif soft_loss_type == 'soft':
+            soft_categorical = tfd.RelaxedOneHotCategorical(logits=log_W, temperature=1/n_particles)
 
         soft_idx = soft_categorical.sample(n_particles)  # (n_particles, batch_size, n_particles)
 
