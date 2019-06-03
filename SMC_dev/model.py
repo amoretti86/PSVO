@@ -52,6 +52,7 @@ class SSM(object):
         self.use_stack_rnn             = FLAGS.use_stack_rnn
 
         self.FFBSimulation             = FLAGS.FFBSimulation
+        self.FFBSiv2                   = FLAGS.FFBSiv2
         self.BSim_sample_new_particles = FLAGS.BSim_sample_new_particles
         self.BSim_use_single_RNN       = FLAGS.BSim_use_single_RNN
         self.FF_use_bRNN               = FLAGS.FF_use_bRNN
@@ -82,7 +83,7 @@ class SSM(object):
         else:
             self.q2_tran = None
 
-        if self.FFBSimulation and self.BSim_sample_new_particles:
+        if (self.FFBSimulation or self.FFBSiv2) and self.BSim_sample_new_particles:
             self.BSim_q_init_tran = MLP_transformation(self.q0_layers, self.Dx,
                                                   output_cov=self.output_cov,
                                                   diag_cov=self.diag_cov,
@@ -128,7 +129,7 @@ class SSM(object):
         else:
             self.q2_dist = None
 
-        if self.FFBSimulation and self.BSim_sample_new_particles:
+        if (self.FFBSimulation or self.FFBSiv2) and self.BSim_sample_new_particles:
             self.Bsim_q_init_dist = tf_mvn(self.BSim_q_init_tran,
                                            sigma_init=self.q0_sigma_init,
                                            sigma_min=self.q0_sigma_min,

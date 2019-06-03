@@ -91,6 +91,8 @@ diag_cov = False
 # whether use Forward Filtering Backward Simulation
 FFBSimulation = False
 
+FFBSiv2 = True
+
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
 
@@ -103,7 +105,7 @@ BSim_use_single_RNN = False
 FF_use_bRNN = True
 
 # --------------------- AESMC v2 flags --------------------- #
-AESMCv2 = True
+AESMCv2 = False
 
 # --------------------- IWAE flags ---------------------- #
 # whether use IWAE or SVO
@@ -255,6 +257,8 @@ flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output dia
 # --------------------- FFBSimulation flags --------------------- #
 
 flags.DEFINE_boolean("FFBSimulation", FFBSimulation, "whether use Forward Filtering Backward Simulation")
+flags.DEFINE_boolean("FFBSiv2", FFBSiv2, "whether use FFBSiv2")
+
 flags.DEFINE_boolean("BSim_sample_new_particles", BSim_sample_new_particles,
                      "whether Forward Filtering Backward Simulation sample new particles from proposal "
                      "or use existing particles")
