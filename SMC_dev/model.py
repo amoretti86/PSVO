@@ -83,6 +83,11 @@ class SSM(object):
             self.q2_tran = None
 
         if self.FFBSimulation and self.BSim_sample_new_particles:
+            self.BSim_q_init_tran = MLP_transformation(self.q0_layers, self.Dx,
+                                                  output_cov=self.output_cov,
+                                                  diag_cov=self.diag_cov,
+                                                  name="BSim_q_init_tran")
+
             self.q1_inv_tran = MLP_transformation(self.q1_layers, self.Dx,
                                                   output_cov=self.output_cov,
                                                   diag_cov=self.diag_cov,
@@ -124,6 +129,11 @@ class SSM(object):
             self.q2_dist = None
 
         if self.FFBSimulation and self.BSim_sample_new_particles:
+            self.Bsim_q_init_dist = tf_mvn(self.BSim_q_init_tran,
+                                           sigma_init=self.q0_sigma_init,
+                                           sigma_min=self.q0_sigma_min,
+                                           name="BSim_q_init_dist")
+
             self.q1_inv_dist = tf_mvn(self.q1_inv_tran,
                                       sigma_init=self.q1_sigma_init,
                                       sigma_min=self.q1_sigma_min,

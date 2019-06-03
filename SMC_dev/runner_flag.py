@@ -94,10 +94,10 @@ FFBSimulation = True
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
 
-n_particles_for_BSim_proposal = n_particles
+n_particles_for_BSim_proposal = 4
 
 # whether Backward Simulation proposal use unidirectional RNN or bidirectional RNN
-BSim_use_single_RNN = True
+BSim_use_single_RNN = False
 
 # whether Forward Filtering proposal use bRNN
 FF_use_bRNN = True

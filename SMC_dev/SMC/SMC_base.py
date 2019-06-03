@@ -303,6 +303,11 @@ class SMC:
         return log_ZSMC
 
     def preprocess_obs(self, obs):
+        """
+
+        :param obs: (batch_size, time, Dy)
+        :return: preprocessed_obs, a list of lenght time, each item is of shape (batch_size, smoother_Dhs*2)
+        """
         # if self.smooth_obs, smooth obs with bidirectional RNN
 
         with tf.variable_scope("smooth_obs"):
