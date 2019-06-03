@@ -82,7 +82,7 @@ class FFBSimulation(SMC):
         f_log_probs_ta = tf.TensorArray(tf.float32, size=time, name="joint_f_log_probs")
         g_log_probs_ta = tf.TensorArray(tf.float32, size=time, name="joint_g_log_probs")
 
-        preprocessed_obs = self.BS_preprocess_obs(obs[-1])
+        preprocessed_obs = self.BS_preprocess_obs(obs)
 
         # t = T - 1
         # proposal q(x_T | y_{1:T})
