@@ -89,7 +89,7 @@ diag_cov = False
 
 # ----------------------- FFBSimulation flags ----------------------- #
 # whether use Forward Filtering Backward Simulation
-FFBSimulation = True
+FFBSimulation = False
 
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
@@ -102,7 +102,10 @@ BSim_use_single_RNN = False
 # whether Forward Filtering proposal use bRNN
 FF_use_bRNN = True
 
-# --------------------- IW_AE flags ---------------------- #
+# --------------------- AESMC v2 flags --------------------- #
+AESMCv2 = True
+
+# --------------------- IWAE flags ---------------------- #
 # whether use IWAE or SVO
 IWAE = False
 
@@ -262,6 +265,10 @@ flags.DEFINE_boolean("BSim_use_single_RNN", BSim_use_single_RNN, "whether Backwa
                                                                  "use unidirectional RNN or bidirectional RNN")
 flags.DEFINE_boolean("FF_use_bRNN", FF_use_bRNN, "whether Forward Filtering proposal use bRNN")
 
+
+# --------------------- AESMCv2 flags ---------------------- #
+
+flags.DEFINE_boolean("AESMCv2", AESMCv2, "wheter use AESMCv2")
 
 # --------------------- IWAE flags ----------------------- #
 

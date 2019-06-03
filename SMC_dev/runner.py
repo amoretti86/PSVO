@@ -15,6 +15,7 @@ from trainer import trainer
 from SMC.IWAE import IWAE
 from SMC.SMC_base import SMC
 from SMC.FFBSimulation import FFBSimulation
+from SMC.AESMCv2 import AESMCv2
 
 from rslts_saving.rslts_saving import *
 from rslts_saving.fhn_rslts_saving import *
@@ -70,7 +71,11 @@ def main(_):
     if FLAGS.IWAE:
         SMC_train = IWAE(SSM_model, FLAGS)
     elif FLAGS.FFBSimulation:
+        assert FLAGS.AESMCv2 is False
         SMC_train = FFBSimulation(SSM_model, FLAGS)
+    elif FLAGS.AESMCv2:
+        assert FLAGS.FFBSimulation is False
+        SMC_train = AESMCv2(SSM_model, FLAGS)
     else:
         SMC_train = SMC(SSM_model, FLAGS)
 
