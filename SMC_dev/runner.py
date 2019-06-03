@@ -15,7 +15,8 @@ from trainer import trainer
 from SMC.IWAE import IWAE
 from SMC.SMC_base import SMC
 from SMC.FFBSimulation import FFBSimulation
-from SMC.FFBSimulationMix import FFBSimulationMix
+from SMC.AESMCv2 import AESMCv2
+from SMC.FFBSiv2 import FFBSiv2
 
 from rslts_saving.rslts_saving import *
 from rslts_saving.fhn_rslts_saving import *
@@ -67,14 +68,18 @@ def main(_):
     # ============================================== model part ============================================== #
     SSM_model = SSM(FLAGS)
 
+    # at most one of them can be set to True
+    assert FLAGS.FFBSimulation + FLAGS.AESMCv2 + FLAGS.FFBSiv2 < 2
+
     # SMC class to calculate loss
     if FLAGS.IWAE:
         SMC_train = IWAE(SSM_model, FLAGS)
     elif FLAGS.FFBSimulation:
-        if FLAGS.FFBSimulationMix:
-            SMC_train = FFBSimulationMix(SSM_model, FLAGS)
-        else:
-            SMC_train = FFBSimulation(SSM_model, FLAGS)
+        SMC_train = FFBSimulation(SSM_model, FLAGS)
+    elif FLAGS.AESMCv2:
+        SMC_train = AESMCv2(SSM_model, FLAGS)
+    elif FLAGS.FFBSiv2:
+        SMC_train = FFBSiv2(SSM_model, FLAGS)
     else:
         SMC_train = SMC(SSM_model, FLAGS)
 

@@ -21,12 +21,12 @@ print("\t tensorflow_probability version:", tfp.__version__)
 # --------------------- training hyperparameters --------------------- #
 Dx = 2
 Dy = 1
-n_particles = 32
+n_particles = 8
 
 batch_size = 1
 lr = 3e-3
 epoch = 200
-seed = 0
+seed = 10
 
 # ------------------- data set parameters ------------------ #
 # generate synthetic data?
@@ -89,21 +89,23 @@ diag_cov = False
 
 # ----------------------- FFBSimulation flags ----------------------- #
 # whether use Forward Filtering Backward Simulation
-FFBSimulation = True
+FFBSimulation = False
 
-# When FFBSimulaitonMix is True, FFBSimulation must be True
-FFBSimulationMix = True
+FFBSiv2 = True
 
 # whether Backward Simulation sample new particles from proposal or use existing particles
 BSim_sample_new_particles = True
 
-n_particles_for_BSim_proposal = n_particles
+n_particles_for_BSim_proposal = 4
 
 # whether Backward Simulation proposal use unidirectional RNN or bidirectional RNN
-BSim_use_single_RNN = True
+BSim_use_single_RNN = False
 
 # whether Forward Filtering proposal use bRNN
 FF_use_bRNN = True
+
+# --------------------- AESMC v2 flags --------------------- #
+AESMCv2 = False
 
 # --------------------- IWAE flags ---------------------- #
 # whether use IWAE or SVO
@@ -111,7 +113,7 @@ IWAE = False
 
 # --------------------- smoother flags --------------------- #
 # whether smooth observations with birdectional RNNs
-smooth_obs = False
+smooth_obs = True
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
@@ -146,7 +148,7 @@ save_trajectory = True
 save_y_hat = True
 
 # dir to save all results
-rslt_dir_name = "test_FFBS_mix"
+rslt_dir_name = "test_FFBSim"
 
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
@@ -255,6 +257,8 @@ flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output dia
 # --------------------- FFBSimulation flags --------------------- #
 
 flags.DEFINE_boolean("FFBSimulation", FFBSimulation, "whether use Forward Filtering Backward Simulation")
+flags.DEFINE_boolean("FFBSiv2", FFBSiv2, "whether use FFBSiv2")
+
 flags.DEFINE_boolean("BSim_sample_new_particles", BSim_sample_new_particles,
                      "whether Forward Filtering Backward Simulation sample new particles from proposal "
                      "or use existing particles")
@@ -265,7 +269,10 @@ flags.DEFINE_boolean("BSim_use_single_RNN", BSim_use_single_RNN, "whether Backwa
                                                                  "use unidirectional RNN or bidirectional RNN")
 flags.DEFINE_boolean("FF_use_bRNN", FF_use_bRNN, "whether Forward Filtering proposal use bRNN")
 
-flags.DEFINE_boolean("FFBSimulationMix", FFBSimulationMix, "whether use FFBSimulationMix")
+
+# --------------------- AESMCv2 flags ---------------------- #
+
+flags.DEFINE_boolean("AESMCv2", AESMCv2, "wheter use AESMCv2")
 
 # --------------------- IWAE flags ----------------------- #
 
