@@ -314,43 +314,47 @@ class SMC:
             if not self.smooth_obs:
                 preprocessed_obs = tf.unstack(obs, axis=1)
                 preprocessed_X0 = preprocessed_obs[0]
-
             else:
-                if self.use_stack_rnn:
-                    outputs, state_fw, state_bw = \
-                        tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.y_smoother_f,
-                                                                       self.y_smoother_b,
-                                                                       obs,
-                                                                       dtype=tf.float32)
-                else:
-                    outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.y_smoother_f,
-                                                                                    self.y_smoother_b,
-                                                                                    obs,
-                                                                                    dtype=tf.float32)
-                smoothed_obs = tf.concat(outputs, axis=-1)
-                preprocessed_obs = tf.unstack(smoothed_obs, axis=1)
-
-                if self.X0_use_separate_RNN:
-                    if self.use_stack_rnn:
-                        outputs, state_fw, state_bw = \
-                            tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.X0_smoother_f,
-                                                                           self.X0_smoother_b,
-                                                                           obs,
-                                                                           dtype=tf.float32)
-                    else:
-                        outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.X0_smoother_f,
-                                                                                        self.X0_smoother_b,
-                                                                                        obs,
-                                                                                        dtype=tf.float32)
-                if self.use_stack_rnn:
-                    outputs_fw = outputs_bw = outputs
-                else:
-                    outputs_fw, outputs_bw = outputs
-                output_fw_list, output_bw_list = tf.unstack(outputs_fw, axis=1), tf.unstack(outputs_bw, axis=1)
-                preprocessed_X0 = tf.concat([output_fw_list[-1], output_bw_list[0]], axis=-1)
+                preprocessed_X0, preprocessed_obs = self.preprocess_obs_w_bRNN(obs)
 
             if not (self.model.use_bootstrap and self.model.use_2_q):
                 preprocessed_X0 = self.model.X0_transformer(preprocessed_X0)
+
+        return preprocessed_X0, preprocessed_obs
+
+    def preprocess_obs_w_bRNN(self, obs):
+        if self.use_stack_rnn:
+            outputs, state_fw, state_bw = \
+                tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                               self.y_smoother_b,
+                                                               obs,
+                                                               dtype=tf.float32)
+        else:
+            outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.y_smoother_f,
+                                                                            self.y_smoother_b,
+                                                                            obs,
+                                                                            dtype=tf.float32)
+        smoothed_obs = tf.concat(outputs, axis=-1)
+        preprocessed_obs = tf.unstack(smoothed_obs, axis=1)
+
+        if self.X0_use_separate_RNN:
+            if self.use_stack_rnn:
+                outputs, state_fw, state_bw = \
+                    tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.X0_smoother_f,
+                                                                   self.X0_smoother_b,
+                                                                   obs,
+                                                                   dtype=tf.float32)
+            else:
+                outputs, (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(self.X0_smoother_f,
+                                                                                self.X0_smoother_b,
+                                                                                obs,
+                                                                                dtype=tf.float32)
+        if self.use_stack_rnn:
+            outputs_fw = outputs_bw = outputs
+        else:
+            outputs_fw, outputs_bw = outputs
+        output_fw_list, output_bw_list = tf.unstack(outputs_fw, axis=1), tf.unstack(outputs_bw, axis=1)
+        preprocessed_X0 = tf.concat([output_fw_list[-1], output_bw_list[0]], axis=-1)
 
         return preprocessed_X0, preprocessed_obs
 
