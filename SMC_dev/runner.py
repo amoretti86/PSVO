@@ -12,11 +12,11 @@ import pdb
 # import from files
 from model import SSM
 from trainer import trainer
+
+from SMC.SVO import SVO
+from SMC.PSVO import PSVO
 from SMC.IWAE import IWAE
-from SMC.SMC_base import SMC
-from SMC.FFBSimulation import FFBSimulation
-from SMC.AESMCv2 import AESMCv2
-from SMC.FFBSiv2 import FFBSiv2
+from SMC.AESMC import AESMC
 
 from rslts_saving.rslts_saving import *
 from rslts_saving.fhn_rslts_saving import *
@@ -31,17 +31,10 @@ def main(_):
 
     # ========================================= parameter part begins ========================================== #
     Dx = FLAGS.Dx
-
-    # --------------------- SSM flags --------------------- #
-    # should q use true_X to sample? (useful for debugging)
-    q_uses_true_X = FLAGS.q_uses_true_X
-
-    # --------------------- printing and data saving params --------------------- #
-
     print_freq = FLAGS.print_freq
 
     if FLAGS.use_2_q:
-        FLAGS.q_uses_true_X = q_uses_true_X = False
+        FLAGS.q_uses_true_X = False
 
     tf.set_random_seed(FLAGS.seed)
     np.random.seed(FLAGS.seed)
@@ -56,7 +49,7 @@ def main(_):
     # load data from file
     else:
         hidden_train, hidden_test, obs_train, obs_test = \
-            load_data(FLAGS.datadir + FLAGS.datadict, Dx, FLAGS.isPython2, q_uses_true_X)
+            load_data(FLAGS.datadir + FLAGS.datadict, Dx, FLAGS.isPython2, FLAGS.q_uses_true_X)
         FLAGS.n_train, FLAGS.n_test, FLAGS.time = obs_train.shape[0], obs_test.shape[0], obs_test.shape[1]
 
     # clip saving_num to avoid it > n_train or n_test
@@ -69,19 +62,19 @@ def main(_):
     SSM_model = SSM(FLAGS)
 
     # at most one of them can be set to True
-    assert FLAGS.FFBSimulation + FLAGS.AESMCv2 + FLAGS.FFBSiv2 < 2
+    assert FLAGS.PSVO + FLAGS.SVO + FLAGS.AESMC + FLAGS.IWAE < 2
 
     # SMC class to calculate loss
-    if FLAGS.IWAE:
+    if FLAGS.PSVO:
+        SMC_train = PSVO(SSM_model, FLAGS)
+    elif FLAGS.SVO:
+        SMC_train = SVO(SSM_model, FLAGS)
+    elif FLAGS.AESMC:
+        SMC_train = AESMC(SSM_model, FLAGS)
+    elif FLAGS.IWAE:
         SMC_train = IWAE(SSM_model, FLAGS)
-    elif FLAGS.FFBSimulation:
-        SMC_train = FFBSimulation(SSM_model, FLAGS)
-    elif FLAGS.AESMCv2:
-        SMC_train = AESMCv2(SSM_model, FLAGS)
-    elif FLAGS.FFBSiv2:
-        SMC_train = FFBSiv2(SSM_model, FLAGS)
     else:
-        SMC_train = SMC(SSM_model, FLAGS)
+        raise ValueError("Choose one of objectives among: PSVO, SVO, AESMC, IWAE")
 
     # =========================================== data saving part =========================================== #
     # create dir to save results

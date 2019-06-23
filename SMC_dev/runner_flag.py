@@ -18,68 +18,50 @@ print("\t tensorflow version:", tf.__version__)
 print("\t tensorflow_probability version:", tfp.__version__)
 
 
-# --------------------- training hyperparameters --------------------- #
-Dx = 2
-Dy = 1
-n_particles = 8
+# --------------------- Training Hyperparameters --------------------- #
+Dx = 2                  # dimension of hidden states
+Dy = 1                  # dimension of observations
+n_particles = 16        # number of particles
+batch_size = 1          # batch size
+lr = 3e-3               # learning rate
+epoch = 5
+seed = 2
 
-batch_size = 1
-lr = 3e-3
-epoch = 200
-seed = 10
-
-# ------------------- data set parameters ------------------ #
-# generate synthetic data?
-generateTrainingData = False
+# ------------------------------- Data ------------------------------- #
+# True: generate data set from simulation
+# False: read data set from the file
+generateTrainingData = True
 
 # if reading data from file
-#datadir = "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
-datadir = "/Users/leah/Columbia/courses/19Spring/research/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
-# "C:/Users/admin/Desktop/research/VISMC/code/VISMC/data/fhn/[1,0]_obs_cov_0.01/"
-# "/ifs/scratch/c2b2/ip_lab/zw2504/VISMC/data/lorenz/[1,0,0]_obs_cov_0.4/"
+datadir = "data/fhn/[1,0]_obs_cov_0.01/"
 datadict = "datadict"
+
+# Was the data pickled in Python2?
 isPython2 = False
 
+repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+datadir = os.path.join(repo_dir, datadir)
+
 # time, n_train and n_test will be overwritten if loading data from the file
-time = 200
-n_train = 200 * batch_size
-n_test = 40 * batch_size
+time = 5
+n_train = 2 * batch_size
+n_test = 2 * batch_size
 
-# -------------------- model parameters -------------------- #
-# Feed-Forward Network (FFN)
+# ------------------------ Networks parameters ----------------------- #
+# Feed-Forward Networks (FFN), number of units in each hidden layer
+# For example, [64, 64] means 2 hidden layers, 64 units in each hidden layer
 q0_layers = [32]        # q(x_1|y_1) or q(x_1|y_1:T)
-q1_layers = [32]        # q(x_t|x_{t-1})
+q1_layers = [32]        # q(x_t|x_{t-1}), including backward evolution term q(x_{t-1}|x_t)
 q2_layers = [32]        # q(x_t|y_t) or q(x_t|y_1:T)
-f_layers = [32]
-g_layers = [32]
+f_layers = [32]         # target evolution
+g_layers = [32]         # target emission
 
+# Covariance Terms
 q0_sigma_init, q0_sigma_min = 5, 1
 q1_sigma_init, q1_sigma_min = 5, 1
 q2_sigma_init, q2_sigma_min = 5, 1
 f_sigma_init, f_sigma_min = 5, 1
 g_sigma_init, g_sigma_min = 5, 1
-
-# bidirectional RNN
-y_smoother_Dhs = [32]
-X0_smoother_Dhs = [32]
-
-# ----------------------- SSM flags ------------------------ #
-
-# if q1 and f share the same network
-# (ATTENTION: even if use_2_q == True, f and q1 can still use different networks)
-use_bootstrap = True
-
-# should q use true_X to sample? (useful for debugging)
-q_uses_true_X = True
-
-# if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
-# if True, q_uses_true_X will be overwritten as False
-use_2_q = True
-
-# whether emission uses Poisson distribution
-poisson_emission = False
-
-# ----------------------- FFN flags ------------------------ #
 
 # if q, f and g networks also output covariance (sigma)
 output_cov = False
@@ -87,33 +69,11 @@ output_cov = False
 # whether the networks only output diagonal value of cov matrix
 diag_cov = False
 
-# ----------------------- FFBSimulation flags ----------------------- #
-# whether use Forward Filtering Backward Simulation
-FFBSimulation = False
 
-FFBSiv2 = True
-
-# whether Backward Simulation sample new particles from proposal or use existing particles
-BSim_sample_new_particles = True
-
-n_particles_for_BSim_proposal = 4
-
-# whether Backward Simulation proposal use unidirectional RNN or bidirectional RNN
-BSim_use_single_RNN = False
-
-# whether Forward Filtering proposal use bRNN
-FF_use_bRNN = True
-
-# --------------------- AESMC v2 flags --------------------- #
-AESMCv2 = False
-
-# --------------------- IWAE flags ---------------------- #
-# whether use IWAE or SVO
-IWAE = False
-
-# --------------------- smoother flags --------------------- #
-# whether smooth observations with birdectional RNNs
-smooth_obs = True
+# bidirectional RNN, number of units in each LSTM cells
+# For example, [32, 32] means a bRNN composed of 2 LSTM cells, 32 units in each cell
+y_smoother_Dhs = [32]
+X0_smoother_Dhs = [32]
 
 # whether use a separate RNN for getting X0
 X0_use_separate_RNN = True
@@ -122,7 +82,36 @@ X0_use_separate_RNN = True
 # check https://stackoverflow.com/a/50552539 for differences between them
 use_stack_rnn = True
 
-# --------------------- training flags --------------------- #
+# ------------------------ State Space Model ------------------------- #
+# whether q1 (evolution term in proposal) and f share the same network
+# (ATTENTION: even if use_2_q == True, f and q1 can still use different networks)
+use_bootstrap = True
+
+# should q use true_X to sample? (useful for debugging)
+q_uses_true_X = False
+
+# if q uses two networks q1(x_t|x_t-1) and q2(x_t|y_t)
+# if True, q_uses_true_X will be overwritten as False
+use_2_q = True
+
+# whether emission uses Poisson distribution
+poisson_emission = False
+
+
+# ------------------------- Inference Schemes ------------------------ #
+# Choose one of the following objectives
+PSVO = False      # Particle Smoothing Variational Objective (use Forward Filtering Backward Simulation)
+SVO = False      # Smoothing Variational Objective (use proposal based on bRNN)
+AESMC = True    # Auto-Encoding Sequential Monte Carlo
+IWAE = False     # Importance Weighted Auto-Encoder
+
+# number of subparticles sampled when augmenting the trajectory backwards
+n_particles_for_BSim_proposal = 16
+
+# whether Backward Simulation proposal use unidirectional RNN or bidirectional RNN
+BSim_use_single_RNN = False
+
+# ----------------------------- Training ----------------------------- #
 
 # stop training early if validation set does not improve
 early_stop_patience = 200
@@ -138,12 +127,11 @@ min_lr = lr / 10
 
 # --------------------- printing and data saving params --------------------- #
 # frequency to evaluate testing loss & other metrics and save results
-print_freq = 5
+print_freq = 1
 
 # whether to save the followings during training
 #   hidden trajectories
 #   k-step y-hat
-
 save_trajectory = True
 save_y_hat = True
 
@@ -181,24 +169,24 @@ lattice_shape = ",".join([str(x) for x in lattice_shape])
 flags = tf.app.flags
 
 
-# --------------------- training hyperparameters --------------------- #
+# --------------------- Training Hyperparameters --------------------- #
 
 flags.DEFINE_integer("Dx", Dx, "dimension of hidden states")
 flags.DEFINE_integer("Dy", Dy, "dimension of observations")
 
 flags.DEFINE_integer("n_particles", n_particles, "number of particles")
-flags.DEFINE_integer("batch_size", batch_size, "batch_size")
+flags.DEFINE_integer("batch_size", batch_size, "batch size")
 flags.DEFINE_float("lr", lr, "learning rate")
 flags.DEFINE_integer("epoch", epoch, "number of epoch")
 
 flags.DEFINE_integer("seed", seed, "random seed for np.random and tf")
 
 
-# --------------------- data set parameters --------------------- #
+# ------------------------------- Data ------------------------------- #
 
 flags.DEFINE_boolean("generateTrainingData", generateTrainingData, "True: generate data set from simulation; "
                                                                    "False: read data set from the file")
-flags.DEFINE_string("datadir", datadir, "path of the data set file")
+flags.DEFINE_string("datadir", datadir, "path of the data set file relative to the repository directory")
 flags.DEFINE_string("datadict", datadict, "name of the data set file")
 flags.DEFINE_boolean("isPython2", isPython2, "Was the data pickled in python 2?")
 
@@ -208,7 +196,7 @@ flags.DEFINE_integer("n_train", n_train, "number of trajactories for traning set
 flags.DEFINE_integer("n_test", n_test, "number of trajactories for testing set")
 
 
-# --------------------- model parameters --------------------- #
+# ------------------------ Networks parameters ----------------------- #
 # Feed-Forward Network (FFN) architectures
 flags.DEFINE_string("q0_layers", q0_layers, "architecture for q0 network, int seperated by comma, "
                                             "for example: '50,50' ")
@@ -233,14 +221,19 @@ flags.DEFINE_float("q2_sigma_min", q2_sigma_min, "minimal value of q2_sigma")
 flags.DEFINE_float("f_sigma_min",  f_sigma_min,  "minimal value of f_sigma")
 flags.DEFINE_float("g_sigma_min",  g_sigma_min,  "minimal value of g_sigma")
 
+flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
+flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
+
 # bidirectional RNN
 flags.DEFINE_string("y_smoother_Dhs", y_smoother_Dhs, "number of units for y_smoother birdectional RNNs, "
                                                       "int seperated by comma")
 flags.DEFINE_string("X0_smoother_Dhs", X0_smoother_Dhs, "number of units for X0_smoother birdectional RNNs, "
                                                         "int seperated by comma")
+flags.DEFINE_boolean("X0_use_separate_RNN", X0_use_separate_RNN, "whether use a separate RNN for getting X0")
+flags.DEFINE_boolean("use_stack_rnn", use_stack_rnn, "whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn "
+                                                     "or tf.nn.bidirectional_dynamic_rnn")
 
-# --------------------- SSM flags --------------------- #
-
+# ------------------------ State Space Model ------------------------- #
 flags.DEFINE_boolean("use_bootstrap", use_bootstrap, "whether q1 and f share the same network, "
                                                      "(ATTENTION: even if use_2_q == True, "
                                                      "f and q1 can still use different networks)")
@@ -249,43 +242,20 @@ flags.DEFINE_boolean("use_2_q", use_2_q, "whether q uses two networks q1(x_t|x_t
                                          "if True, q_uses_true_X will be overwritten as False")
 flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission uses Poisson distribution")
 
-# --------------------- FFN flags --------------------- #
+# ------------------------- Inference Schemes ------------------------ #
 
-flags.DEFINE_boolean("output_cov", output_cov, "whether q, f and g networks also output covariance (sigma)")
-flags.DEFINE_boolean("diag_cov", diag_cov, "whether the networks only output diagonal value of cov matrix")
+flags.DEFINE_boolean("PSVO", PSVO, "Particle Smoothing Variational Objective (use Forward Filtering Backward Simulation)")
+flags.DEFINE_boolean("SVO", SVO, "Smoothing Variational Objective (use proposal based on bRNN)")
+flags.DEFINE_boolean("AESMC", AESMC, "Auto-Encoding Sequential Monte Carlo")
+flags.DEFINE_boolean("IWAE", IWAE, "Importance Weighted Auto-Encoder")
 
-# --------------------- FFBSimulation flags --------------------- #
-
-flags.DEFINE_boolean("FFBSimulation", FFBSimulation, "whether use Forward Filtering Backward Simulation")
-flags.DEFINE_boolean("FFBSiv2", FFBSiv2, "whether use FFBSiv2")
-
-flags.DEFINE_boolean("BSim_sample_new_particles", BSim_sample_new_particles,
-                     "whether Forward Filtering Backward Simulation sample new particles from proposal "
-                     "or use existing particles")
 flags.DEFINE_integer("n_particles_for_BSim_proposal", n_particles_for_BSim_proposal, "number of particles used for"
                                                                                      " each trajectory in "
                                                                                      "backward simulation proposal")
 flags.DEFINE_boolean("BSim_use_single_RNN", BSim_use_single_RNN, "whether Backward Simulation proposal "
                                                                  "use unidirectional RNN or bidirectional RNN")
-flags.DEFINE_boolean("FF_use_bRNN", FF_use_bRNN, "whether Forward Filtering proposal use bRNN")
 
-
-# --------------------- AESMCv2 flags ---------------------- #
-
-flags.DEFINE_boolean("AESMCv2", AESMCv2, "wheter use AESMCv2")
-
-# --------------------- IWAE flags ----------------------- #
-
-flags.DEFINE_boolean("IWAE", IWAE, "whether use IWAE, i.e. no resampling, to train")
-
-# --------------------- smoother flags --------------------- #
-
-flags.DEFINE_boolean("smooth_obs", smooth_obs, "whether smooth observations with birdectional RNNs")
-flags.DEFINE_boolean("X0_use_separate_RNN", X0_use_separate_RNN, "whether use a separate RNN for getting X0")
-flags.DEFINE_boolean("use_stack_rnn", use_stack_rnn, "whether use tf.contrib.rnn.stack_bidirectional_dynamic_rnn "
-                                                     "or tf.nn.bidirectional_dynamic_rnn")
-
-# --------------------- training flags --------------------- #
+# ----------------------------- Training ----------------------------- #
 
 flags.DEFINE_integer("early_stop_patience", early_stop_patience,
                      "stop training early if validation set does not improve for certain epochs")

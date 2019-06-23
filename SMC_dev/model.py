@@ -47,15 +47,12 @@ class SSM(object):
         self.use_2_q                   = FLAGS.use_2_q
         self.poisson_emission          = FLAGS.poisson_emission
 
-        self.smooth_obs                = FLAGS.smooth_obs
         self.X0_use_separate_RNN       = FLAGS.X0_use_separate_RNN
         self.use_stack_rnn             = FLAGS.use_stack_rnn
 
-        self.FFBSimulation             = FLAGS.FFBSimulation
-        self.FFBSiv2                   = FLAGS.FFBSiv2
-        self.BSim_sample_new_particles = FLAGS.BSim_sample_new_particles
+        self.PSVO                      = FLAGS.PSVO
+        self.SVO                     = FLAGS.SVO
         self.BSim_use_single_RNN       = FLAGS.BSim_use_single_RNN
-        self.FF_use_bRNN               = FLAGS.FF_use_bRNN
 
         self.init_placeholder()
         self.init_trans()
@@ -83,11 +80,11 @@ class SSM(object):
         else:
             self.q2_tran = None
 
-        if (self.FFBSimulation or self.FFBSiv2) and self.BSim_sample_new_particles:
+        if self.PSVO:
             self.BSim_q_init_tran = MLP_transformation(self.q0_layers, self.Dx,
-                                                  output_cov=self.output_cov,
-                                                  diag_cov=self.diag_cov,
-                                                  name="BSim_q_init_tran")
+                                                       output_cov=self.output_cov,
+                                                       diag_cov=self.diag_cov,
+                                                       name="BSim_q_init_tran")
 
             self.q1_inv_tran = MLP_transformation(self.q1_layers, self.Dx,
                                                   output_cov=self.output_cov,
@@ -129,7 +126,7 @@ class SSM(object):
         else:
             self.q2_dist = None
 
-        if (self.FFBSimulation or self.FFBSiv2) and self.BSim_sample_new_particles:
+        if self.PSVO:
             self.Bsim_q_init_dist = tf_mvn(self.BSim_q_init_tran,
                                            sigma_init=self.q0_sigma_init,
                                            sigma_min=self.q0_sigma_min,
@@ -162,7 +159,7 @@ class SSM(object):
                                  name="g_dist")
 
     def init_RNNs(self):
-        if self.smooth_obs or self.FFBSimulation:
+        if self.SVO or self.PSVO:
             y_smoother_f = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_f_{}".format(i))
                             for i, Dh in enumerate(self.y_smoother_Dhs)]
             y_smoother_b = [tf.contrib.rnn.LSTMBlockCell(Dh, name="y_smoother_b_{}".format(i))

@@ -2,26 +2,21 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from SMC.SMC_base import SMC
+from SMC.SVO import SVO
 
 
-class FFBSimulation(SMC):
+class PSVO(SVO):
     def __init__(self, model, FLAGS, name="log_ZSMC"):
-        SMC.__init__(self, model, FLAGS, name="log_ZSMC")
-        self.BSim_sample_new_particles = FLAGS.BSim_sample_new_particles
+        SVO.__init__(self, model, FLAGS, name="log_ZSMC")
 
-        if self.BSim_sample_new_particles:
-            self.n_particles_for_BSim_proposal = FLAGS.n_particles_for_BSim_proposal
+        self.n_particles_for_BSim_proposal = FLAGS.n_particles_for_BSim_proposal
 
-            self.q1_inv = model.q1_inv_dist
-            self.smooth_obs = self.FF_use_bRNN = FLAGS.FF_use_bRNN
-            self.BSim_use_single_RNN = FLAGS.BSim_use_single_RNN
-            if self.FF_use_bRNN and not self.BSim_use_single_RNN:
-                self.BSim_q2 = model.q2_dist
-            else:
-                self.BSim_q2 = model.BSim_q2_dist
+        self.smooth_obs = False
+        self.BSim_use_single_RNN = FLAGS.BSim_use_single_RNN
 
-            self.BSim_q_init = model.Bsim_q_init_dist
+        self.q1_inv = model.q1_inv_dist
+        self.BSim_q_init = model.Bsim_q_init_dist
+        self.BSim_q2 = model.BSim_q2_dist
 
     def get_log_ZSMC(self, obs, hidden):
         """
@@ -42,8 +37,7 @@ class FFBSimulation(SMC):
 
             # get X_1:T, resampled X_1:T and log(W_1:T) from SMC
             X_prevs, _, log_Ws = self.SMC(hidden, obs)
-            if self.BSim_sample_new_particles:
-                bw_Xs, bw_log_Ws, f_log_probs, g_log_probs = self.backward_simulation_w_proposal(X_prevs, log_Ws, obs)
+            bw_Xs, bw_log_Ws, f_log_probs, g_log_probs = self.backward_simulation_w_proposal(X_prevs, log_Ws, obs)
 
             log_ZSMC = self.compute_log_ZSMC(bw_log_Ws, f_log_probs, g_log_probs)
             Xs = bw_Xs
@@ -87,11 +81,8 @@ class FFBSimulation(SMC):
 
         # t = T - 1
         # proposal q(x_T | y_{1:T})
-        bw_X_Tm1, bw_q_log_prob, _ = self.sample_from_2_dist(self.BSim_q_init, self.BSim_q2,
-                                                             preprocessed_X0, preprocessed_obs[-1],
-                                                             sample_size=n_particles)
-        # bw_X_Tm1, bw_q_log_prob = \
-        #     self.BSim_q_init.sample_and_log_prob(preprocessed_obs[-1], sample_shape=(M, n_particles))
+        bw_X_Tm1, bw_q_log_prob = \
+            self.BSim_q_init.sample_and_log_prob(preprocessed_obs[-1], sample_shape=(n_particles))
 
         bw_X_Tm1_tiled = tf.tile(tf.expand_dims(bw_X_Tm1, axis=1), (1, n_particles, 1, 1))
         f_Tm2_log_prob = self.f.log_prob(Xs[time - 2], bw_X_Tm1_tiled)  # (n_particles, n_particles, batch_size)
@@ -105,16 +96,6 @@ class FFBSimulation(SMC):
 
         bw_X_Tm1, bw_log_W_Tm1, g_Tm1_log_prob = \
             self.resample_X([bw_X_Tm1, bw_log_W_Tm1, g_Tm1_log_prob], bw_log_W_Tm1, sample_size=n_particles)
-
-        # bw_log_W_Tm1 += tf.reduce_sum(bw_q_log_prob, axis=0)  # shape=(n_particles, batch_size)
-
-        """
-        # sample n_particles particles
-        X_Tm1, log_Tm1 = Xs[-1], log_Ws[-1] - tf.reduce_logsumexp(log_Ws[-1], axis=0)
-        # shape:（n_particles, batch_size, Dx)
-        bw_X_Tm1, bw_log_W_Tm1 = self.resample_X([X_Tm1, log_Tm1], log_Tm1, sample_size=n_particles)
-        g_Tm1_log_prob = self.g.log_prob(bw_X_Tm1, obs[:, time - 1])  # shape (n_particles, batch_size)
-        """
 
         bw_Xs_ta = bw_Xs_ta.write(time - 1, bw_X_Tm1)
         bw_log_Ws_ta = bw_log_Ws_ta.write(time - 1, bw_log_W_Tm1)
@@ -215,9 +196,6 @@ class FFBSimulation(SMC):
 
     def BS_preprocess_obs(self, obs):
         # if self.smooth_obs, smooth obs with bidirectional RNN
-        if self.FF_use_bRNN and not self.BSim_use_single_RNN:
-            return self.preprocessed_X0, self.preprocessed_obs  # cached during forward filtering
-
         with tf.variable_scope("smooth_obs"):
             if self.BSim_use_single_RNN:
                 cells = self.y_smoother_f

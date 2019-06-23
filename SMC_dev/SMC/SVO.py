@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
 
-class SMC:
+class SVO:
     def __init__(self, model, FLAGS, name="log_ZSMC"):
 
         self.model = model
@@ -22,11 +22,8 @@ class SMC:
         self.X0_use_separate_RNN = FLAGS.X0_use_separate_RNN
         self.use_stack_rnn = FLAGS.use_stack_rnn
 
-        if model.bRNN is not None:
-            self.smooth_obs = True
-            self.y_smoother_f, self.y_smoother_b, self.X0_smoother_f, self.X0_smoother_b = model.bRNN
-        else:
-            self.smooth_obs = False
+        self.model = model
+        self.smooth_obs = True
 
         self.name = name
 
@@ -323,6 +320,8 @@ class SMC:
         return preprocessed_X0, preprocessed_obs
 
     def preprocess_obs_w_bRNN(self, obs):
+        self.y_smoother_f, self.y_smoother_b, self.X0_smoother_f, self.X0_smoother_b = self.model.bRNN
+
         if self.use_stack_rnn:
             outputs, state_fw, state_bw = \
                 tf.contrib.rnn.stack_bidirectional_dynamic_rnn(self.y_smoother_f,
