@@ -141,9 +141,6 @@ rslt_dir_name = "test_FFBSim"
 # number of steps to predict y-hat and calculate R_square
 MSE_steps = 30
 
-# lattice shape [# of rows, # of columns] to draw arrows in quiver plot
-lattice_shape = [25, 25]
-
 # number of testing data used to save hidden trajectories, y-hat, gradient and etc
 # will be clipped by number of testing data
 saving_num = 30
@@ -161,7 +158,6 @@ f_layers = ",".join([str(x) for x in f_layers])
 g_layers = ",".join([str(x) for x in g_layers])
 y_smoother_Dhs = ",".join([str(x) for x in y_smoother_Dhs])
 X0_smoother_Dhs = ",".join([str(x) for x in X0_smoother_Dhs])
-lattice_shape = ",".join([str(x) for x in lattice_shape])
 
 
 # ================================================ tf.flags ================================================ #
@@ -275,9 +271,6 @@ flags.DEFINE_boolean("save_y_hat", save_y_hat, "whether to save k-step y-hat dur
 
 flags.DEFINE_string("rslt_dir_name", rslt_dir_name, "dir to save all results")
 flags.DEFINE_integer("MSE_steps", MSE_steps, "number of steps to predict y-hat and calculate R_square")
-
-flags.DEFINE_string("lattice_shape", lattice_shape, "lattice shape [# of rows, # of columns] "
-                                                    "to draw arrows in quiver plot")
 
 flags.DEFINE_integer("saving_num", saving_num, "number of testing data used to "
                                                "save hidden trajectories, y-hat, gradient and etc, "

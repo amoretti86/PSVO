@@ -88,8 +88,7 @@ class trainer:
 
     def init_quiver_plotting(self):
         if self.Dx == 2:
-            lattice_shape = [int(x) for x in self.FLAGS.lattice_shape.split(",")]
-            assert len(lattice_shape) == self.Dx
+            lattice_shape = [25, 25]
             lattice_shape.append(self.Dx)
             self.lattice_shape = lattice_shape
 
