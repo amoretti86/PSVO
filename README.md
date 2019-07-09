@@ -2,7 +2,7 @@
 
 This code provides a reference implementation of the Smoothing Variational Objectives (SVO) alorithm described in the publication: 
 
-* Moretti, A., Wang, Z., Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
+* Moretti, A., Wang, Z., Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshop on Deep Generative Models for Highly Structured Data, 2019.
 
 SVO is written as an abstract class that reduces to two related methods. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
 
