@@ -1,6 +1,6 @@
 # PSVO: Particle Smoothing Variational Objectives
 
-This code provides a reference implementation of the SVO alorithm described in the publication: 
+This code provides a reference implementation of the Smoothing Variational Objectives (SVO) alorithm described in the publication: 
 
 * Moretti, A., Wang, Z., Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
 
@@ -13,7 +13,7 @@ SVO is written as an abstract class that reduces to two related methods. As a re
 
 ## Installation
 
-The code is written in Python 3.6. Tensorflow 1.12, seaborn, numpy, scipy and matplotlib are expected. To check out, run <b>git@github.com:amoretti86/psvo.git</b>
+The code is written in Python 3.6. Tensorflow, seaborn, numpy, scipy and matplotlib are expected. To check out, run <b>git@github.com:amoretti86/psvo.git</b>
 
 
 ## Usage
