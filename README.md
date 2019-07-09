@@ -13,7 +13,13 @@ SVO is written as an abstract class that reduces to two related methods. As a re
 
 ## Installation
 
-The code is written in Python 3.6. Tensorflow, seaborn, numpy, scipy and matplotlib are expected. 
+The code is written in Python 3.6. The following dependencies are required:
+
+* Tensorflow
+* seaborn
+* numpy
+* scipy 
+* matplotlib
 
 To check out, run `git@github.com:amoretti86/psvo.git`
 
