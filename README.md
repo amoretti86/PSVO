@@ -25,4 +25,4 @@ Running python runner_flags.py will find a two dimensional representation of the
 
 | Original | Inferred |
 |-----------|----------|
-|<img src="https://github.com/amoretti86/VISMC/blob/developments/notebooks/fhn.png" width="100%" /> | <img src="https://github.com/amoretti86/VISMC/blob/developments/notebooks/VISMC_fhn.gif" width="50%" /> |
+|<img src="https://github.com/amoretti86/VISMC/blob/developments/notebooks/fhn.png" width="100%" /> | <img src="https://github.com/amoretti86/VISMC/blob/developments/notebooks/fit.gif" width="50%" /> |
