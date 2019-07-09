@@ -29,7 +29,10 @@ To check out, run `git@github.com:amoretti86/psvo.git`
 Running `python runner_flags.py` will find a two dimensional representation of the Fitzhugh-Nagumo dynamical system from one dimensional observations. The following figure provides the original dynamical system and trajectories along with the resulting inferred dynamics and trajectories from SVO. 
 
 ## Demo
+
 | Original | Inferred |
 |:--------------------------:|:--------------------------:|
 |![fhn](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fhn.png)|
 |![fit](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fit.png)|
+
+
