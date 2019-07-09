@@ -30,6 +30,6 @@ Running `python runner_flags.py` will find a two dimensional representation of t
 
 ## Demo
 | Original | Inferred |
-|--------------------------|--------------------------|
+|:--------------------------:|:--------------------------:|
 |![](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fhn.png)|
 |![](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fit.png)|
