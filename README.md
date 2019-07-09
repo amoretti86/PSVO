@@ -2,13 +2,13 @@
 
 This code provides a reference implementation of the SVO alorithm described in the publication: 
 
-Moretti, A., Wang, Z., Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
+* Moretti, A., Wang, Z., Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
 
 SVO is written as an abstract class that reduces to two related methods. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
 
-Burda, Y., Grosse, R., Salakhutidinov, R. [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). ICLR, 2016.
+* Burda, Y., Grosse, R., Salakhutidinov, R. [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). ICLR, 2016.
 
-Le, T., Igl, M., Rainforth, T., Jin, T., Wood, F. [Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). ICLR, 2018.
+* Le, T., Igl, M., Rainforth, T., Jin, T., Wood, F. [Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). ICLR, 2018.
 
 
 ## Installation
