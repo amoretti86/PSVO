@@ -25,5 +25,5 @@ Running python runner_flags.py will find a two dimensional representation of the
 
 | Original | Inferred |
 |-----------|----------|
-| <img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fhn.png" width="100%"/> 
-| <img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fit.png" width="100%"/> |
+|![]("https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fhn.png")| 
+|![]("https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fit.png")|
