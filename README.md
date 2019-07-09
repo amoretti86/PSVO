@@ -2,13 +2,13 @@
 
 This code provides a reference implementation of the SVO alorithm described in the publication: 
 
-A Moretti*, Z Wang*, L Wu, I, Pe'er. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
+Moretti, A.*, Wang, Z.*, Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
 
-PSVO reduces to several simpler algorithms. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
+SVO is written as an abstract class that reduces to two related methods. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
 
-Y Burda, R Grosse, R Salakhutidinov. [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). ICLR, 2016.
+Burda, Y., Grosse, R., Salakhutidinov, R. [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). ICLR, 2016.
 
-T Le, M Igl, T Rainforth, T Jin, F Wood (2018). [Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). ICLR, 2018.
+Le, T., Igl, M., Rainforth, T., Jin, T., Wood, F. [Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). ICLR, 2018.
 
 
 ## Installation
@@ -25,5 +25,5 @@ Running python runner_flags.py will find a two dimensional representation of the
 
 | Original | Inferred |
 |-----------|----------|
-|<img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fhn.png" width="100%"/> 
-|<img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fit.png" width="100%"/>|
+| <img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fhn.png" width="100%"/> 
+| <img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fit.png" width="100%"/> |
