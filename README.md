@@ -13,7 +13,7 @@ T Le, M Igl, T Rainforth, T Jin, F Wood (2018). [Auto-Encoding Sequential Monte 
 
 ## Installation
 
-The code is written in Python 3.6. Tensorflow 1.12, seaborn, numpy, scipy and matplotlib are expected. To check out, run git@github.com:amoretti86/psvo.git
+The code is written in Python 3.6. Tensorflow 1.12, seaborn, numpy, scipy and matplotlib are expected. To check out, run <b>git@github.com:amoretti86/psvo.git</b>
 
 
 ## Usage
@@ -25,4 +25,5 @@ Running python runner_flags.py will find a two dimensional representation of the
 
 | Original | Inferred |
 |-----------|----------|
-|<img src="https://github.com/amoretti86/VISMC/blob/developments/notebooks/fhn.png" width="100%" /> | <img src="https://github.com/amoretti86/VISMC/blob/developments/notebooks/fit.gif" width="50%" /> |
+|<img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fhn.png" width="100%"/> 
+|<img src="https://github.com/amoretti86/PSVO/tree/master/notebooks/figures/fit.png" width="100%"/>|
