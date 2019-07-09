@@ -2,7 +2,7 @@
 
 This code provides a reference implementation of the SVO alorithm described in the publication: 
 
-A Moretti, Z Wang, L Wu, I, Pe'er. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
+A Moretti*, Z Wang*, L Wu, I, Pe'er. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshops, 2019.
 
 PSVO reduces to several simpler algorithms. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
 
