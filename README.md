@@ -1,6 +1,27 @@
-# Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo
+# PSVO: Particle Smoothing Variational Objectives
 
-An implementation of the paper "Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo."
+This code provides a reference implementation of the SVO alorithm described in the publication: 
+
+A Moretti, Z Wang, L Wu, I, Pe'er (2019). [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE).
+
+PSVO reduces to several simpler algorithms. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
+
+Y Burda, R Grosse, R Salakhutidinov (2016). [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519).
+
+T Le, M Igl, T Rainforth, T Jin, F Wood (2018). [Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). 
+
+
+# Installation
+
+The code is written in Python 3.6. Tensorflow 1.12, seaborn, numpy, scipy and matplotlib are expected. To check out, run git@github.com:amoretti86/psvo.git
+
+
+# Usage
+
+Running python runner_flags.py will find a two dimensional representation of the Fitzhugh-Nagumo dynamical system from one dimensional observations. The following figure provides the original dynamical system and trajectories along with the resulting inferred dynamics and trajectories from SVO. 
+
+
+# Demo
 
 | Original | Inferred |
 |-----------|----------|
