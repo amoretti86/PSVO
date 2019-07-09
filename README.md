@@ -24,6 +24,6 @@ Running python runner_flags.py will find a two dimensional representation of the
 ## Demo
 | Original | Inferred |
 |-----------|----------|
-|<img src="https://github.com/amoretti86/PSVO/data/fhn/fhn.png" width="50%" /> 
-|<img src="https://github.com/amoretti86/PSVO/tree/master/data/fhn/fit.png" width="50%" />|
+|<img src="https://github.com/amoretti86/PSVO/data/fhn/fhn.png" width="100%" /> 
+|<img src="https://github.com/amoretti86/PSVO/data/fhn/fit.png" width="100%" />|
 
