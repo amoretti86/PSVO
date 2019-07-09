@@ -13,12 +13,13 @@ SVO is written as an abstract class that reduces to two related methods. As a re
 
 ## Installation
 
-The code is written in Python 3.6. Tensorflow, seaborn, numpy, scipy and matplotlib are expected. To check out, run <b>git@github.com:amoretti86/psvo.git</b>
+The code is written in Python 3.6. Tensorflow, seaborn, numpy, scipy and matplotlib are expected. 
+To check out, run 'git@github.com:amoretti86/psvo.git'
 
 
 ## Usage
 
-Running python runner_flags.py will find a two dimensional representation of the Fitzhugh-Nagumo dynamical system from one dimensional observations. The following figure provides the original dynamical system and trajectories along with the resulting inferred dynamics and trajectories from SVO. 
+Running 'python runner_flags.py' will find a two dimensional representation of the Fitzhugh-Nagumo dynamical system from one dimensional observations. The following figure provides the original dynamical system and trajectories along with the resulting inferred dynamics and trajectories from SVO. 
 
 
 ## Demo
