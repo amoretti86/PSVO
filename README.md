@@ -6,9 +6,9 @@ This code provides a reference implementation of the algorithm Smoothing Variati
 
 SVO is written as an abstract class that reduces to two related variational inference methods for time series. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
 
-* Burda, Y., Grosse, R., Salakhutidinov, R. [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). ICLR, 2016.
-
 * Le, T., Igl, M., Rainforth, T., Jin, T., Wood, F. [Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). ICLR, 2018.
+
+* Burda, Y., Grosse, R., Salakhutidinov, R. [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). ICLR, 2016.
 
 
 ## Installation
@@ -32,7 +32,6 @@ Running `python runner_flags.py` will find a two dimensional representation of t
 
 | Original | Inferred |
 |:--------------------------:|:--------------------------:|
-|![fhn](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fhn.png)|
-|![fit](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fit.png)|
+|![fhn](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fhn.png)|![fit](https://github.com/amoretti86/PSVO/blob/master/data/fhn/fit.png)|
 
 
