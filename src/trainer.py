@@ -128,7 +128,7 @@ class trainer:
         #     config_proto.graph_options.rewrite_options.memory_optimization = off
         #     self.sess = tf.Session(config=config_proto)
 
-        self.sess = tf.Session()
+        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
         print("initializing variables...")
         self.sess.run(init)
