@@ -133,7 +133,7 @@ class PSVO(SVO):
             bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob = \
                 self.resample_X([bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob], bw_log_W_t, sample_size=())
 
-            bw_log_W_t += tf.reduce_sum(bw_q_log_prob, axis=0)  # shape=(n_particles, batch_size)
+            # bw_log_W_t += tf.reduce_sum(bw_q_log_prob, axis=0)  # shape=(n_particles, batch_size)
 
             bw_Xs_ta = bw_Xs_ta.write(t, bw_X_t)
             bw_log_Ws_ta = bw_log_Ws_ta.write(t, bw_log_W_t)
@@ -173,7 +173,7 @@ class PSVO(SVO):
                             bw_log_W_0,
                             sample_size=())
 
-        bw_log_W_0 += tf.reduce_sum(bw_q_log_prob, axis=0)
+        # bw_log_W_0 += tf.reduce_sum(bw_q_log_prob, axis=0)
 
         bw_Xs_ta = bw_Xs_ta.write(0, bw_X_0)
         bw_log_Ws_ta = bw_log_Ws_ta.write(0, bw_log_W_0)
