@@ -94,8 +94,12 @@ class PSVO(SVO):
         bw_log_W_Tm1 = log_W_Tm1 - bw_q_log_prob  # (n_particles, batch_size)
         bw_log_W_Tm1 = bw_log_W_Tm1 - tf.reduce_logsumexp(bw_log_W_Tm1, axis=0)
 
-        bw_X_Tm1, bw_log_W_Tm1, g_Tm1_log_prob = \
-            self.resample_X([bw_X_Tm1, bw_log_W_Tm1, g_Tm1_log_prob], bw_log_W_Tm1, sample_size=n_particles)
+        bw_X_Tm1, bw_log_W_Tm1, g_Tm1_log_prob, bw_q_log_prob = \
+            self.resample_X([bw_X_Tm1, bw_log_W_Tm1, g_Tm1_log_prob, bw_q_log_prob],
+                            bw_log_W_Tm1,
+                            sample_size=n_particles)
+
+        bw_log_W_Tm1 += bw_q_log_prob
 
         bw_Xs_ta = bw_Xs_ta.write(time - 1, bw_X_Tm1)
         bw_log_Ws_ta = bw_log_Ws_ta.write(time - 1, bw_log_W_Tm1)
@@ -130,9 +134,12 @@ class PSVO(SVO):
             bw_log_W_t = log_W_t + f_t_log_prob - bw_q_log_prob
             bw_log_W_t = bw_log_W_t - tf.reduce_logsumexp(bw_log_W_t, axis=0)
 
-            bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob = \
-                self.resample_X([bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob], bw_log_W_t, sample_size=())
+            bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob, bw_q_log_prob = \
+                self.resample_X([bw_X_t, bw_log_W_t, f_t_log_prob, g_t_log_prob, bw_q_log_prob],
+                                bw_log_W_t,
+                                sample_size=())
 
+            bw_log_W_t += bw_q_log_prob
             # bw_log_W_t += tf.reduce_sum(bw_q_log_prob, axis=0)  # shape=(n_particles, batch_size)
 
             bw_Xs_ta = bw_Xs_ta.write(t, bw_X_t)
@@ -168,11 +175,12 @@ class PSVO(SVO):
 
         bw_log_W_0 = log_W_0 + f_0_log_prob - bw_q_log_prob
         bw_log_W_0 = bw_log_W_0 - tf.reduce_logsumexp(bw_log_W_0, axis=0)
-        bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob = \
-            self.resample_X([bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob],
+        bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob, bw_q_log_prob = \
+            self.resample_X([bw_X_0, bw_log_W_0, f_0_log_prob, f_init_log_prob, g_0_log_prob, bw_q_log_prob],
                             bw_log_W_0,
                             sample_size=())
 
+        bw_log_W_0 += bw_q_log_prob
         # bw_log_W_0 += tf.reduce_sum(bw_q_log_prob, axis=0)
 
         bw_Xs_ta = bw_Xs_ta.write(0, bw_X_0)

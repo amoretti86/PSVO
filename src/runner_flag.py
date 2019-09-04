@@ -24,7 +24,7 @@ Dy = 1                  # dimension of observations
 n_particles = 16        # number of particles
 batch_size = 1          # batch size
 lr = 3e-3               # learning rate
-epoch = 5
+epoch = 1
 seed = 2
 
 # ------------------------------- Data ------------------------------- #
