@@ -1,6 +1,8 @@
 # PSVO: Particle Smoothing Variational Objectives
 
-This code provides a reference implementation of the algorithm Smoothing Variational Objectives (SVO) described in the publication: 
+This code provides a reference implementation of the algorithm Smoothing Variational Objectives (SVO) described in the publications: 
+
+* Moretti, A.\*, Wang, Z.\*, Wu, L.\*, Drori, I., Pe'er, I. [Particle Smoothing Variational Objectives](https://arxiv.org/abs/1909.09734). arXiv preprint, 2019.
 
 * Moretti, A.\*, Wang, Z.\*, Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshop on Deep Generative Models for Highly Structured Data, 2019.
 
