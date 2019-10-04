@@ -96,10 +96,10 @@ class SVO:
 
         log_alpha_t = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_alpha_{}".format(0))
         log_weight_t = tf.add(log_alpha_t, - tf.log(tf.constant(n_particles, dtype=tf.float32)),
-                            name="log_weight_{}".format(0))  # (n_particles, batch_size)
+                              name="log_weight_{}".format(0))  # (n_particles, batch_size)
 
         log_normalized_weight_t = tf.add(log_weight_t, - tf.reduce_logsumexp(log_weight_t, axis=0),
-                                       name="log_noramlized_weight_{}".format(0))
+                                         name="log_noramlized_weight_{}".format(0))
 
         # -------------------------------------- t = 1, ..., T - 1 -------------------------------------- #
         # prepare tensor arrays

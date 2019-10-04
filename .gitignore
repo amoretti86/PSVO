@@ -9,4 +9,5 @@ test.py
 **/test.py
 **/.ipynb_checkpoints
 **/.ipynb_checkpoints/**
-./idea
+.idea
+.idea/**
