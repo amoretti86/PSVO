@@ -67,39 +67,49 @@ class SVO:
         q0, q1, f = self.q0, self.q1, self.f
 
         # -------------------------------------- t = 0 -------------------------------------- #
-        q_f_t_feed = preprocessed_X0
+        q_f_0_feed = preprocessed_X0
 
         # proposal
         if self.q_uses_true_X:
-            X, q_t_log_prob = self.sample_from_true_X(hidden[:, 0, :],
-                                                      q_cov,
-                                                      sample_shape=n_particles,
-                                                      name="q_{}_sample_and_log_prob".format(0))
+            X_0, q_0_log_prob = self.sample_from_true_X(hidden[:, 0, :],
+                                                        q_cov,
+                                                        sample_shape=n_particles,
+                                                        name="q_0_sample_and_log_prob")
         else:
             if self.model.use_2_q:
-                X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(q0,
-                                                                        self.q2,
-                                                                        q_f_t_feed,
-                                                                        preprocessed_obs[0],
-                                                                        sample_size=n_particles)
+                X_0, q_0_log_prob, f_0_log_prob = self.sample_from_2_dist(q0,
+                                                                          self.q2,
+                                                                          q_f_0_feed,
+                                                                          preprocessed_obs[0],
+                                                                          sample_size=n_particles)
             else:
-                X, q_t_log_prob = q0.sample_and_log_prob(q_f_t_feed,
-                                                         sample_shape=n_particles,
-                                                         name="q_{}_sample_and_log_prob".format(0))
+                X_0, q_0_log_prob = q0.sample_and_log_prob(q_f_0_feed,
+                                                           sample_shape=n_particles,
+                                                           name="q_0_sample_and_log_prob")
         # transition log probability
         # only when use_bootstrap and use_2_q, f_t_log_prob has been calculated
         if not (self.model.use_bootstrap and self.model.use_2_q):
-            f_t_log_prob = f.log_prob(q_f_t_feed, X, name="f_{}_log_prob".format(0))
+            f_0_log_prob = f.log_prob(q_f_0_feed, X_0, name="f_0_log_prob")
 
         # emission log probability and log weights
-        g_t_log_prob = self.g.log_prob(X, obs[:, 0], name="g_{}_log_prob".format(0))
+        g_0_log_prob = self.g.log_prob(X_0, obs[:, 0], name="g_0_log_prob")
 
-        log_alpha_t = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_alpha_{}".format(0))
-        log_weight_t = tf.add(log_alpha_t, - tf.log(tf.constant(n_particles, dtype=tf.float32)),
-                              name="log_weight_{}".format(0))  # (n_particles, batch_size)
+        log_alpha_0 = f_0_log_prob + g_0_log_prob - q_0_log_prob
+        log_W_0 = log_alpha_0 - tf.log(float(n_particles))
+        X_ancestor_0 = self.resample_X(X_0, log_W_0, sample_size=n_particles,
+                                       resample_particles=self.resample_particles)
 
-        log_normalized_weight_t = tf.add(log_weight_t, - tf.reduce_logsumexp(log_weight_t, axis=0),
-                                         name="log_noramlized_weight_{}".format(0))
+        log_normalized_W_0 = log_W_0 - tf.reduce_logsumexp(log_W_0, axis=0)
+        if self.resample_particles:
+            log_normalized_W_0 = -tf.log(tf.constant(n_particles, dtype=tf.float32, shape=(n_particles, batch_size)))
+
+        Xs_ta = tf.TensorArray(tf.float32, size=time, name="Xs_ta")
+        X_ancestors_ta = tf.TensorArray(tf.float32, size=time, name="X_ancestors_ta")
+        log_Ws_ta = tf.TensorArray(tf.float32, size=time, name="log_Ws_ta")
+
+        Xs_ta = Xs_ta.write(0, X_0)
+        X_ancestors_ta = X_ancestors_ta.write(0, X_ancestor_0)
+        log_Ws_ta = log_Ws_ta.write(0, log_W_0)
 
         # -------------------------------------- t = 1, ..., T - 1 -------------------------------------- #
         # prepare tensor arrays
@@ -107,88 +117,67 @@ class SVO:
         preprocessed_obs_ta = \
             tf.TensorArray(tf.float32, size=time, name="preprocessed_obs_ta").unstack(preprocessed_obs)
 
-        # tensor arrays to write
-        # particles, resampled particles (mean), log weights of particles
-        log_names = ["X_prevs", "X_ancestors", "log_weights"]
-        log = [tf.TensorArray(tf.float32, size=time, clear_after_read=False, name="{}_ta".format(name))
-               for name in log_names]
-
-        # write results for t = 0 into tensor arrays
-        log[2] = log[2].write(0, log_weight_t)
-
         def while_cond(t, *unused_args):
             return t < time
 
-        def while_body(t, X_prev, log_normalized_weight_tminus1, log):
-            # resampling
-            X_ancestor = self.resample_X(X_prev, log_normalized_weight_tminus1, sample_size=n_particles,
-                                         resample_particles=self.resample_particles)
-
-            q_f_t_feed = X_ancestor
+        def while_body(t, X_ancestor_tm1, log_normalized_W_tm1, Xs_ta, X_ancestors_ta, log_Ws_ta):
+            q_f_t_feed = X_ancestor_tm1
 
             # proposal
             if self.q_uses_true_X:
-                X, q_t_log_prob = self.sample_from_true_X(hidden[:, t, :],
-                                                          q_cov,
-                                                          sample_shape=(),
-                                                          name="q_t_sample_and_log_prob")
+                X_t, q_t_log_prob = self.sample_from_true_X(hidden[:, t, :],
+                                                            q_cov,
+                                                            sample_shape=(),
+                                                            name="q_t_sample_and_log_prob")
             else:
                 if self.model.use_2_q:
-                    X, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(q1,
-                                                                            self.q2,
-                                                                            q_f_t_feed,
-                                                                            preprocessed_obs_ta.read(t),
-                                                                            sample_size=())
+                    X_t, q_t_log_prob, f_t_log_prob = self.sample_from_2_dist(q1,
+                                                                              self.q2,
+                                                                              q_f_t_feed,
+                                                                              preprocessed_obs_ta.read(t),
+                                                                              sample_size=())
                 else:
-                    X, q_t_log_prob = q1.sample_and_log_prob(q_f_t_feed,
-                                                             sample_shape=(),
-                                                             name="q_t_sample_and_log_prob")
+                    X_t, q_t_log_prob = q1.sample_and_log_prob(q_f_t_feed,
+                                                               sample_shape=(),
+                                                               name="q_t_sample_and_log_prob")
 
             # transition log probability
             if not (self.model.use_bootstrap and self.model.use_2_q):
-                f_t_log_prob = f.log_prob(q_f_t_feed, X, name="f_t_log_prob")
+                f_t_log_prob = f.log_prob(q_f_t_feed, X_t, name="f_t_log_prob")
 
             # emission log probability and log weights
-            g_t_log_prob = self.g.log_prob(X, obs[:, t], name="g_t_log_prob")
+            g_t_log_prob = self.g.log_prob(X_t, obs[:, t], name="g_t_log_prob")
 
-            log_alpha_t = tf.add(f_t_log_prob, g_t_log_prob - q_t_log_prob, name="log_alpha_t")
+            log_alpha_t = f_t_log_prob + g_t_log_prob - q_t_log_prob
+            log_W_t = log_alpha_t + log_normalized_W_tm1
 
-            log_weight_t = tf.add(log_alpha_t, log_normalized_weight_tminus1, name="log_weight_t")
-
+            X_ancestor_t = self.resample_X(X_t, log_W_t, sample_size=n_particles,
+                                           resample_particles=self.resample_particles)
+            log_normalized_W_t = log_W_t - tf.reduce_logsumexp(log_W_t, axis=0)
             if self.resample_particles:
-                log_normalized_weight_t = tf.negative(tf.log(tf.constant(n_particles, dtype=tf.float32,
-                                                                         shape=(n_particles, batch_size),
-                                                                         )), name="log_normalized_weight_t")
-            else:
-                log_normalized_weight_t = tf.add(log_weight_t, - tf.reduce_logsumexp(log_weight_t, axis=0),
-                                                 name="log_normalized_weight_t")
+                log_normalized_W_t = -tf.log(tf.constant(n_particles, dtype=tf.float32, shape=(n_particles, batch_size)))
 
             # write results in this loop to tensor arrays
-            idxs = [t - 1, t - 1, t]
-            log_contents = [X_prev, X_ancestor, log_weight_t]
-            log = [ta.write(idx, log_content) for ta, idx, log_content in zip(log, idxs, log_contents)]
+            Xs_ta = Xs_ta.write(t, X_t)
+            X_ancestors_ta = X_ancestors_ta.write(t, X_ancestor_t)
+            log_Ws_ta = log_Ws_ta.write(t, log_W_t)
 
-            return (t + 1, X, log_normalized_weight_t, log)
+            return t + 1, X_ancestor_t, log_normalized_W_t, Xs_ta, X_ancestors_ta, log_Ws_ta
 
         # conduct the while loop
-        init_state = (1, X, log_normalized_weight_t, log)
-        t_final, X_T, log_normalized_weight_T, log = tf.while_loop(while_cond, while_body, init_state)
-
-        # write final results at t = T - 1 to tensor arrays
-        X_T_resampled = self.resample_X(X_T, log_normalized_weight_T, sample_size=n_particles,
-                                        resample_particles=self.resample_particles)
-        log[0] = log[0].write(t_final - 1, X_T)
-        log[1] = log[1].write(t_final - 1, X_T_resampled)
+        init_state = (1, X_ancestor_0, log_normalized_W_0, Xs_ta, X_ancestors_ta, log_Ws_ta)
+        _, _, _, Xs_ta, X_ancestors_ta, log_Ws_ta = tf.while_loop(while_cond, while_body, init_state)
 
         # convert tensor arrays to tensors
-        log_shapes = [(time, n_particles, batch_size, Dx)] * 2 + [(time, n_particles, batch_size)]
-        log = [ta.stack(name=name) for ta, name in zip(log, log_names)]
-        for tensor, shape in zip(log, log_shapes):
-            tensor.set_shape(shape)
+        Xs = Xs_ta.stack()
+        X_ancestors = X_ancestors_ta.stack()
+        log_Ws = log_Ws_ta.stack()
 
-        X_prevs, X_ancestors, log_Ws = log
+        Xs.set_shape((time, n_particles, batch_size, Dx))
+        X_ancestors.set_shape((time, n_particles, batch_size, Dx))
+        log_Ws.set_shape((time, n_particles, batch_size))
 
-        return X_prevs, X_ancestors, log_Ws
+        return Xs, X_ancestors, log_Ws
 
     def sample_from_2_dist(self, dist1, dist2, d1_input, d2_input, sample_size=()):
         d1_mvn = dist1.get_mvn(d1_input)
@@ -317,7 +306,7 @@ class SVO:
         :return: loss, shape ()
         """
         log_ZSMC = tf.reduce_logsumexp(log_Ws, axis=1)  # (time, batch_size)
-        log_ZSMC = tf.reduce_sum(tf.reduce_mean(log_ZSMC, axis=1), name="log_ZSMC")
+        log_ZSMC = tf.reduce_mean(tf.reduce_sum(log_ZSMC, axis=0), name="log_ZSMC")
 
         return log_ZSMC
 

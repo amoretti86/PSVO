@@ -24,13 +24,13 @@ Dy = 1                  # dimension of observations
 n_particles = 16        # number of particles
 batch_size = 1          # batch size
 lr = 3e-3               # learning rate
-epoch = 1
+epoch = 200
 seed = 2
 
 # ------------------------------- Data ------------------------------- #
 # True: generate data set from simulation
 # False: read data set from the file
-generateTrainingData = True
+generateTrainingData = False
 
 # if reading data from file
 datadir = "data/fhn/[1,0]_obs_cov_0.01/"
@@ -100,9 +100,10 @@ poisson_emission = False
 
 # ------------------------- Inference Schemes ------------------------ #
 # Choose one of the following objectives
-PSVO = False      # Particle Smoothing Variational Objective (use Forward Filtering Backward Simulation)
+PSVO = True      # Particle Smoothing Variational Objective (use Forward Filtering Backward Simulation)
+PSVOwR = False   # Particle Smoothing Variational Objective with Resampling
 SVO = False      # Smoothing Variational Objective (use proposal based on bRNN)
-AESMC = True    # Auto-Encoding Sequential Monte Carlo
+AESMC = False    # Auto-Encoding Sequential Monte Carlo
 IWAE = False     # Importance Weighted Auto-Encoder
 
 # number of subparticles sampled when augmenting the trajectory backwards
@@ -241,6 +242,7 @@ flags.DEFINE_boolean("poisson_emission", poisson_emission, "whether emission use
 # ------------------------- Inference Schemes ------------------------ #
 
 flags.DEFINE_boolean("PSVO", PSVO, "Particle Smoothing Variational Objective (use Forward Filtering Backward Simulation)")
+flags.DEFINE_boolean("PSVOwR", PSVOwR, "Particle Smoothing Variational Objective with Resampling")
 flags.DEFINE_boolean("SVO", SVO, "Smoothing Variational Objective (use proposal based on bRNN)")
 flags.DEFINE_boolean("AESMC", AESMC, "Auto-Encoding Sequential Monte Carlo")
 flags.DEFINE_boolean("IWAE", IWAE, "Importance Weighted Auto-Encoder")

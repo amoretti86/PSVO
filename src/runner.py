@@ -15,8 +15,10 @@ from trainer import trainer
 
 from SMC.SVO import SVO
 from SMC.PSVO import PSVO
+from SMC.PSVOwR import PSVOwR
 from SMC.IWAE import IWAE
 from SMC.AESMC import AESMC
+
 
 from rslts_saving.rslts_saving import *
 from rslts_saving.fhn_rslts_saving import *
@@ -67,6 +69,8 @@ def main(_):
     # SMC class to calculate loss
     if FLAGS.PSVO:
         SMC_train = PSVO(SSM_model, FLAGS)
+    elif FLAGS.PSVOwR:
+        SMC_train = PSVOwR(SSM_model, FLAGS)
     elif FLAGS.SVO:
         SMC_train = SVO(SSM_model, FLAGS)
     elif FLAGS.AESMC:
