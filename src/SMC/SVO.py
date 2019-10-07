@@ -368,7 +368,7 @@ class SVO:
 
         return preprocessed_X0, preprocessed_obs
 
-    def n_step_MSE(self, n_steps, hidden, obs):
+    def n_step_prediction(self, n_steps, hidden, obs):
         # Compute MSE_k for k = 0, ..., n_steps
         # Intermediate step to calculate k-step R^2
         batch_size, time, _, _ = hidden.shape.as_list()
@@ -401,25 +401,7 @@ class SVO:
                 y_BxTmkxDy = obs[:, k:, :]
                 y_N_BxTxDy.append(y_BxTmkxDy)
 
-            # compare y_hat and y_true to get MSE_k, y_mean, y_var
-            # FOR THE BATCH and FOR k = 0, ..., n_steps
-
-            MSE_ks = []     # [MSE_0, MSE_1, ..., MSE_N]
-            y_means = []    # [y_mean_0 (shape = Dy), ..., y_mean_N], used to calculate y_var across all batches
-            y_vars = []     # [y_var_0 (shape = Dy), ..., y_var_N], used to calculate y_var across all batches
-            for k, (y_hat_BxTmkxDy, y_BxTmkxDy) in enumerate(zip(y_hat_N_BxTxDy, y_N_BxTxDy)):
-                MSE_k = tf.reduce_sum((y_hat_BxTmkxDy - y_BxTmkxDy)**2, name="MSE_{}".format(k))
-                MSE_ks.append(MSE_k)
-                y_mean = tf.reduce_mean(y_BxTmkxDy, axis=[0, 1], name="y_mean_{}".format(k))
-                y_means.append(y_mean)
-                y_var = tf.reduce_sum((y_BxTmkxDy - y_mean)**2, axis=[0, 1], name="y_var_{}".format(k))
-                y_vars.append(y_var)
-
-            MSE_ks = tf.stack(MSE_ks, name="MSE_ks")     # (n_steps + 1)
-            y_means = tf.stack(y_means, name="y_means")  # (n_steps + 1, Dy)
-            y_vars = tf.stack(y_vars, name="y_vars")     # (n_steps + 1, Dy)
-
-            return MSE_ks, y_means, y_vars, y_hat_N_BxTxDy
+            return y_hat_N_BxTxDy, y_N_BxTxDy
 
     def get_nextX(self, X):
         # only used for drawing 2D quiver plot

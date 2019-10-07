@@ -68,8 +68,6 @@ class trainer:
         # metrics
         self.log_ZSMC_trains = []
         self.log_ZSMC_tests = []
-        self.MSE_trains = []
-        self.MSE_tests = []
         self.R_square_trains = []
         self.R_square_tests = []
 
@@ -112,7 +110,7 @@ class trainer:
         # n_step_MSE now takes Xs as input rather than self.hidden
         # so there is no need to evalute enumerical value of Xs and feed it into self.hidden
         Xs = log["Xs"]
-        MSE_ks, y_means, y_vars, y_hat = self.SMC.n_step_MSE(self.MSE_steps, Xs, self.obs)
+        y_hat_N_BxTxDy, y_N_BxTxDy = self.SMC.n_step_prediction(self.MSE_steps, Xs, self.obs)
 
         with tf.variable_scope("train"):
             lr = tf.placeholder(tf.float32, name="lr")
@@ -142,7 +140,7 @@ class trainer:
 
             if i == 0:
                 log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test = \
-                    self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars)
+                    self.evaluate_and_save_metrics(i, y_hat_N_BxTxDy, y_N_BxTxDy)
 
             # training
             obs_train, hidden_train = shuffle(obs_train, hidden_train)
@@ -155,7 +153,7 @@ class trainer:
             if (i + 1) % print_freq == 0:
                 try:
                     log_ZSMC_train, log_ZSMC_test, R_square_train, R_square_test = \
-                        self.evaluate_and_save_metrics(i, MSE_ks, y_means, y_vars)
+                        self.evaluate_and_save_metrics(i, y_hat_N_BxTxDy, y_N_BxTxDy)
                     self.adjust_lr(i, print_freq)
                 except StopTraining:
                     break
@@ -172,7 +170,7 @@ class trainer:
                             pickle.dump(trajectory_dict, f)
 
                     if self.save_y_hat:
-                        y_hat_val = self.evaluate(y_hat, self.saving_feed_dict, average=False)
+                        y_hat_val = self.evaluate(y_hat_N_BxTxDy, self.saving_feed_dict, average=False)
                         y_hat_dict = {"y_hat": y_hat_val}
                         with open(self.epoch_data_DIR + "y_hat_{}.p".format(i + 1), "wb") as f:
                             pickle.dump(y_hat_dict, f)
@@ -190,31 +188,28 @@ class trainer:
 
         metrics = {"log_ZSMC_trains": self.log_ZSMC_trains,
                    "log_ZSMC_tests":  self.log_ZSMC_tests,
-                   "MSE_trains":      self.MSE_trains,
-                   "MSE_tests":       self.MSE_tests,
                    "R_square_trains": self.R_square_trains,
                    "R_square_tests":  self.R_square_tests}
-        log["y_hat"] = y_hat
+        log["y_hat"] = y_hat_N_BxTxDy
 
         return metrics, log
 
     def close_session(self):
         self.sess.close()
 
-    def evaluate_and_save_metrics(self, iter_num, MSE_ks, y_means, y_vars):
-        log_ZSMC_train = self.evaluate(self.log_ZSMC,
-                                       {self.obs:    self.obs_train,
-                                        self.hidden: self.hidden_train},
-                                       average=True)
-        log_ZSMC_test = self.evaluate(self.log_ZSMC,
-                                      {self.obs:    self.obs_test,
-                                       self.hidden: self.hidden_test},
-                                      average=True)
+    def evaluate_and_save_metrics(self, iter_num, y_hat_N_BxTxDy, y_N_BxTxDy):
+        log_ZSMC_train, y_hat_train, y_train = \
+            self.evaluate([self.log_ZSMC, y_hat_N_BxTxDy, y_N_BxTxDy],
+                          {self.obs:    self.obs_train,
+                           self.hidden: self.hidden_train})
+        log_ZSMC_test, y_hat_test, y_test = \
+            self.evaluate([self.log_ZSMC, y_hat_N_BxTxDy, y_N_BxTxDy],
+                          {self.obs:    self.obs_test,
+                           self.hidden: self.hidden_test})
 
-        MSE_train, R_square_train = self.evaluate_R_square(MSE_ks, y_means, y_vars,
-                                                           self.hidden_train, self.obs_train)
-        MSE_test, R_square_test = self.evaluate_R_square(MSE_ks, y_means, y_vars,
-                                                         self.hidden_test, self.obs_test)
+        log_ZSMC_train, log_ZSMC_test = np.mean(log_ZSMC_train), np.mean(log_ZSMC_test)
+        R_square_train = self.evaluate_R_square(y_hat_train, y_train)
+        R_square_test = self.evaluate_R_square(y_hat_test, y_test)
 
         print()
         print("iter", iter_num + 1)
@@ -230,8 +225,6 @@ class trainer:
         if self.save_res:
             self.log_ZSMC_trains.append(log_ZSMC_train)
             self.log_ZSMC_tests.append(log_ZSMC_test)
-            self.MSE_trains.append(MSE_train)
-            self.MSE_tests.append(MSE_test)
             self.R_square_trains.append(R_square_train)
             self.R_square_tests.append(R_square_test)
 
@@ -307,6 +300,8 @@ class trainer:
                         tmp = np.stack([x[i] for x in fetches_list])
                     else:
                         tmp = np.concatenate([x[i] for x in fetches_list])
+                elif isinstance(fetches_list[0][i], list):
+                    tmp = [np.concatenate([x[i][j] for x in fetches_list]) for j in range(len(fetches_list[0][i]))]
                 else:
                     tmp = np.array([x[i] for x in fetches_list])
                 res.append(tmp)
@@ -324,51 +319,20 @@ class trainer:
 
         return res
 
-    def evaluate_R_square(self, MSE_ks, y_means, y_vars, hidden_set, obs_set):
-        n_steps = y_means.shape.as_list()[0] - 1
-        Dy = y_means.shape.as_list()[1]
-        batch_size = self.batch_size
-        n_batches = hidden_set.shape[0]
+    def evaluate_R_square(self, y_hat, y):
+        n_steps = len(y_hat) - 1
 
-        combined_MSE_ks = np.zeros((n_steps + 1))             # combined MSE_ks across all batches
-        combined_y_means = np.zeros((n_steps + 1, Dy))        # combined y_means across all batches
-        combined_y_vars = np.zeros((n_steps + 1, Dy))         # combined y_vars across all batches
+        def get_R_square(y_hat_i, y_i):
+            MSE = np.sum((y_hat_i - y_i) ** 2)
+            y_i_mean = np.mean(y_i, axis=0, keepdims=True)
+            y_i_var = np.sum((y_i - y_i_mean) ** 2)
+            return 1 - MSE / y_i_var
 
-        for i in range(0, n_batches, batch_size):
+        R_square = np.zeros(n_steps + 1)
+        for i, (y_hat_i, y_i) in enumerate(zip(y_hat, y)):
+            R_square[i] = get_R_square(y_hat_i, y_i)
 
-            batch_MSE_ks, batch_y_means, batch_y_vars = self.sess.run([MSE_ks, y_means, y_vars],
-                                                                      {self.obs: obs_set[i:i + batch_size],
-                                                                       self.hidden: hidden_set[i:i + batch_size]})
-            # batch_MSE_ks.shape = (n_steps + 1)
-            # batch_y_means.shape = (n_steps + 1, Dy)
-            # batch_y_vars.shape = (n_steps + 1, Dy)
-
-            # update combined_MSE_ks just by summing them across all batches
-            combined_MSE_ks += batch_MSE_ks
-
-            # update combined y_means and combined y_vars according to:
-            # https://stats.stackexchange.com/questions/55999/is-it-possible-to-find-the-combined-standard-deviation
-            Tmks = np.arange(self.time - n_steps, self.time + 1, 1)  # [time - n_steps, time - n_steps + 1, ..., time]
-            Tmks = Tmks[-1:None:-1]                                  # [time, ..., time - n_steps + 1, time - n_steps]
-            TmkxDy = np.tile(Tmks, (Dy, 1)).T                        # (n_steps + 1, Dy)
-
-            # for k = 0, ..., n_steps,
-            # its n1 = (time - k) * i, n2 = (time - k) * batch_size respectively
-            n1 = TmkxDy * i                                     # (n_steps + 1, Dy)
-            n2 = TmkxDy * batch_size                            # (n_steps + 1, Dy)
-
-            combined_y_means_new = (n1 * combined_y_means + n2 * batch_y_means) / (n1 + n2)
-            combined_y_vars = combined_y_vars + batch_y_vars + \
-                n1 * (combined_y_means - combined_y_means_new)**2 + \
-                n2 * (batch_y_means - combined_y_means_new)**2
-
-            combined_y_means = combined_y_means_new
-
-        combined_y_vars = np.mean(combined_y_vars, axis=1)
-        R_square = 1 - combined_MSE_ks / combined_y_vars
-        mean_MSE_ks = combined_MSE_ks / (Tmks * n_batches)
-
-        return mean_MSE_ks, R_square
+        return R_square
 
     def draw_2D_quiver_plot(self, Xs_val, nextX, lattice, epoch):
         # Xs_val.shape = (saving_num, time, n_particles, Dx)
