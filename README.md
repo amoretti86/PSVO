@@ -2,8 +2,13 @@
 
 This code provides a reference implementation of the algorithm Smoothing Variational Objectives (SVO) described in the publications: 
 
+
+* [Variational Objectives for Markovian Dynamics with Backwards Simulation](https://arxiv.org/abs/1909.09734). \
+  Moretti, A.\*, Wang, Z.\*, Wu, L.\*, Drori, I., Pe'er, I. \
+  European Conference on Artificial Intelligence, 2020.
+
 * [Particle Smoothing Variational Objectives](https://arxiv.org/abs/1909.09734). \
-  Moretti, A.\*, Wang, Z.\*, Wu, L., Pe'er, I. \
+  Moretti, A.\*, Wang, Z.\*, Wu, L.\*, Drori, I., Pe'er, I. \
   arXiv preprint, arXiv:1909.097342019.
 
 * [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). \
