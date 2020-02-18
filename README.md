@@ -2,15 +2,23 @@
 
 This code provides a reference implementation of the algorithm Smoothing Variational Objectives (SVO) described in the publications: 
 
-* Moretti, A.\*, Wang, Z.\*, Wu, L.\*, Drori, I., Pe'er, I. [Particle Smoothing Variational Objectives](https://arxiv.org/abs/1909.09734). arXiv preprint, 2019.
+[Particle Smoothing Variational Objectives](https://arxiv.org/abs/1909.09734). 
+* Moretti, A.\*, Wang, Z.\*, Wu, L., Pe'er, I. 
+arXiv preprint, arXiv:1909.097342019.
 
-* Moretti, A.\*, Wang, Z.\*, Wu, L., Pe'er, I. [Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). ICLR Workshop on Deep Generative Models for Highly Structured Data, 2019.
+[Smoothing Nonlinear Variational Objectives with Sequential Monte Carlo](https://openreview.net/pdf?id=HJg24U8tuE). 
+* Moretti, A.\*, Wang, Z.\*, Wu, L., Pe'er, I. 
+ICLR Workshop on Deep Generative Models for Highly Structured Data, 2019.
 
 SVO is written as an abstract class that reduces to two related variational inference methods for time series. As a reference, the AESMC and IWAE algorithms are implemented from the following publications:
 
-* Le, T., Igl, M., Rainforth, T., Jin, T., Wood, F. [Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). ICLR, 2018.
+[Auto-Encoding Sequential Monte Carlo](https://arxiv.org/abs/1705.10306). 
+* Le, T., Igl, M., Rainforth, T., Jin, T., Wood, F. 
+International Conference on Learning Representations, 2018.
 
-* Burda, Y., Grosse, R., Salakhutidinov, R. [Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). ICLR, 2016.
+[Importance Weighted Autoencoders](https://arxiv.org/abs/1509.00519). 
+* Burda, Y., Grosse, R., Salakhutidinov, R. 
+International Conference on Learning Representations, 2016.
 
 
 ## Installation
