@@ -1,6 +1,6 @@
 # PSVO: Particle Smoothing Variational Objectives
 
-This code provides a reference implementation of the algorithm Smoothing Variational Objectives (SVO) described in the publications: 
+This code provides a reference implementation of the Smoothing Variational Objectives (SVO) algorithms described in the publications: 
 
 
 * [Variational Objectives for Markovian Dynamics with Backwards Simulation](https://arxiv.org/abs/1909.09734). \
